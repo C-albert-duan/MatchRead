@@ -6,17 +6,19 @@ Visual truth lives in [`../Wireframe/`](../Wireframe/) — do not edit it for pr
 
 ## Reading order
 
-1. [PRODUCT.md](./PRODUCT.md) — what we are building
-2. [MVP-SCOPE.md](./MVP-SCOPE.md) — in / out / later
-3. [FEATURE-PRIORITIES.md](./FEATURE-PRIORITIES.md) — CEO Tier 1–3
-4. [ROADMAP.md](./ROADMAP.md) — build phases
-5. [ARCHITECTURE.md](./ARCHITECTURE.md) — system shape
-6. [DEPLOYMENT.md](./DEPLOYMENT.md) — GitHub · Vercel · Supabase
+1. [STATUS.md](./STATUS.md) — where we are right now
+2. [PRODUCT.md](./PRODUCT.md) — what we are building
+3. [MVP-SCOPE.md](./MVP-SCOPE.md) — in / out / later
+4. [FEATURE-PRIORITIES.md](./FEATURE-PRIORITIES.md) — CEO Tier 1–3
+5. [ROADMAP.md](./ROADMAP.md) — build phases
+6. [ARCHITECTURE.md](./ARCHITECTURE.md) — system shape
+7. [DEPLOYMENT.md](./DEPLOYMENT.md) — GitHub · Vercel · Supabase
 
 ## Index
 
 | Doc | Purpose |
 |---|---|
+| [STATUS.md](./STATUS.md) | Live phase / infra status |
 | [PRODUCT.md](./PRODUCT.md) | Product definition and integrity rules |
 | [MVP-SCOPE.md](./MVP-SCOPE.md) | Launch cut line |
 | [FEATURE-PRIORITIES.md](./FEATURE-PRIORITIES.md) | CEO engagement priorities |
@@ -27,6 +29,7 @@ Visual truth lives in [`../Wireframe/`](../Wireframe/) — do not edit it for pr
 | [DESIGN-LANGUAGE.md](./DESIGN-LANGUAGE.md) | Tokens and visual rules |
 | [AUTH.md](./AUTH.md) | Magic link auth |
 | [DEPLOYMENT.md](./DEPLOYMENT.md) | Platform checklist |
+| [SUPABASE-SETUP.md](./SUPABASE-SETUP.md) | This project's Supabase wiring |
 | [ENVIRONMENT-VARIABLES.md](./ENVIRONMENT-VARIABLES.md) | Env inventory |
 | [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md) | Private beta sequence |
 | [KNOWN-RISKS.md](./KNOWN-RISKS.md) | Launch-day risks |

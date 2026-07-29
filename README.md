@@ -6,14 +6,16 @@ Tennis bracket leagues for groups — US Open 2026 web launch.
 
 ## Docs
 
-Start here: **[docs/README.md](./docs/README.md)**
+Start here: **[docs/STATUS.md](./docs/STATUS.md)** (live phase status) · **[docs/README.md](./docs/README.md)** (full index)
 
 | | |
 |---|---|
+| Status | [docs/STATUS.md](./docs/STATUS.md) |
 | Product | [docs/PRODUCT.md](./docs/PRODUCT.md) |
 | Scope | [docs/MVP-SCOPE.md](./docs/MVP-SCOPE.md) |
 | Roadmap | [docs/ROADMAP.md](./docs/ROADMAP.md) |
 | Deploy | [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) |
+| Supabase | [docs/SUPABASE-SETUP.md](./docs/SUPABASE-SETUP.md) |
 
 ## Wireframe (do not edit for app code)
 
@@ -42,4 +44,6 @@ npm run dev
 
 ## Current phase
 
-**Phase 1 — Auth + Landing** in progress. See [docs/plans/01-auth-landing.md](./docs/plans/01-auth-landing.md) and the [test checklist](./docs/plans/01-auth-landing-checklist.md).
+**Phase 1 — Auth + Landing: done.** Next: **Phase 2 — Leagues + Invites**.
+
+Details: [docs/STATUS.md](./docs/STATUS.md) · Plan: [docs/plans/02-leagues-invites.md](./docs/plans/02-leagues-invites.md)

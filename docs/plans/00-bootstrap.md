@@ -4,13 +4,15 @@
 
 Monorepo ready to develop and push: `docs/`, `apps/web`, `packages/*`, `supabase/`, root tooling. `Wireframe/` untouched.
 
+## Status: **DONE** (2026-07-29)
+
 ## Done when
 
 - [x] `npm install` works
 - [x] `apps/web` starts (`npm run dev`)
 - [x] `.env.example` documents required vars
 - [x] CI stub or local lint/typecheck scripts exist
-- [ ] GitHub remote can receive first push
+- [x] GitHub remote can receive first push — https://github.com/C-albert-duan/MatchRead
 
 ## Work
 
