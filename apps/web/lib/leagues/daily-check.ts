@@ -5,6 +5,10 @@ import {
 } from "@matchread/core";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isTournamentLocked } from "@/lib/brackets/types";
+import {
+  loadLeagueEngagement,
+  type LeagueEngagement,
+} from "@/lib/leagues/engagement";
 
 type LeagueRow = {
   id: string;
@@ -19,7 +23,7 @@ export async function loadDailyCheck(input: {
   league: LeagueRow;
   userId: string;
   memberCount: number;
-}): Promise<DailyCheck> {
+}): Promise<{ check: DailyCheck; engagement: LeagueEngagement | null }> {
   const { supabase, league, userId, memberCount } = input;
   const hour = new Date().getHours();
 
@@ -166,6 +170,17 @@ export async function loadDailyCheck(input: {
     .eq("user_id", userId)
     .maybeSingle();
 
+  let engagement: LeagueEngagement | null = null;
+  if (tournament && hasDraw) {
+    engagement = await loadLeagueEngagement({
+      supabase,
+      leagueId: league.id,
+      userId,
+      tournamentId: tournament.id,
+      drawSize: tournament.draw_size,
+    });
+  }
+
   const check = computeDailyCheck({
     eventName,
     leagueSlug: league.slug,
@@ -182,9 +197,12 @@ export async function loadDailyCheck(input: {
     seasonPosition: season?.position ?? null,
     seasonPoints: season?.points ?? null,
     hour,
+    bracketHealth: engagement?.health ?? null,
+    biggestMiss: engagement?.biggestMiss ?? null,
+    perfectPicksRemaining: engagement?.perfectRemaining ?? null,
+    perfectBracketCount: engagement?.perfectLeagueCount ?? null,
   });
 
-  // Best-effort cache — never block the page on log write
   void supabase.from("daily_check_log").upsert(
     {
       league_id: league.id,
@@ -197,5 +215,5 @@ export async function loadDailyCheck(input: {
     { onConflict: "league_id,user_id" }
   );
 
-  return check;
+  return { check, engagement };
 }

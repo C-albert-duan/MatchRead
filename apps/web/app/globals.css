@@ -840,6 +840,117 @@ label.name:hover {
   color: var(--mr-text-muted);
 }
 
+.move-chip {
+  display: inline-block;
+  min-width: 2.25rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--r-sm, 4px);
+  border: 1px solid var(--mr-line);
+  font-family: var(--mr-font-numeral);
+  font-size: 0.875rem;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.move-chip.delta--up {
+  border-color: color-mix(in srgb, var(--mr-data) 35%, var(--mr-line));
+  background: color-mix(in srgb, var(--mr-data) 8%, transparent);
+}
+
+.move-chip.delta--down {
+  border-color: color-mix(in srgb, var(--mr-miss) 35%, var(--mr-line));
+  background: color-mix(in srgb, var(--mr-miss) 8%, transparent);
+}
+
+.move-chip.delta--flat {
+  color: var(--mr-text-muted);
+}
+
+/* —— confidence —— */
+.confidence-row {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 3px 4px;
+  justify-content: center;
+  border-top: 1px solid var(--mr-line);
+  background: var(--mr-sunken);
+}
+
+.confidence-btn {
+  appearance: none;
+  border: 1px solid var(--mr-line);
+  background: var(--mr-sunken);
+  color: var(--mr-text-muted);
+  font-family: var(--mr-font-numeral);
+  font-size: 0.6875rem;
+  line-height: 1;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.confidence-btn:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.confidence-btn[data-active="true"] {
+  border-color: var(--mr-text-primary);
+  background: var(--mr-text-primary);
+  color: var(--mr-inverse-text);
+}
+
+.confidence-btn:not(:disabled):hover {
+  border-color: var(--mr-line-control);
+  color: var(--mr-text-primary);
+}
+
+/* —— engagement strip / highlights —— */
+.engagement-stat {
+  margin: 0;
+}
+
+.engagement-value {
+  font-family: var(--mr-font-display);
+  font-weight: 600;
+  font-size: 1.125rem;
+  letter-spacing: -0.01em;
+}
+
+.highlight-strip {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-md);
+}
+
+.highlight-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 8rem;
+  padding: var(--s-md) 0;
+  border-top: 1px solid var(--mr-line);
+}
+
+.highlight-label {
+  font-size: 0.75rem;
+  color: var(--mr-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.highlight-who {
+  font-family: var(--mr-font-display);
+  font-weight: 600;
+  font-size: 1rem;
+}
+
 /* —— daily check —— */
 .daily-check-lead {
   display: flex;
@@ -960,5 +1071,87 @@ label.name:hover {
   color: var(--mr-text-muted);
 }
 
+/* —— Phase 7: offline / beta / founder health / locale —— */
+.status-banner {
+  border-bottom: 1px solid var(--mr-line);
+  background: var(--mr-sunken);
+  padding: var(--s-sm) var(--s-lg);
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: var(--mr-text-secondary);
+}
 
+.status-banner--beta {
+  border-bottom-color: var(--mr-line-control);
+  color: var(--mr-text-muted);
+  font-family: var(--mr-font-numeral);
+  font-size: 0.75rem;
+}
+
+.shell-footer {
+  max-width: var(--max-content);
+  margin: 0 auto;
+  padding: 0 var(--s-lg) var(--s-2xl);
+  border-top: 1px solid var(--mr-line);
+  padding-top: var(--s-lg);
+}
+
+.locale-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-sm);
+}
+
+.locale-switch__btn {
+  min-height: var(--touch);
+  min-width: var(--touch);
+  padding: 0 var(--s-md);
+  border: 1px solid var(--mr-line-control);
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--mr-text-secondary);
+  font-family: var(--mr-font-numeral);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.locale-switch__btn:hover {
+  border-color: var(--mr-read);
+  color: var(--mr-read);
+}
+
+.locale-switch__btn--active {
+  border-color: var(--mr-read);
+  color: var(--mr-read);
+  font-weight: 600;
+}
+
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0;
+  margin: 0;
+  border-top: 1px solid var(--mr-line);
+  border-left: 1px solid var(--mr-line);
+}
+
+.health-cell {
+  margin: 0;
+  padding: var(--s-lg);
+  border-right: 1px solid var(--mr-line);
+  border-bottom: 1px solid var(--mr-line);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-sm);
+}
+
+.health-value {
+  margin: 0;
+  font-size: 1.125rem;
+  color: var(--mr-text-primary);
+  word-break: break-all;
+}
 

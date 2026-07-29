@@ -21,6 +21,10 @@ export default async function ShowcasePage() {
         <p className="stub-note">
           Full interactive screens: Wireframe/MatchRead-main/matchread-spec/
         </p>
+        <p className="stub-note">
+          Slam 128-draw UX lives on league bracket routes (horizontal scroll);
+          this page stays a design stub until a gallery ships.
+        </p>
       </div>
     </AppShell>
   );

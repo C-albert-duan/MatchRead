@@ -38,7 +38,10 @@ Periodic job that:
 2. Run settlement once from the tournament page.
 3. Assert scores and rank deltas change.
 4. Assert Daily Check is no longer permanently "quiet" when movement exists (Phase 5).
-5. Only then schedule recurring runs.
+5. Math dry-run (no DB): `node scripts/verify-settlement-math.mjs` — `128 → 512`, 7 rounds.
+6. Only then schedule recurring runs.
+
+Live standings in the browser: [LIVE-LISTENER.md](./LIVE-LISTENER.md) (REST poll MVP).
 
 ## Do not
 

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { BracketPicks } from "@matchread/core";
+import type { BracketConfidence, BracketPicks } from "@matchread/core";
 import { createClient } from "@/lib/supabase/server";
 
 export type ActionResult =
@@ -23,6 +23,7 @@ export async function saveBracketPicks(input: {
   leagueId: string;
   tournamentId: string;
   picks: BracketPicks;
+  confidence?: BracketConfidence;
   leagueSlug: string;
   tournamentRef: string;
 }): Promise<ActionResult> {
@@ -35,6 +36,9 @@ export async function saveBracketPicks(input: {
     p_league_id: input.leagueId,
     p_tournament_id: input.tournamentId,
     p_picks: input.picks,
+    ...(input.confidence != null
+      ? { p_confidence: input.confidence }
+      : {}),
   });
 
   if (error) {

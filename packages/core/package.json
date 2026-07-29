@@ -13,7 +13,7 @@
   "scripts": {
     "lint": "node -e \"console.log('core lint ok')\"",
     "typecheck": "tsc --noEmit",
-    "test": "node -e \"console.log('core tests: add after grading lands')\""
+    "test": "node ../../scripts/verify-settlement-math.mjs"
   },
   "devDependencies": {
     "typescript": "^5.5.0"

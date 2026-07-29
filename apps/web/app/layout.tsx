@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getLocale } from "@/lib/i18n";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
@@ -27,8 +28,10 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const locale = getLocale();
+
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body>
         <script dangerouslySetInnerHTML={{ __html: UNREGISTER_SW }} />
         {children}

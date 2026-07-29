@@ -6,6 +6,7 @@ import {
   countPicksMade,
   isBracketComplete,
   totalMatches,
+  type BracketConfidence,
   type BracketPicks,
   type DrawSeat,
 } from "@matchread/core";
@@ -24,6 +25,7 @@ type Props = {
   drawSize: number;
   seats: DrawSeat[];
   initialPicks: BracketPicks;
+  initialConfidence: BracketConfidence;
   submittedAt: string | null;
   locked: boolean;
   isCommissioner: boolean;
@@ -47,12 +49,16 @@ export function BracketEditor({
   drawSize,
   seats,
   initialPicks,
+  initialConfidence,
   submittedAt,
   locked,
   isCommissioner,
 }: Props) {
   const [picks, setPicks] = useState<BracketPicks>(() =>
     applyByeAdvances(seats, initialPicks, drawSize)
+  );
+  const [confidence, setConfidence] = useState<BracketConfidence>(
+    () => initialConfidence
   );
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [message, setMessage] = useState<string | null>(null);
@@ -61,7 +67,9 @@ export function BracketEditor({
   const [pending, startTransition] = useTransition();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const picksRef = useRef(picks);
+  const confidenceRef = useRef(confidence);
   picksRef.current = picks;
+  confidenceRef.current = confidence;
 
   useEffect(() => {
     function onOnline() {
@@ -81,17 +89,17 @@ export function BracketEditor({
     };
   }, []);
 
-  function scheduleSave(next: BracketPicks) {
+  function scheduleSave(nextPicks: BracketPicks, nextConf: BracketConfidence) {
     if (isLocked) return;
     setStatus((s) => (s === "offline" ? "offline" : "pending"));
     setMessage(null);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      void persist(next);
+      void persist(nextPicks, nextConf);
     }, SAVE_DELAY_MS);
   }
 
-  async function persist(next: BracketPicks) {
+  async function persist(nextPicks: BracketPicks, nextConf: BracketConfidence) {
     if (typeof navigator !== "undefined" && !navigator.onLine) {
       setStatus("offline");
       return;
@@ -100,7 +108,8 @@ export function BracketEditor({
     const result = await saveBracketPicks({
       leagueId,
       tournamentId,
-      picks: next,
+      picks: nextPicks,
+      confidence: nextConf,
       leagueSlug,
       tournamentRef,
     });
@@ -127,8 +136,18 @@ export function BracketEditor({
     if (isLocked) return;
     const nextRaw = clearDownstream(picksRef.current, matchKey, playerRef);
     const next = applyByeAdvances(seats, nextRaw, drawSize);
+    const nextConf = pruneConfidence(confidenceRef.current, next);
     setPicks(next);
-    scheduleSave(next);
+    setConfidence(nextConf);
+    scheduleSave(next, nextConf);
+  }
+
+  function handleConfidence(matchKey: string, level: number) {
+    if (isLocked) return;
+    if (!picksRef.current[matchKey]) return;
+    const nextConf = { ...confidenceRef.current, [matchKey]: level };
+    setConfidence(nextConf);
+    scheduleSave(picksRef.current, nextConf);
   }
 
   function handleSubmit() {
@@ -241,6 +260,7 @@ export function BracketEditor({
       {!complete && !isLocked ? (
         <p className="hint">
           Submit stays off until every match has a pick ({need - made} left).
+          After a pick, set confidence 1–5.
         </p>
       ) : null}
 
@@ -248,11 +268,24 @@ export function BracketEditor({
         drawSize={drawSize}
         seats={seats}
         picks={picks}
+        confidence={confidence}
         locked={isLocked}
         onPick={handlePick}
+        onConfidence={handleConfidence}
       />
     </div>
   );
+}
+
+function pruneConfidence(
+  conf: BracketConfidence,
+  picks: BracketPicks
+): BracketConfidence {
+  const next: BracketConfidence = {};
+  for (const [key, level] of Object.entries(conf)) {
+    if (picks[key]) next[key] = level;
+  }
+  return next;
 }
 
 /** When re-picking a match, drop later picks that depended on the old winner. */

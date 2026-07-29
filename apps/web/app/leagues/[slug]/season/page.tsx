@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { LiveRefresh } from "@/components/LiveRefresh";
 import { StandingsTable } from "@/components/StandingsTable";
 import { getSessionUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -58,6 +59,7 @@ export default async function SeasonStandingsPage({ params }: Props) {
 
   return (
     <AppShell signedIn email={user.email}>
+      <LiveRefresh enabled={standingRows.length > 0} />
       <div className="stack gap-4xl">
         <div className="stack gap-lg">
           <p className="eyebrow">Season</p>

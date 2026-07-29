@@ -1,25 +1,7 @@
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { getSessionUser } from "@/lib/auth";
-
-const STEPS = [
-  [
-    "Start a league",
-    "Name it, pick a tournament or a whole season, and you are the commissioner.",
-  ],
-  [
-    "Share one link",
-    "Drop it in the group chat. People join in two taps.",
-  ],
-  [
-    "Fill in a bracket",
-    "When the draw lands, everyone picks. Nobody sees anyone else’s until it locks.",
-  ],
-  [
-    "Check it tomorrow",
-    "Standings move as matches finish. That is the part people come back for.",
-  ],
-] as const;
+import { t } from "@/lib/i18n";
 
 const CALENDAR = [
   { name: "Roland Garros", surface: "clay" as const, when: "May 2026" },
@@ -29,6 +11,13 @@ const CALENDAR = [
 
 const US_OPEN_MAX = 512;
 
+const HOW_STEPS = [
+  ["landing.how.1.title", "landing.how.1.body"],
+  ["landing.how.2.title", "landing.how.2.body"],
+  ["landing.how.3.title", "landing.how.3.body"],
+  ["landing.how.4.title", "landing.how.4.body"],
+] as const;
+
 export default async function HomePage() {
   const user = await getSessionUser();
   const signedIn = Boolean(user);
@@ -37,14 +26,10 @@ export default async function HomePage() {
     <AppShell signedIn={signedIn} email={user?.email}>
       <div className="stack gap-4xl">
         <div className="stack gap-lg" style={{ padding: "8px 0" }}>
-          <p className="eyebrow">Tennis leagues</p>
-          <h1 className="t-hero">
-            Follow the tennis season with your people.
-          </h1>
+          <p className="eyebrow">{t("landing.eyebrow")}</p>
+          <h1 className="t-hero">{t("landing.title")}</h1>
           <p className="t-lead">
-            Start a league, share one link, and fill in a bracket together. One
-            tournament, or a whole year — the league carries on between them. A
-            full US Open bracket tops out at {US_OPEN_MAX}.
+            {t("landing.lede")} A full US Open bracket tops out at {US_OPEN_MAX}.
           </p>
           <div className="row wrap gap-md" style={{ marginTop: 8 }}>
             {signedIn ? (
@@ -52,39 +37,39 @@ export default async function HomePage() {
                 href="/leagues"
                 className="act act--prominent act--prominent-size"
               >
-                Go to my leagues
+                {t("landing.cta.leagues")}
               </Link>
             ) : (
               <Link
                 href="/sign-in?next=%2Fleagues%2Fnew"
                 className="act act--prominent act--prominent-size"
               >
-                Start a league
+                {t("landing.cta.start")}
               </Link>
             )}
             <Link
               href="/showcase"
               className="act act--standard act--standard-size"
             >
-              See what it looks like
+              {t("landing.cta.showcase")}
             </Link>
           </div>
         </div>
 
         <section className="section" aria-labelledby="calendar-heading">
           <h2 id="calendar-heading" className="section-title">
-            On the calendar
+            {t("landing.calendar.title")}
           </h2>
           <ul className="calendar">
-            {CALENDAR.map((t) => (
-              <li key={t.name}>
+            {CALENDAR.map((event) => (
+              <li key={event.name}>
                 <Link href="/tournaments" className="trow">
                   <span
-                    className={`court-hairline court-${t.surface}`}
+                    className={`court-hairline court-${event.surface}`}
                     aria-hidden
                   />
-                  <span className="trow-name">{t.name}</span>
-                  <span className="trow-meta">{t.when}</span>
+                  <span className="trow-name">{event.name}</span>
+                  <span className="trow-meta">{event.when}</span>
                 </Link>
               </li>
             ))}
@@ -93,16 +78,16 @@ export default async function HomePage() {
 
         <section className="section" aria-labelledby="how-heading">
           <h2 id="how-heading" className="section-title">
-            How it works
+            {t("landing.how.title")}
           </h2>
           <ol className="steps">
-            {STEPS.map((step, i) => (
+            {HOW_STEPS.map((step, i) => (
               <li key={step[0]} className="stack gap-sm">
                 <span className="eyebrow">
                   {String(i + 1).padStart(2, "0")}
                 </span>
-                <h3 className="t-title3">{step[0]}</h3>
-                <p className="t-body">{step[1]}</p>
+                <h3 className="t-title3">{t(step[0])}</h3>
+                <p className="t-body">{t(step[1])}</p>
               </li>
             ))}
           </ol>

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@matchread/core": "*",
+    "@matchread/i18n": "*",
     "@matchread/tokens": "*",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.111.0",

@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { DailyCheckPanel } from "@/components/DailyCheckPanel";
+import { EngagementStrip } from "@/components/EngagementStrip";
 import { InvitePanel } from "@/components/InvitePanel";
+import { LeagueHighlights } from "@/components/LeagueHighlights";
 import { getSessionUser } from "@/lib/auth";
 import { siteUrl } from "@/lib/env";
 import { loadDailyCheck } from "@/lib/leagues/daily-check";
@@ -101,7 +103,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
     }
   }
 
-  const check = await loadDailyCheck({
+  const { check, engagement } = await loadDailyCheck({
     supabase,
     league,
     userId: user.id,
@@ -148,6 +150,24 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
         </div>
 
         <DailyCheckPanel check={check} />
+
+        {engagement ? (
+          <EngagementStrip
+            health={engagement.health}
+            perfectRemaining={engagement.perfectRemaining}
+            perfectLeagueCount={engagement.perfectLeagueCount}
+          />
+        ) : null}
+
+        {engagement && engagement.highlights.length > 0 ? (
+          <LeagueHighlights
+            items={engagement.highlights.map((h) => ({
+              label: h.label,
+              memberLabel: h.memberLabel,
+              isYou: h.isYou,
+            }))}
+          />
+        ) : null}
 
         {isCommissioner && inviteUrl ? (
           <InvitePanel

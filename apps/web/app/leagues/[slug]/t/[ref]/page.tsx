@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { LiveRefresh } from "@/components/LiveRefresh";
 import { SettleButton } from "@/components/SettleButton";
 import { StandingsTable } from "@/components/StandingsTable";
 import { getSessionUser } from "@/lib/auth";
@@ -102,6 +103,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
 
   return (
     <AppShell signedIn email={user.email}>
+      <LiveRefresh enabled={hasDraw} />
       <div className="stack gap-4xl">
         <div className="stack gap-lg">
           <p className="eyebrow">{league.name}</p>

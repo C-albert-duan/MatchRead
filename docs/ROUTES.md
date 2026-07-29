@@ -20,8 +20,8 @@ Source of truth for screens: `Wireframe/MatchRead-main/matchread-spec/docs/ENGIN
 | Players | `/players` | Yes | Rankings only |
 | Auth callback | `/auth/callback` | Yes | |
 | Showcase | `/showcase` | Dev | Optional |
-| Founder | `/founder` | Ops | Phase 7 |
-| Draw disruption | `/founder/disruption` | Ops | Phase 7 |
+| Founder | `/founder` | Ops | Phase 7 — health counts |
+| Draw disruption | `/founder/disruption` | Ops | Phase 7 — void / withdrawal |
 | Lightweight onboarding | — | No | Post-launch |
 | Today's matches | — | No | Mobile only |
 | User profile | — | No | Post-launch |

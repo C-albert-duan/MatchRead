@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import type { BracketPicks, DrawSeat } from "@matchread/core";
+import type { BracketConfidence, BracketPicks, DrawSeat } from "@matchread/core";
 import { AppShell } from "@/components/AppShell";
 import { BracketEditor } from "@/components/BracketEditor";
 import { getSessionUser } from "@/lib/auth";
@@ -78,13 +78,14 @@ export default async function BracketPage({ params }: Props) {
 
   const { data: bracket } = await supabase
     .from("brackets")
-    .select("picks, submitted_at")
+    .select("picks, confidence, submitted_at")
     .eq("league_id", league.id)
     .eq("tournament_id", tournament.id)
     .eq("user_id", user.id)
     .maybeSingle();
 
   const picks = (bracket?.picks ?? {}) as BracketPicks;
+  const confidence = (bracket?.confidence ?? {}) as BracketConfidence;
   const locked = isTournamentLocked(tournament);
 
   return (
@@ -122,6 +123,7 @@ export default async function BracketPage({ params }: Props) {
           drawSize={tournament.draw_size}
           seats={seats}
           initialPicks={picks}
+          initialConfidence={confidence}
           submittedAt={bracket?.submitted_at ?? null}
           locked={locked}
           isCommissioner={membership.role === "commissioner"}

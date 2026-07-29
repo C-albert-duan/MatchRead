@@ -4,6 +4,8 @@
  * never invent deltas that could contradict the table.
  */
 
+import type { BracketHealth, BiggestMiss } from "./engagement";
+
 export type PulseEmotion = "good" | "bad" | "flat";
 
 export type PulseBeat = {
@@ -72,6 +74,11 @@ export type PulseInput = {
   seasonPoints: number | null;
   /** Hour 0–23 in the viewer's zone (caller supplies). */
   hour?: number;
+  /** Optional Tier 1 engagement facts — only when caller computed them. */
+  bracketHealth?: BracketHealth | null;
+  biggestMiss?: (BiggestMiss & { playerName?: string | null }) | null;
+  perfectPicksRemaining?: number | null;
+  perfectBracketCount?: number | null;
 };
 
 const ORDINAL = [
@@ -135,6 +142,57 @@ function resultHref(leagueSlug: string, tournamentRef: string | null): string {
   return `/leagues/${leagueSlug}/t/${tournamentRef}/result`;
 }
 
+function engagementBeats(input: PulseInput): PulseBeat[] {
+  const beats: PulseBeat[] = [];
+
+  if (input.bracketHealth) {
+    const healthEmotion: PulseEmotion =
+      input.bracketHealth === "Elite" || input.bracketHealth === "Surviving"
+        ? "good"
+        : input.bracketHealth === "In Trouble"
+          ? "bad"
+          : "flat";
+    beats.push({
+      emotion: healthEmotion,
+      headline: `Bracket health: ${input.bracketHealth}.`,
+      detail:
+        input.perfectPicksRemaining != null
+          ? `${input.perfectPicksRemaining} perfect ${input.perfectPicksRemaining === 1 ? "pick" : "picks"} still alive.`
+          : "Derived from your ceiling and champion status.",
+    });
+  } else if (input.perfectPicksRemaining != null) {
+    beats.push({
+      emotion: "flat",
+      headline:
+        input.perfectPicksRemaining === 1
+          ? "1 perfect pick remaining."
+          : `${input.perfectPicksRemaining} perfect picks remaining.`,
+      detail:
+        input.perfectBracketCount != null
+          ? `${input.perfectBracketCount} ${input.perfectBracketCount === 1 ? "bracket is" : "brackets are"} still perfect in the league.`
+          : "Still on court.",
+    });
+  }
+
+  if (input.biggestMiss) {
+    const name =
+      input.biggestMiss.playerName ?? input.biggestMiss.playerRef;
+    beats.push({
+      emotion: "bad",
+      headline: `Biggest miss: ${name}.`,
+      detail: `Cost ${input.biggestMiss.weight} ${input.biggestMiss.weight === 1 ? "point" : "points"}.`,
+    });
+  }
+
+  return beats;
+}
+
+function withEngagement(check: DailyCheck, input: PulseInput): DailyCheck {
+  const extra = engagementBeats(input);
+  if (extra.length === 0) return check;
+  return { ...check, beats: [...check.beats, ...extra] };
+}
+
 /**
  * Compose the Daily Check from league + standings facts.
  * Priority mirrors the wireframe family, implemented incrementally.
@@ -163,65 +221,74 @@ export function computeDailyCheck(input: PulseInput): DailyCheck {
   };
 
   if (!hasDraw) {
-    return {
-      kind: "draw_pending",
-      frame: "Between tournaments",
-      emotion: "flat",
-      headline: "Your league is ready.",
-      detail: `Invite your friends now. The bracket opens the moment the official ${eventName} draw is released.`,
-      action: {
-        label: "Invite friends",
-        href: `/leagues/${leagueSlug}?invite=1`,
-      },
-      beats: [
-        {
-          emotion: "flat",
-          headline: `${memberCount} ${memberCount === 1 ? "member" : "members"} in the league.`,
-          detail: "The draw lands first. You will want to be here for it.",
+    return withEngagement(
+      {
+        kind: "draw_pending",
+        frame: "Between tournaments",
+        emotion: "flat",
+        headline: "Your league is ready.",
+        detail: `Invite your friends now. The bracket opens the moment the official ${eventName} draw is released.`,
+        action: {
+          label: "Invite friends",
+          href: `/leagues/${leagueSlug}?invite=1`,
         },
-      ],
-      eventName,
-    };
+        beats: [
+          {
+            emotion: "flat",
+            headline: `${memberCount} ${memberCount === 1 ? "member" : "members"} in the league.`,
+            detail: "The draw lands first. You will want to be here for it.",
+          },
+        ],
+        eventName,
+      },
+      input
+    );
   }
 
   if (submittedCount === 0) {
-    return {
-      kind: "no_data",
-      frame,
-      emotion: "flat",
-      headline: "Nothing to report yet.",
-      detail: `No brackets have been entered for ${eventName}. The moment somebody enters, this page starts moving.`,
-      action: openBracket,
-      beats: [],
-      eventName,
-    };
+    return withEngagement(
+      {
+        kind: "no_data",
+        frame,
+        emotion: "flat",
+        headline: "Nothing to report yet.",
+        detail: `No brackets have been entered for ${eventName}. The moment somebody enters, this page starts moving.`,
+        action: openBracket,
+        beats: [],
+        eventName,
+      },
+      input
+    );
   }
 
   if (!locked && submittedCount < memberCount) {
     const missing = memberCount - submittedCount;
-    return {
-      kind: "awaiting_entries",
-      frame,
-      emotion: "flat",
-      headline:
-        missing === 1
-          ? "1 bracket is still missing."
-          : `${missing} brackets are still missing.`,
-      detail: `${submittedCount} of ${memberCount} are in. Nudge the stragglers before the draw locks.`,
-      action: openBracket,
-      beats: [
-        {
-          emotion: "flat",
-          headline: youSubmitted
-            ? "Your bracket is in."
-            : "Your bracket is not in yet.",
-          detail: youSubmitted
-            ? "You can still edit until the lock."
-            : `Fill it in before ${eventName} locks — after that the field is the field.`,
-        },
-      ],
-      eventName,
-    };
+    return withEngagement(
+      {
+        kind: "awaiting_entries",
+        frame,
+        emotion: "flat",
+        headline:
+          missing === 1
+            ? "1 bracket is still missing."
+            : `${missing} brackets are still missing.`,
+        detail: `${submittedCount} of ${memberCount} are in. Nudge the stragglers before the draw locks.`,
+        action: openBracket,
+        beats: [
+          {
+            emotion: "flat",
+            headline: youSubmitted
+              ? "Your bracket is in."
+              : "Your bracket is not in yet.",
+            detail: youSubmitted
+              ? "You can still edit until the lock."
+              : `Fill it in before ${eventName} locks — after that the field is the field.`,
+          },
+        ],
+        eventName,
+      },
+      input
+    );
   }
 
   if (eventComplete && you) {
@@ -231,63 +298,69 @@ export function computeDailyCheck(input: PulseInput): DailyCheck {
         : you.championName
           ? `Your champion was ${you.championName}.`
           : "Champion pick recorded.";
-    return {
-      kind: "final",
-      frame: "Tonight",
-      emotion: you.position === 1 ? "good" : "flat",
-      headline: `You finished ${ordinal(you.position)} of ${fieldSize}.`,
-      detail: "The next tournament resets everything.",
-      action: {
-        label: "See the full result",
-        href: resultHref(leagueSlug, tournamentRef),
-      },
-      beats: [
-        {
-          emotion: you.championAlive === true ? "good" : "flat",
-          headline: championLine,
-          detail: `Score ${you.score}.`,
+    return withEngagement(
+      {
+        kind: "final",
+        frame: "Tonight",
+        emotion: you.position === 1 ? "good" : "flat",
+        headline: `You finished ${ordinal(you.position)} of ${fieldSize}.`,
+        detail: "The next tournament resets everything.",
+        action: {
+          label: "See the full result",
+          href: resultHref(leagueSlug, tournamentRef),
         },
-        ...(seasonPosition != null
-          ? [
-              {
-                emotion: "flat" as const,
-                headline: `${ordinal(seasonPosition)} in the season.`,
-                detail:
-                  seasonPoints != null
-                    ? `${seasonPoints.toLocaleString("en-GB")} points banked.`
-                    : "Season table is live.",
-              },
-            ]
-          : []),
-      ],
-      eventName,
-    };
+        beats: [
+          {
+            emotion: you.championAlive === true ? "good" : "flat",
+            headline: championLine,
+            detail: `Score ${you.score}.`,
+          },
+          ...(seasonPosition != null
+            ? [
+                {
+                  emotion: "flat" as const,
+                  headline: `${ordinal(seasonPosition)} in the season.`,
+                  detail:
+                    seasonPoints != null
+                      ? `${seasonPoints.toLocaleString("en-GB")} points banked.`
+                      : "Season table is live.",
+                },
+              ]
+            : []),
+        ],
+        eventName,
+      },
+      input
+    );
   }
 
   if (you && you.voidedPicks > 0) {
-    return {
-      kind: "picks_voided",
-      frame,
-      emotion: "flat",
-      headline:
-        you.voidedPicks === 1
-          ? "1 pick was voided."
-          : `${you.voidedPicks} picks were voided.`,
-      detail:
-        "Not wrong — void. Nobody could read a match that never happened, so those picks came off your ceiling instead of your score.",
-      action: {
-        label: "View my bracket",
-        href: bracketHref(leagueSlug, tournamentRef),
-      },
-      beats: [
-        {
-          emotion: "flat",
-          headline: `You are ${ordinal(you.position)} in your league.`,
-          detail: "Your remaining picks are still on court.",
+    return withEngagement(
+      {
+        kind: "picks_voided",
+        frame,
+        emotion: "flat",
+        headline:
+          you.voidedPicks === 1
+            ? "1 pick was voided."
+            : `${you.voidedPicks} picks were voided.`,
+        detail:
+          "Not wrong — void. Nobody could read a match that never happened, so those picks came off your ceiling instead of your score.",
+        action: {
+          label: "View my bracket",
+          href: bracketHref(leagueSlug, tournamentRef),
         },
-      ],
-      eventName,
-    };
+        beats: [
+          {
+            emotion: "flat",
+            headline: `You are ${ordinal(you.position)} in your league.`,
+            detail: "Your remaining picks are still on court.",
+          },
+        ],
+        eventName,
+      },
+      input
+    );
   }
 
   if (you && you.championAlive === false) {
@@ -307,20 +380,23 @@ export function computeDailyCheck(input: PulseInput): DailyCheck {
             headline: `You are ${ordinal(you.position)}.`,
             detail: "Your other picks are still on court.",
           };
-    return {
-      kind: "champion_out",
-      frame,
-      emotion: "bad",
-      headline: "Your champion is out.",
-      detail:
-        "Your ceiling stopped moving. Everything still to play for is in the rounds below.",
-      action: {
-        label: "View my bracket",
-        href: bracketHref(leagueSlug, tournamentRef),
+    return withEngagement(
+      {
+        kind: "champion_out",
+        frame,
+        emotion: "bad",
+        headline: "Your champion is out.",
+        detail:
+          "Your ceiling stopped moving. Everything still to play for is in the rounds below.",
+        action: {
+          label: "View my bracket",
+          href: bracketHref(leagueSlug, tournamentRef),
+        },
+        beats: [moveBeat],
+        eventName,
       },
-      beats: [moveBeat],
-      eventName,
-    };
+      input
+    );
   }
 
   if (you) {
@@ -331,22 +407,25 @@ export function computeDailyCheck(input: PulseInput): DailyCheck {
       (scoreDelta == null || scoreDelta === 0);
 
     if (quiet) {
-      return {
-        kind: "quiet",
-        frame,
-        emotion: "flat",
-        headline: "A quiet day in your league.",
-        detail: "Nothing moved. The next round changes that.",
-        action: null,
-        beats: [
-          {
-            emotion: "flat",
-            headline: `You are ${ordinal(you.position)}.`,
-            detail: `Score ${you.score}${you.upside > 0 ? ` · ${you.upside} still to play for` : ""}.`,
-          },
-        ],
-        eventName,
-      };
+      return withEngagement(
+        {
+          kind: "quiet",
+          frame,
+          emotion: "flat",
+          headline: "A quiet day in your league.",
+          detail: "Nothing moved. The next round changes that.",
+          action: null,
+          beats: [
+            {
+              emotion: "flat",
+              headline: `You are ${ordinal(you.position)}.`,
+              detail: `Score ${you.score}${you.upside > 0 ? ` · ${you.upside} still to play for` : ""}.`,
+            },
+          ],
+          eventName,
+        },
+        input
+      );
     }
 
     const move = Math.abs(delta ?? 0);
@@ -379,36 +458,42 @@ export function computeDailyCheck(input: PulseInput): DailyCheck {
       });
     }
 
-    return {
-      kind: "live",
-      frame,
-      emotion: (delta ?? 0) >= 0 ? "good" : "bad",
-      headline:
-        delta === 0 || delta == null
-          ? "You held your place."
-          : `${moveWord} ${move} ${places}.`,
-      detail: `You are ${ordinal(you.position)} in your league.`,
-      action: {
-        label: "View my bracket",
-        href: bracketHref(leagueSlug, tournamentRef),
+    return withEngagement(
+      {
+        kind: "live",
+        frame,
+        emotion: (delta ?? 0) >= 0 ? "good" : "bad",
+        headline:
+          delta === 0 || delta == null
+            ? "You held your place."
+            : `${moveWord} ${move} ${places}.`,
+        detail: `You are ${ordinal(you.position)} in your league.`,
+        action: {
+          label: "View my bracket",
+          href: bracketHref(leagueSlug, tournamentRef),
+        },
+        beats,
+        eventName,
       },
-      beats,
-      eventName,
-    };
+      input
+    );
   }
 
   // Locked / submitted field but this member has no snapshot yet
-  return {
-    kind: "awaiting_entries",
-    frame,
-    emotion: "flat",
-    headline: "Standings are waiting on settlement.",
-    detail: `Brackets are in for ${eventName}. Run settlement (or wait for the job) to move the table.`,
-    action: {
-      label: "Open tournament",
-      href: tournamentHref(leagueSlug, tournamentRef),
+  return withEngagement(
+    {
+      kind: "awaiting_entries",
+      frame,
+      emotion: "flat",
+      headline: "Standings are waiting on settlement.",
+      detail: `Brackets are in for ${eventName}. Run settlement (or wait for the job) to move the table.`,
+      action: {
+        label: "Open tournament",
+        href: tournamentHref(leagueSlug, tournamentRef),
+      },
+      beats: [],
+      eventName,
     },
-    beats: [],
-    eventName,
-  };
+    input
+  );
 }

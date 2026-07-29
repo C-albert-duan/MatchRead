@@ -21,10 +21,17 @@ function deltaClass(n: number | null | undefined): string {
   return n > 0 ? "delta--up" : "delta--down";
 }
 
-function formatDelta(n: number | null | undefined): string {
+/** Event standings: position chips (+2 / −1 / —). Season: score Δ. */
+function formatMoveChip(n: number | null | undefined): string {
   if (n == null) return "—";
-  if (n === 0) return "0";
-  return n > 0 ? `+${n}` : String(n);
+  if (n === 0) return "—";
+  return n > 0 ? `+${n}` : `−${Math.abs(n)}`;
+}
+
+function formatScoreDelta(n: number | null | undefined): string {
+  if (n == null) return "—";
+  if (n === 0) return "—";
+  return n > 0 ? `+${n}` : `−${Math.abs(n)}`;
 }
 
 export function StandingsTable({ rows, kind = "event" }: Props) {
@@ -48,32 +55,45 @@ export function StandingsTable({ rows, kind = "event" }: Props) {
             {kind === "season" ? "Pts" : "Score"}
           </th>
           <th className="col-delta" scope="col">
-            Δ
+            Move
           </th>
         </tr>
       </thead>
       <tbody>
-        {rows.map((row) => (
-          <tr key={row.user_id} className={row.isYou ? "is-you" : undefined}>
-            <td className="col-rank numeral">{row.position ?? "—"}</td>
-            <td>
-              {row.label}
-              {row.champion_alive === false ? (
-                <span className="t-caption"> · champion out</span>
-              ) : null}
-            </td>
-            <td className="col-score numeral">{row.score}</td>
-            <td
-              className={`col-delta numeral ${deltaClass(
-                kind === "season" ? row.score_delta : row.position_delta
-              )}`}
-            >
-              {kind === "season"
-                ? formatDelta(row.score_delta)
-                : formatDelta(row.position_delta)}
-            </td>
-          </tr>
-        ))}
+        {rows.map((row) => {
+          const delta =
+            kind === "season" ? row.score_delta : row.position_delta;
+          const chip =
+            kind === "season"
+              ? formatScoreDelta(delta)
+              : formatMoveChip(delta);
+          return (
+            <tr key={row.user_id} className={row.isYou ? "is-you" : undefined}>
+              <td className="col-rank numeral">{row.position ?? "—"}</td>
+              <td>
+                {row.label}
+                {row.champion_alive === false ? (
+                  <span className="t-caption"> · champion out</span>
+                ) : null}
+              </td>
+              <td className="col-score numeral">{row.score}</td>
+              <td className="col-delta">
+                <span
+                  className={`move-chip ${deltaClass(delta)}`}
+                  aria-label={
+                    delta == null || delta === 0
+                      ? "No movement"
+                      : delta > 0
+                        ? `Up ${delta}`
+                        : `Down ${Math.abs(delta)}`
+                  }
+                >
+                  {chip}
+                </span>
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

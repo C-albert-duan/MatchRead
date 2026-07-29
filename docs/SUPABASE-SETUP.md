@@ -25,6 +25,9 @@ Use **SQL Editor**. Run in order:
 3. `supabase/migrations/0003_brackets.sql` — tournaments, draws, seats, brackets, fixture seed, save/submit/lock RPCs  
 4. `supabase/migrations/0004_settlement.sql` — match results, snapshots, season standings, void stub  
 5. `supabase/migrations/0005_daily_check.sql` — `daily_check_log` cache for Daily Check  
+6. `supabase/migrations/0006_engagement.sql` — `brackets.confidence` + `save_bracket_picks` optional `p_confidence`  
+
+Phase 7 (founder / void / i18n) needs **no new migration** — uses `pick_voids` + `match_results.voided` from 0004. Void writes still require commissioner RLS for that tournament.
 
 ### Already applied an older migration?
 

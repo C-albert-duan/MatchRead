@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
 import { getSessionUser } from "@/lib/auth";
+import { t } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
 import type { LeagueListItem, MemberRole } from "@/lib/leagues/types";
 
@@ -72,17 +73,14 @@ export default async function LeaguesPage() {
 
         {!error && leagues.length === 0 ? (
           <div className="panel stack gap-lg">
-            <h2 className="t-title3">No leagues yet</h2>
-            <p className="t-body">
-              Start one in under a minute, then drop the invite link in the
-              group chat.
-            </p>
+            <h2 className="t-title3">{t("leagues.empty.title")}</h2>
+            <p className="t-body">{t("leagues.empty.body")}</p>
             <Link
               href="/leagues/new"
               className="act act--prominent act--prominent-size"
               style={{ alignSelf: "flex-start" }}
             >
-              Start a league
+              {t("cta.startLeague")}
             </Link>
           </div>
         ) : null}

@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import {
   buildRoundStructure,
   resolveMatchEntrants,
+  type BracketConfidence,
   type BracketPicks,
   type DrawSeat,
   type SlotOccupant,
@@ -14,8 +15,10 @@ type Props = {
   drawSize: number;
   seats: DrawSeat[];
   picks: BracketPicks;
+  confidence: BracketConfidence;
   locked: boolean;
   onPick?: (matchKey: string, playerRef: string) => void;
+  onConfidence?: (matchKey: string, level: number) => void;
 };
 
 function bothKnown(a: SlotOccupant, b: SlotOccupant): boolean {
@@ -29,8 +32,10 @@ export function BracketGrid({
   drawSize,
   seats,
   picks,
+  confidence,
   locked,
   onPick,
+  onConfidence,
 }: Props) {
   const rounds = buildRoundStructure(drawSize);
   const r0Slots = drawSize / 2;
@@ -72,6 +77,8 @@ export function BracketGrid({
                   b.kind === "player";
                 const groupName = `match-${match.key}`;
                 const unpicked = Boolean(pickable && !chosen);
+                const level = confidence[match.key] ?? null;
+                const showConfidence = Boolean(chosen);
 
                 return (
                   <div key={match.key} className="match-cell">
@@ -80,6 +87,7 @@ export function BracketGrid({
                       role="radiogroup"
                       aria-label={`${round.label.match} match ${match.indexInRound + 1}${unpicked ? ", unpicked" : ""}`}
                       data-unpicked={unpicked ? "true" : undefined}
+                      data-confidence={showConfidence ? "true" : undefined}
                     >
                       {pickable ? (
                         <>
@@ -130,6 +138,31 @@ export function BracketGrid({
                           />
                         </>
                       )}
+                      {showConfidence ? (
+                        <div
+                          className="confidence-row"
+                          role="group"
+                          aria-label={`Confidence for ${round.label.match} match ${match.indexInRound + 1}`}
+                        >
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <button
+                              key={n}
+                              type="button"
+                              className="confidence-btn"
+                              data-active={level === n ? "true" : undefined}
+                              disabled={locked}
+                              aria-pressed={level === n}
+                              aria-label={`Confidence ${n} of 5`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onConfidence?.(match.key, n);
+                              }}
+                            >
+                              {n}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 );

@@ -9,6 +9,7 @@ import {
   type BracketPicks,
   type OfficialResults,
 } from "@matchread/core";
+import { isFounderEmail } from "@/lib/auth/founder";
 import { createClient } from "@/lib/supabase/server";
 
 export type ActionResult =
@@ -249,7 +250,17 @@ async function recomputeSeasonStandings(
   return { ok: true, graded: ranked.length };
 }
 
-/** Stub: record a withdrawal void for operator path (Phase 7 UI later). */
+function parseMatchRound(matchKey: string): number | null {
+  const m = /^r(\d+)-m\d+$/.exec(matchKey);
+  if (!m) return null;
+  return Number(m[1]);
+}
+
+/**
+ * Operator void / withdrawal path.
+ * Records pick_voids and marks future undecided (or player-won-path)
+ * match_results as voided when RLS allows. No service-role in browser.
+ */
 export async function stubVoidPlayer(input: {
   tournamentId: string;
   playerRef: string;
@@ -259,16 +270,64 @@ export async function stubVoidPlayer(input: {
   const { supabase, user } = await requireUser();
   if (!user) return { ok: false, error: "Sign in required." };
 
+  if (!isFounderEmail(user.email ?? undefined)) {
+    return { ok: false, error: "Founder access required." };
+  }
+
+  const playerRef = input.playerRef.trim();
+  if (!playerRef) return { ok: false, error: "player_ref is required." };
+
+  const fromRound = input.fromRound ?? 0;
+
   const { error } = await supabase.from("pick_voids").upsert(
     {
       tournament_id: input.tournamentId,
-      player_ref: input.playerRef,
-      from_round: input.fromRound ?? 0,
-      reason: input.reason ?? "withdrawal",
+      player_ref: playerRef,
+      from_round: fromRound,
+      reason: input.reason?.trim() || "withdrawal",
     },
     { onConflict: "tournament_id,player_ref,from_round" }
   );
 
-  if (error) return { ok: false, error: error.message };
-  return { ok: true, graded: 0 };
+  if (error) {
+    return {
+      ok: false,
+      error: `${error.message} (Need commissioner RLS on a league for this tournament, or check pick_voids policies.)`,
+    };
+  }
+
+  const { data: results, error: resultsError } = await supabase
+    .from("match_results")
+    .select("match_key, winner_ref, voided")
+    .eq("tournament_id", input.tournamentId);
+
+  if (resultsError) {
+    return { ok: false, error: resultsError.message };
+  }
+
+  let voidedMatches = 0;
+  for (const row of results ?? []) {
+    const round = parseMatchRound(row.match_key);
+    if (round == null || round < fromRound) continue;
+    if (row.voided) continue;
+    const undecided = !row.winner_ref;
+    const onPlayerPath = row.winner_ref === playerRef;
+    if (!undecided && !onPlayerPath) continue;
+
+    const { error: updError } = await supabase
+      .from("match_results")
+      .update({ voided: true })
+      .eq("tournament_id", input.tournamentId)
+      .eq("match_key", row.match_key);
+
+    if (updError) {
+      return {
+        ok: false,
+        error: `${updError.message} (pick_voids saved; match_results update blocked by RLS — commissioner write required.)`,
+      };
+    }
+    voidedMatches++;
+  }
+
+  return { ok: true, graded: voidedMatches };
 }

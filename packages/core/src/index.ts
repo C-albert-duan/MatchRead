@@ -49,11 +49,26 @@ export type {
   StandingPulseRow,
 } from "./pulse";
 
-export const BRACKET_HEALTH = [
-  "Elite",
-  "Surviving",
-  "Hanging On",
-  "In Trouble",
-] as const;
+export {
+  BRACKET_HEALTH,
+  biggestMiss,
+  bracketHealth,
+  clampConfidence,
+  countPerfectBrackets,
+  leagueHighlights,
+  perfectPicksRemaining,
+} from "./engagement";
+export type {
+  BiggestMiss,
+  BracketConfidence,
+  BracketHealth,
+  HighlightLabel,
+  HighlightRow,
+  LeagueHighlight,
+} from "./engagement";
 
-export type BracketHealth = (typeof BRACKET_HEALTH)[number];
+export {
+  SLAM_DRAW_SIZE,
+  SLAM_MAX_SCORE,
+  SLAM_ROUND_COUNT,
+} from "./perf-notes";
