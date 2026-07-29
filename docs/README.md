@@ -41,7 +41,8 @@ Visual truth lives in [`../Wireframe/`](../Wireframe/) — do not edit it for pr
 | [plans/00-bootstrap.md](./plans/00-bootstrap.md) | Monorepo, CI, envs |
 | [plans/01-auth-landing.md](./plans/01-auth-landing.md) | Auth + landing |
 | [plans/01-auth-landing-checklist.md](./plans/01-auth-landing-checklist.md) | Phase 1 test checklist |
-| [plans/02-leagues-invites.md](./plans/02-leagues-invites.md) | Growth loop |
+| [plans/02-leagues-invites.md](./plans/02-leagues-invites.md) | Leagues + invites |
+| [plans/02-leagues-invites-checklist.md](./plans/02-leagues-invites-checklist.md) | Phase 2 test checklist |
 | [plans/03-brackets.md](./plans/03-brackets.md) | Bracket editor |
 | [plans/04-settlement-standings.md](./plans/04-settlement-standings.md) | Grading + tables |
 | [plans/05-daily-check.md](./plans/05-daily-check.md) | Daily Check / recap |

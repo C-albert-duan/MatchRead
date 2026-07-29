@@ -4,23 +4,35 @@
 
 Growth loop: create league → share link → friend joins → appears on league home.
 
+## Status: **DONE** (2026-07-29)
+
 ## Done when
 
-- [ ] `/leagues`, `/leagues/new`, `/leagues/[slug]`, `/join/[token]`
-- [ ] Invite token copy works on mobile
-- [ ] Join works signed-out (redirect through sign-in with `next`)
-- [ ] RLS: members only see own leagues
+- [x] `/leagues`, `/leagues/new`, `/leagues/[slug]`, `/join/[token]`
+- [x] Invite token copy works (client clipboard + manual fallback)
+- [x] Join works signed-out (redirect through sign-in with `next`)
+- [x] RLS: members only see own leagues (migration `0002_leagues.sql`)
+- [x] Migration applied on Supabase project (SQL Editor)
+- [x] Owner E2E: create → copy link → second account joins
 
-## Schema (minimum)
+## Schema
 
-`leagues`, `league_members`, `league_invites` + policies
+`leagues`, `league_members`, `league_invites` + `get_invite_preview` / `join_league_with_token` RPCs.
 
 ## Work
 
-1. Migrations + RLS
-2. Server Actions for create / join / revoke-invite
-3. Empty states for no leagues
-4. Invite panel open after create
+1. [x] Migrations + RLS (+ grants + `create_league` in one `0002` file)
+2. [x] Server Actions for create / join / revoke-invite
+3. [x] Empty states for no leagues
+4. [x] Invite panel open after create (`?invite=1`)
+
+## Apply
+
+See [SUPABASE-SETUP.md](../SUPABASE-SETUP.md) — run `0002_leagues.sql` in the SQL Editor.
+
+## Test checklist
+
+[02-leagues-invites-checklist.md](./02-leagues-invites-checklist.md)
 
 ## References
 

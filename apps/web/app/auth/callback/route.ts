@@ -3,6 +3,12 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseAnonKey, getSupabaseUrl, hasSupabaseEnv } from "@/lib/env";
 import { safeNext } from "@/lib/safe-next";
+import {
+  REMEMBER_COOKIE,
+  REMEMBER_MAX_AGE_SEC,
+  mergeCookieOptions,
+  parseRememberFlag,
+} from "@/lib/auth/remember";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -19,7 +25,11 @@ export async function GET(request: Request) {
   }
 
   const cookieStore = cookies();
-  const pending: { name: string; value: string; options: CookieOptions }[] = [];
+  const remember = parseRememberFlag(
+    cookieStore.get(REMEMBER_COOKIE)?.value
+  );
+  const pending: { name: string; value: string; options: CookieOptions }[] =
+    [];
 
   const supabase = createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {
     cookies: {
@@ -27,10 +37,18 @@ export async function GET(request: Request) {
         return cookieStore.get(name)?.value;
       },
       set(name: string, value: string, options: CookieOptions) {
-        pending.push({ name, value, options });
+        pending.push({
+          name,
+          value,
+          options: mergeCookieOptions(options, remember),
+        });
       },
       remove(name: string, options: CookieOptions) {
-        pending.push({ name, value: "", options });
+        pending.push({
+          name,
+          value: "",
+          options: mergeCookieOptions(options, remember),
+        });
       },
     },
   });
@@ -45,5 +63,15 @@ export async function GET(request: Request) {
   for (const cookie of pending) {
     response.cookies.set(cookie.name, cookie.value, cookie.options);
   }
+
+  // Persist remember preference for future middleware refreshes
+  response.cookies.set({
+    name: REMEMBER_COOKIE,
+    value: remember ? "1" : "0",
+    path: "/",
+    sameSite: "lax",
+    maxAge: remember ? REMEMBER_MAX_AGE_SEC : 60 * 60 * 24,
+  });
+
   return response;
 }

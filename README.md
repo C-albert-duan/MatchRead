@@ -44,6 +44,6 @@ npm run dev
 
 ## Current phase
 
-**Phase 1 — Auth + Landing: done.** Next: **Phase 2 — Leagues + Invites**.
+**Phase 2 — Leagues + Invites** (code shipped). Apply `supabase/migrations/0002_leagues.sql` then run [docs/plans/02-leagues-invites-checklist.md](./docs/plans/02-leagues-invites-checklist.md).
 
-Details: [docs/STATUS.md](./docs/STATUS.md) · Plan: [docs/plans/02-leagues-invites.md](./docs/plans/02-leagues-invites.md)
+Details: [docs/STATUS.md](./docs/STATUS.md)

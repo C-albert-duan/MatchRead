@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { siteUrl } from "@/lib/site-url-client";
 import { safeNext } from "@/lib/safe-next";
+import {
+  getRememberPref,
+  setRememberPref,
+} from "@/lib/auth/remember-client";
 
 type Props = {
   nextParam: string | null;
@@ -14,15 +18,37 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+/** Only treat real provider throttling — not every message that mentions "rate". */
+function isProviderRateLimit(error: {
+  status?: number;
+  code?: string;
+  message: string;
+}): boolean {
+  if (error.status === 429) return true;
+  const code = (error.code ?? "").toLowerCase();
+  if (code.includes("over_email_send_rate_limit")) return true;
+  if (code.includes("rate_limit")) return true;
+  return /over_email_send_rate_limit|email rate limit exceeded/i.test(
+    error.message
+  );
+}
+
+const RESEND_COOLDOWN_MS = 10_000;
+
 export function SignInForm({ nextParam, configured }: Props) {
   const next = useMemo(() => safeNext(nextParam), [nextParam]);
   const [email, setEmail] = useState("");
+  const [remember, setRemember] = useState(true);
   const [status, setStatus] = useState<
     "idle" | "invalid" | "submitting" | "sent" | "rate_limited" | "error"
   >("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    setRemember(getRememberPref());
+  }, []);
 
   useEffect(() => {
     if (Date.now() >= cooldownUntil) return;
@@ -36,6 +62,7 @@ export function SignInForm({ nextParam, configured }: Props) {
     : 0;
 
   async function sendOtp(address: string) {
+    setRememberPref(remember);
     const supabase = createClient();
     const redirectTo = `${siteUrl()}/auth/callback?next=${encodeURIComponent(next)}`;
     return supabase.auth.signInWithOtp({
@@ -59,19 +86,21 @@ export function SignInForm({ nextParam, configured }: Props) {
     const { error } = await sendOtp(value);
 
     if (error) {
-      const limited =
-        error.status === 429 || /rate|too many/i.test(error.message);
+      const limited = isProviderRateLimit(error);
       setStatus(limited ? "rate_limited" : "error");
       setErrorMessage(
         limited
-          ? "Too many attempts. Wait a minute and try again."
+          ? "Supabase email limit hit (common on free tier while testing). Wait a few minutes, check spam, or use a different address."
           : error.message
       );
+      if (limited) {
+        setCooldownUntil(Date.now() + 60_000);
+      }
       return;
     }
 
     setStatus("sent");
-    setCooldownUntil(Date.now() + 30_000);
+    setCooldownUntil(Date.now() + RESEND_COOLDOWN_MS);
   }
 
   async function onResend() {
@@ -81,18 +110,20 @@ export function SignInForm({ nextParam, configured }: Props) {
     setErrorMessage(null);
     const { error } = await sendOtp(value);
     if (error) {
-      const limited =
-        error.status === 429 || /rate|too many/i.test(error.message);
+      const limited = isProviderRateLimit(error);
       setStatus(limited ? "rate_limited" : "error");
       setErrorMessage(
         limited
-          ? "Too many attempts. Wait a minute and try again."
+          ? "Supabase email limit hit (common on free tier while testing). Wait a few minutes, check spam, or use a different address."
           : error.message
       );
+      if (limited) {
+        setCooldownUntil(Date.now() + 60_000);
+      }
       return;
     }
     setStatus("sent");
-    setCooldownUntil(Date.now() + 30_000);
+    setCooldownUntil(Date.now() + RESEND_COOLDOWN_MS);
   }
 
   if (!configured) {
@@ -147,8 +178,9 @@ export function SignInForm({ nextParam, configured }: Props) {
           </button>
         </div>
         <p className="hint">
-          Nothing arrived? Check spam, then try again in 30 seconds — we limit
-          how often a link can be sent to one address.
+          Nothing arrived? Check spam. You can resend after a short pause — during
+          heavy testing Supabase&apos;s free email quota runs out quickly; use a
+          second inbox or wait a few minutes.
         </p>
       </div>
     );
@@ -183,12 +215,20 @@ export function SignInForm({ nextParam, configured }: Props) {
           value={email}
           onChange={(e) => {
             setEmail(e.target.value);
-            if (status === "invalid" || status === "error") {
+            if (
+              status === "invalid" ||
+              status === "error" ||
+              status === "rate_limited"
+            ) {
               setStatus("idle");
               setErrorMessage(null);
             }
           }}
-          aria-invalid={status === "invalid" || undefined}
+          aria-invalid={
+            status === "invalid" || status === "error" || status === "rate_limited"
+              ? true
+              : undefined
+          }
           aria-describedby={errorMessage ? "email-error" : undefined}
           className="field"
           disabled={status === "submitting"}
@@ -200,13 +240,37 @@ export function SignInForm({ nextParam, configured }: Props) {
         ) : null}
       </div>
 
+      <label className="remember">
+        <input
+          type="checkbox"
+          checked={remember}
+          onChange={(e) => {
+            const nextRemember = e.target.checked;
+            setRemember(nextRemember);
+            setRememberPref(nextRemember);
+          }}
+          disabled={status === "submitting"}
+        />
+        <span className="stack gap-xs">
+          <span className="choice-title">Stay signed in on this device</span>
+          <span className="t-caption">
+            You won&apos;t need a new email link every visit. Uncheck on shared
+            computers.
+          </span>
+        </span>
+      </label>
+
       <button
         type="submit"
         className="act act--prominent act--prominent-size"
-        disabled={status === "submitting"}
+        disabled={status === "submitting" || coolingDown}
         style={{ alignSelf: "flex-start", minWidth: 160 }}
       >
-        {status === "submitting" ? "Sending" : "Send me a link"}
+        {status === "submitting"
+          ? "Sending"
+          : coolingDown
+            ? `Wait ${secondsLeft}s`
+            : "Send me a link"}
       </button>
     </form>
   );

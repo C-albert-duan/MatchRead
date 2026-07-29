@@ -1,0 +1,274 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import {
+  gradeBracket,
+  maxBracketScore,
+  rankRows,
+  seasonPoints,
+  type BracketPicks,
+  type OfficialResults,
+} from "@matchread/core";
+import { createClient } from "@/lib/supabase/server";
+
+export type ActionResult =
+  | { ok: true; graded: number }
+  | { ok: false; error: string };
+
+async function requireUser() {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return { supabase, user };
+}
+
+export async function settleLeagueTournament(input: {
+  leagueId: string;
+  leagueSlug: string;
+  tournamentId: string;
+  tournamentRef: string;
+  /** Slam-class = 2, otherwise 1 */
+  eventWeight?: number;
+}): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) {
+    return { ok: false, error: "Sign in required." };
+  }
+
+  const { data: membership } = await supabase
+    .from("league_members")
+    .select("role")
+    .eq("league_id", input.leagueId)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (!membership) {
+    return { ok: false, error: "Not a member of this league." };
+  }
+
+  const { data: tournament } = await supabase
+    .from("tournaments")
+    .select("id, draw_size")
+    .eq("id", input.tournamentId)
+    .maybeSingle();
+
+  if (!tournament) {
+    return { ok: false, error: "Tournament not found." };
+  }
+
+  const { data: results } = await supabase
+    .from("match_results")
+    .select("match_key, winner_ref, voided")
+    .eq("tournament_id", input.tournamentId);
+
+  if (!results?.length) {
+    return {
+      ok: false,
+      error: "No official results yet. Apply migration 0004 or publish results.",
+    };
+  }
+
+  const official: OfficialResults = {};
+  for (const row of results) {
+    official[row.match_key] = {
+      winnerRef: row.winner_ref,
+      voided: row.voided,
+    };
+  }
+
+  const { data: brackets } = await supabase
+    .from("brackets")
+    .select("id, user_id, picks, submitted_at")
+    .eq("league_id", input.leagueId)
+    .eq("tournament_id", input.tournamentId)
+    .not("submitted_at", "is", null);
+
+  const { data: priorSnaps } = await supabase
+    .from("bracket_snapshots")
+    .select("user_id, position, score")
+    .eq("league_id", input.leagueId)
+    .eq("tournament_id", input.tournamentId);
+
+  const priorByUser = new Map(
+    (priorSnaps ?? []).map((s) => [
+      s.user_id,
+      { position: s.position as number | null, score: s.score as number },
+    ])
+  );
+
+  const drawSize = tournament.draw_size as number;
+  const maxScore = maxBracketScore(drawSize);
+  const weight = input.eventWeight ?? 2;
+
+  type GradeRow = {
+    userId: string;
+    bracketId: string;
+    score: number;
+    correct: number;
+    incorrect: number;
+    voided: number;
+    upside: number;
+    championRef: string | null;
+    championAlive: boolean | null;
+    tieBreak: string;
+  };
+
+  const graded: GradeRow[] = [];
+  for (const b of brackets ?? []) {
+    const grade = gradeBracket({
+      drawSize,
+      picks: (b.picks ?? {}) as BracketPicks,
+      official,
+    });
+    graded.push({
+      userId: b.user_id,
+      bracketId: b.id,
+      score: grade.score,
+      correct: grade.correct,
+      incorrect: grade.incorrect,
+      voided: grade.voided,
+      upside: grade.upside,
+      championRef: grade.championRef,
+      championAlive: grade.championAlive,
+      tieBreak: b.user_id,
+    });
+  }
+
+  const ranked = rankRows(graded);
+
+  for (const row of ranked) {
+    const prior = priorByUser.get(row.userId);
+    const previousPosition = prior?.position ?? null;
+    const previousScore = prior?.score ?? null;
+
+    const { error } = await supabase.from("bracket_snapshots").upsert(
+      {
+        league_id: input.leagueId,
+        tournament_id: input.tournamentId,
+        user_id: row.userId,
+        bracket_id: row.bracketId,
+        score: row.score,
+        correct: row.correct,
+        incorrect: row.incorrect,
+        voided_picks: row.voided,
+        upside: row.upside,
+        max_score: maxScore,
+        champion_ref: row.championRef,
+        champion_alive: row.championAlive,
+        position: row.position,
+        previous_position: previousPosition,
+        score_delta:
+          previousScore != null ? row.score - previousScore : null,
+        position_delta:
+          previousPosition != null ? previousPosition - row.position : null,
+        ranked_at: new Date().toISOString(),
+      },
+      { onConflict: "league_id,tournament_id,user_id" }
+    );
+
+    if (error) {
+      return { ok: false, error: error.message };
+    }
+
+    // Season aggregate: replace this event's contribution via full recompute
+  }
+
+  // Recompute season standings from all snapshots in this league
+  const seasonResult = await recomputeSeasonStandings(
+    supabase,
+    input.leagueId,
+    weight
+  );
+  if (!seasonResult.ok) return seasonResult;
+
+  revalidatePath(`/leagues/${input.leagueSlug}`);
+  revalidatePath(`/leagues/${input.leagueSlug}/season`);
+  revalidatePath(`/leagues/${input.leagueSlug}/t/${input.tournamentRef}`);
+
+  return { ok: true, graded: ranked.length };
+}
+
+async function recomputeSeasonStandings(
+  supabase: ReturnType<typeof createClient>,
+  leagueId: string,
+  defaultWeight: number
+): Promise<ActionResult> {
+  const { data: snaps } = await supabase
+    .from("bracket_snapshots")
+    .select("user_id, score, max_score, tournament_id")
+    .eq("league_id", leagueId);
+
+  const { data: priorSeason } = await supabase
+    .from("season_standings")
+    .select("user_id, position, points")
+    .eq("league_id", leagueId);
+
+  const prior = new Map(
+    (priorSeason ?? []).map((r) => [
+      r.user_id,
+      { position: r.position as number | null, points: r.points as number },
+    ])
+  );
+
+  const byUser = new Map<string, number>();
+  for (const s of snaps ?? []) {
+    const pts = seasonPoints(
+      s.score,
+      s.max_score || 1,
+      defaultWeight
+    );
+    byUser.set(s.user_id, (byUser.get(s.user_id) ?? 0) + pts);
+  }
+
+  const ranked = rankRows(
+    [...byUser.entries()].map(([userId, score]) => ({
+      userId,
+      score,
+      tieBreak: userId,
+    }))
+  );
+
+  for (const row of ranked) {
+    const prev = prior.get(row.userId);
+    const { error } = await supabase.from("season_standings").upsert(
+      {
+        league_id: leagueId,
+        user_id: row.userId,
+        points: row.score,
+        position: row.position,
+        previous_position: prev?.position ?? null,
+        points_delta: prev != null ? row.score - prev.points : null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "league_id,user_id" }
+    );
+    if (error) return { ok: false, error: error.message };
+  }
+
+  return { ok: true, graded: ranked.length };
+}
+
+/** Stub: record a withdrawal void for operator path (Phase 7 UI later). */
+export async function stubVoidPlayer(input: {
+  tournamentId: string;
+  playerRef: string;
+  fromRound?: number;
+  reason?: string;
+}): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { ok: false, error: "Sign in required." };
+
+  const { error } = await supabase.from("pick_voids").upsert(
+    {
+      tournament_id: input.tournamentId,
+      player_ref: input.playerRef,
+      from_round: input.fromRound ?? 0,
+      reason: input.reason ?? "withdrawal",
+    },
+    { onConflict: "tournament_id,player_ref,from_round" }
+  );
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, graded: 0 };
+}

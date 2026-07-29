@@ -37,4 +37,8 @@ CEO Tier 1 adds **pick confidence** as metadata (and possibly weighted miss disp
 
 ## Fixture strategy (early phases)
 
-Use a deterministic US Open–sized fixture (fictional player names) until RapidAPI import is wired. Spec data pattern: `Wireframe/.../matchread-spec/js/data.js`.
+Use a deterministic US Open–sized fixture (fictional player names) until RapidAPI import is wired. Phase 3 ships a **16-draw** fixture (`uso-2026`) for entry UX; scale to 128 when the real draw lands. Spec data pattern: `Wireframe/.../matchread-spec/js/data.js`.
+
+## Phase 3 tables
+
+`tournaments`, `draws`, `draw_seats`, `brackets` — see `supabase/migrations/0003_brackets.sql`. Lock is enforced in `save_bracket_picks` / `submit_bracket` (never trust the client clock).

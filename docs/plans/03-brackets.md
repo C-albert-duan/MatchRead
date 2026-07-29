@@ -4,19 +4,32 @@
 
 Signature screen: fill a tournament tree, save, submit before lock.
 
+## Status: **DONE** (2026-07-29)
+
 ## Done when
 
-- [ ] `/leagues/[slug]/t/[ref]/bracket` editable before lock
-- [ ] Distinct empty states: bye · unpicked · em dash
-- [ ] Submit → locked UI when lock instant passes (or admin lock)
-- [ ] Draw pending state on tournament/league when no draw yet
+- [x] `/leagues/[slug]/t/[ref]/bracket` editable before lock
+- [x] Distinct empty states: bye · unpicked · em dash
+- [x] Submit → locked UI when lock instant passes (or admin lock)
+- [x] Draw pending state on tournament/league when no draw yet
+- [x] Migration applied on Supabase + owner E2E checklist
+- [x] Bracket column alignment (fixed slot height / centred feeders)
 
 ## Work
 
-1. Fixture draw (128 or smaller for early UX) with fictional players
-2. `BracketGrid` radiogroup component
-3. Persist picks; no client-trusted lock
-4. Offline / save-failed states from interaction spec
+1. [x] Fixture draw (16 for early UX) with fictional players — `uso-2026`
+2. [x] `BracketGrid` radiogroup + `PlayerChip`
+3. [x] Persist picks via `save_bracket_picks` / `submit_bracket` (server lock)
+4. [x] Offline / save-failed status copy from interaction spec
+
+## Apply
+
+Run `supabase/migrations/0003_brackets.sql` in the SQL Editor after 0001 + 0002.
+See [SUPABASE-SETUP.md](../SUPABASE-SETUP.md).
+
+## Test checklist
+
+[03-brackets-checklist.md](./03-brackets-checklist.md)
 
 ## References
 

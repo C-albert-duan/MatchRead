@@ -4,19 +4,30 @@
 
 Official results grade brackets; event and season tables move.
 
+## Status: **IN PROGRESS** (code shipped 2026-07-29 — apply `0004_settlement.sql` + E2E)
+
 ## Done when
 
-- [ ] `packages/core` grading matches documented scoring (128 → max 512)
-- [ ] Settlement job can run (cron or manual edge invoke)
-- [ ] Standings show scores and rank deltas after a pass
-- [ ] Void / withdrawal path stubbed for operator later
+- [x] `packages/core` grading matches documented scoring (128 → max 512)
+- [x] Settlement job can run (manual commissioner invoke; cron documented)
+- [x] Standings show scores and rank deltas after a pass
+- [x] Void / withdrawal path stubbed (`pick_voids` + voided match results)
+- [ ] Migration applied + owner E2E checklist
 
 ## Work
 
-1. Domain: `gradePrediction` / bracket grade API
-2. Settlement runner writing snapshots
-3. `/leagues/[slug]/season` + event standings on tournament page
-4. Document schedule in SETTLEMENT-SCHEDULING runbook and arm it
+1. [x] Domain: `gradeBracket` / `seasonPoints` / `rankRows`
+2. [x] Settlement runner writing `bracket_snapshots` + `season_standings`
+3. [x] `/leagues/[slug]/season` + event standings on tournament page
+4. [x] Document schedule in SETTLEMENT-SCHEDULING runbook
+
+## Apply
+
+Run `supabase/migrations/0004_settlement.sql` after 0003.
+
+## Test checklist
+
+[04-settlement-standings-checklist.md](./04-settlement-standings-checklist.md)
 
 ## Risk
 

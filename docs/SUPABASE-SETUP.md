@@ -5,7 +5,7 @@
 
 Local secrets live in `apps/web/.env.local` (gitignored). Never commit keys or the database password.
 
-## Auth redirect URLs (do this in the dashboard)
+## Auth redirect URLs
 
 Supabase → **Authentication** → **URL configuration**:
 
@@ -14,40 +14,21 @@ Supabase → **Authentication** → **URL configuration**:
 | Site URL | `http://localhost:3001` |
 | Redirect URLs | `http://localhost:3001/auth/callback` |
 
-Later (Vercel): add `https://<your-vercel-app>.vercel.app/auth/callback` and set Site URL to the production domain.
+Later (Vercel): add `https://<your-vercel-app>.vercel.app/auth/callback`.
 
-## Apply schema migration
+## Apply schema (fresh project)
 
-Direct DB from this machine failed (IPv6-only DB host / pooler region). Run once in Supabase → **SQL Editor** → New query → paste and run:
+Use **SQL Editor**. Run in order:
 
-```sql
--- from supabase/migrations/0001_init.sql
-create extension if not exists "pgcrypto";
+1. `supabase/migrations/0001_init.sql` — profiles  
+2. `supabase/migrations/0002_leagues.sql` — leagues, members, invites, RLS, grants, `create_league` / join RPCs  
+3. `supabase/migrations/0003_brackets.sql` — tournaments, draws, seats, brackets, fixture seed, save/submit/lock RPCs  
+4. `supabase/migrations/0004_settlement.sql` — match results, snapshots, season standings, void stub  
 
-create table if not exists public.profiles (
-  id uuid primary key references auth.users (id) on delete cascade,
-  display_name text,
-  locale text not null default 'en',
-  created_at timestamptz not null default now()
-);
+### Already applied an older migration?
 
-alter table public.profiles enable row level security;
-
-create policy "profiles_select_own"
-  on public.profiles for select
-  using (auth.uid() = id);
-
-create policy "profiles_update_own"
-  on public.profiles for update
-  using (auth.uid() = id);
-
-create policy "profiles_insert_own"
-  on public.profiles for insert
-  with check (auth.uid() = id);
-```
-
-Magic-link auth works **before** this migration; profiles matter for Phase 2+.
+Re-run the **current** file in the SQL Editor (`if not exists` / `create or replace` / `on conflict`). Safe to re-apply.
 
 ## Rotate database password
 
-If the DB password was pasted in chat earlier, rotate it under **Project Settings → Database**.
+If the DB password was pasted in chat, rotate it under **Project Settings → Database**.

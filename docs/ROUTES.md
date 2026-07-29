@@ -14,7 +14,7 @@ Source of truth for screens: `Wireframe/MatchRead-main/matchread-spec/docs/ENGIN
 | League home | `/leagues/[slug]` | Yes | Daily Check lead |
 | Season standings | `/leagues/[slug]/season` | Yes | |
 | Tournament in league | `/leagues/[slug]/t/[ref]` | Yes | |
-| Bracket | `/leagues/[slug]/t/[ref]/bracket` | Yes | Signature |
+| Bracket | `/leagues/[slug]/t/[ref]/bracket` | Yes | Phase 3 |
 | Result artifact | `/leagues/[slug]/t/[ref]/result` | Yes | |
 | Tournaments | `/tournaments` | Yes | |
 | Players | `/players` | Yes | Rankings only |
@@ -25,5 +25,12 @@ Source of truth for screens: `Wireframe/MatchRead-main/matchread-spec/docs/ENGIN
 | Lightweight onboarding | — | No | Post-launch |
 | Today's matches | — | No | Mobile only |
 | User profile | — | No | Post-launch |
+
+### Phase 3 routes (live)
+
+| Route | Role |
+|---|---|
+| `/leagues/[slug]/t/[ref]` | Tournament in league (draw pending or entry) |
+| `/leagues/[slug]/t/[ref]/bracket` | Fill / submit / locked bracket |
 
 Deep links in the wireframe prototype use hash routes (`#/bracket`); production uses the paths above.
