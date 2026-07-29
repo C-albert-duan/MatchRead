@@ -1,0 +1,466 @@
+/* =========================================================================
+   MatchRead — product surface
+   -------------------------------------------------------------------------
+   Every class here corresponds to a Tailwind utility combination that already
+   exists in apps/web. This file is the prototype's stand-in for
+   tailwind.config.ts + globals.css; it invents no value that is not a token.
+
+   Rule inherited from the design language and held throughout:
+     - No shadows anywhere. Elevation is ground (canvas / raised / sunken).
+     - Hairlines over boxes.
+     - Colour is meaning. Nothing is coloured for emphasis.
+   ========================================================================= */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; font-feature-settings: 'kern' 1; }
+
+body {
+  margin: 0;
+  background-color: var(--mr-canvas);
+  color: var(--mr-text-primary);
+  font-family: var(--mr-font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Every number in this product is monospaced and tabular. A score ticks, a
+   countdown ticks, a rating moves — tnum fixes the advance width so numbers
+   change without moving, and a draw's columns align the way a printed draw
+   sheet's do. */
+.numeral, time, [data-numeral] {
+  font-family: var(--mr-font-numeral);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* A visible focus ring is not negotiable. Never remove, only restyle. */
+:focus-visible {
+  outline: 2px solid var(--mr-text-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* Blanket neutralisation rather than per-component opt-out, because the failure
+   mode of the per-component approach is a component that forgot. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ------------------------------ the type ramp ---------------------------- */
+/* Nine sizes. A ramp, not a spectrum — few enough that two headings on
+   different screens are the same size. Typography carries hierarchy more than
+   colour does. */
+
+.t-label   { font-size: .6875rem; line-height: .875rem;  letter-spacing: .1em; }
+.t-caption { font-size: .8125rem; line-height: 1.125rem; }
+.t-body    { font-size: .9375rem; line-height: 1.5rem; }
+.t-lead    { font-size: 1.0625rem; line-height: 1.625rem; }
+.t-title3  { font-size: 1rem;     line-height: 1.25rem; letter-spacing: -.01em; }
+.t-title2  { font-size: 1.25rem;  line-height: 1.5rem;  letter-spacing: -.02em; }
+.t-title1  { font-size: 1.75rem;  line-height: 2rem;    letter-spacing: -.03em; }
+.t-display { font-size: 2.5rem;   line-height: 2.5rem;  letter-spacing: -.035em; }
+.t-hero    { font-size: 3.5rem;   line-height: 3.375rem; letter-spacing: -.04em; }
+
+.f-display { font-family: var(--mr-font-display); font-weight: 700; }
+.f-medium  { font-weight: 500; }
+
+.c-primary   { color: var(--mr-text-primary); }
+.c-secondary { color: var(--mr-text-secondary); }
+.c-muted     { color: var(--mr-text-muted); }
+.c-data      { color: var(--mr-data-strong); }
+.c-miss      { color: var(--mr-miss-strong); }
+
+/* The eyebrow — the product's structural device, borrowed from the printed
+   draw sheet where "FIRST ROUND" sits above a column of names. This is how
+   MatchRead separates sections: instead of a border, a card, or a background. */
+.eyebrow {
+  font-family: var(--mr-font-numeral);
+  font-size: .6875rem;
+  line-height: .875rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--mr-text-muted);
+  margin: 0;
+}
+
+.skip-link { position: absolute; left: -9999px; top: 0; z-index: 50; }
+.skip-link:focus {
+  left: 8px; top: 8px; padding: 8px 12px;
+  background: var(--mr-inverse); color: var(--mr-inverse-text);
+  border-radius: var(--r-sm);
+}
+
+/* ------------------------------- the shell ------------------------------- */
+
+.shell { display: flex; min-height: 100vh; flex-direction: column; background: var(--mr-canvas); }
+
+.shell-header {
+  position: sticky; top: 0; z-index: 20;
+  border-bottom: 1px solid var(--mr-line);
+  background: rgba(255,255,255,.85);
+  backdrop-filter: blur(6px);
+}
+.shell-header-inner {
+  margin: 0 auto; display: flex; height: var(--header-h);
+  max-width: var(--max-content); align-items: center;
+  gap: var(--s-lg); padding: 0 var(--s-lg);
+}
+.wordmark {
+  display: flex; align-items: baseline; gap: var(--s-sm);
+  font-family: var(--mr-font-display); font-weight: 700;
+  font-size: 1rem; letter-spacing: -.01em;
+  color: var(--mr-text-primary); text-decoration: none;
+}
+.shell-nav { margin-left: auto; display: flex; align-items: center; gap: var(--s-lg); }
+.navlink {
+  display: inline-flex; min-height: var(--touch); align-items: center;
+  font-size: .8125rem; color: var(--mr-text-secondary); text-decoration: none;
+  transition: color var(--mr-duration-instant) var(--mr-ease-standard);
+}
+.navlink:hover { color: var(--mr-text-primary); }
+.navlink[aria-current="page"] { color: var(--mr-text-primary); font-weight: 500; }
+
+.shell-main {
+  margin: 0 auto; width: 100%; max-width: var(--max-content);
+  flex: 1; padding: var(--s-3xl) var(--s-lg) var(--s-5xl);
+}
+.shell-footer { border-top: 1px solid var(--mr-line); padding: var(--s-xl) var(--s-lg); }
+.shell-footer-inner {
+  margin: 0 auto; display: flex; max-width: var(--max-content);
+  flex-wrap: wrap; align-items: center; gap: var(--s-md);
+}
+
+/* ------------------------------- actions --------------------------------- */
+/* tone answers "how loud", size answers "how much room". Folding them into one
+   `variant` prop is how a design system ends up with `primarySmallInverted`.
+   Every size keeps the 44px target; only the padding shrinks. */
+
+.act {
+  display: inline-flex; min-height: var(--touch);
+  align-items: center; justify-content: center;
+  border-radius: var(--r-md);
+  border: 1px solid transparent;
+  font-family: var(--mr-font-body);
+  text-decoration: none; cursor: pointer; background: none;
+  transition: color var(--mr-duration-instant) var(--mr-ease-standard),
+              background-color var(--mr-duration-instant) var(--mr-ease-standard),
+              border-color var(--mr-duration-instant) var(--mr-ease-standard),
+              opacity var(--mr-duration-instant) var(--mr-ease-standard);
+}
+.act:disabled, .act[aria-disabled="true"] { cursor: not-allowed; }
+
+.act--prominent-size { padding: 0 var(--s-xl); font-size: .9375rem; }
+.act--standard-size  { padding: 0 var(--s-xl); font-size: .8125rem; }
+.act--compact-size   { padding: 0 var(--s-md); font-size: .8125rem; }
+
+/* The primary button is charcoal, not green. A green button would be telling
+   the user the button is a verified result. */
+.act--prominent {
+  background: var(--mr-inverse); color: var(--mr-inverse-text); font-weight: 500;
+}
+.act--prominent:hover { opacity: .9; }
+.act--prominent:disabled { opacity: .6; }
+
+.act--standard {
+  border-color: var(--mr-line-control); color: var(--mr-text-secondary);
+}
+.act--standard:hover { border-color: var(--mr-read); color: var(--mr-text-primary); }
+.act--standard:disabled { opacity: .5; }
+
+.act--quiet {
+  color: var(--mr-text-secondary); text-decoration: underline; text-underline-offset: 2px;
+}
+.act--quiet:hover { color: var(--mr-text-primary); }
+.act--quiet:disabled { opacity: .5; }
+
+.act--danger { border-color: var(--mr-miss); color: var(--mr-miss-strong); }
+.act--danger:hover { background: var(--mr-miss); color: var(--mr-inverse-text); }
+
+/* ------------------------------- layout ---------------------------------- */
+
+.stack        { display: flex; flex-direction: column; }
+.gap-xs { gap: var(--s-xs); } .gap-sm { gap: var(--s-sm); } .gap-md { gap: var(--s-md); }
+.gap-lg { gap: var(--s-lg); } .gap-xl { gap: var(--s-xl); } .gap-2xl { gap: var(--s-2xl); }
+.gap-3xl { gap: var(--s-3xl); } .gap-4xl { gap: var(--s-4xl); }
+.row      { display: flex; align-items: center; }
+.row-base { display: flex; align-items: baseline; }
+.row-top  { display: flex; align-items: flex-start; }
+.wrap { flex-wrap: wrap; }
+.between { justify-content: space-between; }
+.push { margin-left: auto; }
+.prose { max-width: var(--max-prose); }
+.grow { flex: 1; }
+.right { text-align: right; }
+
+.panel {
+  border: 1px solid var(--mr-line);
+  border-radius: var(--r-lg);
+  background: var(--mr-sunken);
+  padding: var(--s-xl) var(--s-2xl);
+}
+.rule { height: 1px; background: var(--mr-line); border: 0; margin: 0; }
+
+/* ------------------------------ empty state ------------------------------ */
+/* An empty screen is an invitation to act, not an apology. It names what is
+   missing and what happens next, and it never says "no data". */
+.empty {
+  border: 1px solid var(--mr-line); border-radius: var(--r-lg);
+  background: var(--mr-sunken); padding: var(--s-3xl) var(--s-2xl); text-align: center;
+}
+
+/* -------------------------- settlement disclosure ------------------------ */
+/* Never show stale standings as current without saying so. */
+.disclosure {
+  display: flex; align-items: flex-start; gap: var(--s-sm);
+  border: 1px solid var(--mr-line); border-radius: var(--r-md);
+  padding: var(--s-md) var(--s-lg); font-size: .8125rem;
+  color: var(--mr-text-muted);
+}
+.disclosure--urgent { border-color: var(--mr-miss); color: var(--mr-text-secondary); }
+.disclosure-dot {
+  margin-top: 3px; width: 8px; height: 8px; flex-shrink: 0;
+  border-radius: var(--r-pill); background: var(--mr-line-strong);
+}
+.disclosure--urgent .disclosure-dot { background: var(--mr-miss); }
+
+/* ------------------------------ daily check ------------------------------ */
+
+.check-rule {
+  margin-top: var(--s-sm); height: 52px; width: 3px; flex-shrink: 0;
+  border-radius: var(--r-pill); background: var(--mr-line-strong);
+}
+.check-rule--good { background: var(--mr-data); }
+.check-rule--bad  { background: var(--mr-miss); }
+.check-rule--flat { background: var(--mr-line-strong); }
+
+.beats { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none;
+         border-top: 1px solid var(--mr-line); border-bottom: 1px solid var(--mr-line); }
+.beat { display: flex; align-items: baseline; gap: var(--s-lg);
+        padding: var(--s-md) 0; border-top: 1px solid var(--mr-line); }
+.beat:first-child { border-top: 0; }
+.beat-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: var(--r-pill);
+            background: var(--mr-line-strong); }
+.beat-dot--good { background: var(--mr-data); }
+.beat-dot--bad  { background: var(--mr-miss); }
+
+/* ------------------------------- standings ------------------------------- */
+
+.table { width: 100%; border-collapse: collapse; }
+.table th { text-align: left; padding: var(--s-md) 0; }
+.table thead tr { border-bottom: 1px solid var(--mr-line); }
+.table tbody tr { border-bottom: 1px solid var(--mr-line); }
+.table td { padding: var(--s-md) 0; vertical-align: baseline; }
+.table .right { text-align: right; }
+.table tbody tr.is-you { background: var(--mr-sunken); }
+.table tbody tr.is-you td:first-child { box-shadow: inset 2px 0 0 var(--mr-read); }
+
+/* --------------------------- tournament row ------------------------------ */
+/* The one licensed use of a court colour: a 3px hairline. A season league shows
+   eight of these stacked and the colour makes the shape of a tennis year
+   legible at a glance without a single extra word. */
+
+.trow { position: relative; list-style: none; }
+.trow-link {
+  display: flex; align-items: center; gap: var(--s-lg);
+  overflow: hidden; border-radius: var(--r-lg);
+  border: 1px solid var(--mr-line);
+  padding: var(--s-lg) var(--s-lg) var(--s-lg) var(--s-xl);
+  text-decoration: none; color: inherit;
+  transition: border-color var(--mr-duration-instant) var(--mr-ease-standard);
+}
+.trow-link:hover { border-color: var(--mr-line-strong); }
+.court-hairline { position: absolute; left: 0; top: 0; height: 100%; width: 3px; background: var(--mr-line-strong); }
+.court-hard   { background: var(--mr-court-hard); }
+.court-clay   { background: var(--mr-court-clay); }
+.court-grass  { background: var(--mr-court-grass); }
+.court-carpet { background: var(--mr-court-carpet); }
+.court-indoor { background: var(--mr-court-indoor); }
+
+/* ------------------------------- the bracket ----------------------------- */
+/* MatchRead's signature screen. A tournament tree, not a table: rounds are
+   columns, each slot holds two names, picking one sends it forward. The visual
+   grammar is a printed draw sheet — hairlines, tabular numerals, no cards, no
+   shadows — because that is the artifact this product is about. */
+
+.bracket-region {
+  margin: 0 calc(var(--s-lg) * -1);
+  overflow-x: auto;
+  padding: 0 var(--s-lg) var(--s-lg);
+}
+.bracket-region:focus-visible { outline-offset: -2px; }
+.bracket-grid { display: flex; min-width: max-content; gap: var(--s-xl); }
+.bracket-col { display: flex; flex-direction: column; gap: var(--s-xs); width: 216px; }
+.bracket-col-head {
+  position: sticky; top: var(--header-h); z-index: 10;
+  background: var(--mr-canvas); padding-bottom: var(--s-sm); margin: 0;
+}
+.bracket-col-body { display: flex; flex: 1; flex-direction: column; justify-content: space-around; gap: var(--s-sm); }
+
+.slot {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--mr-line); border-radius: var(--r-md);
+  background: var(--mr-canvas);
+}
+.slot--void { border-style: dashed; border-color: var(--mr-line-strong); }
+.slot-divider { height: 1px; background: var(--mr-line); }
+.slot-note {
+  border-top: 1px dashed var(--mr-line-strong);
+  padding: var(--s-sm) var(--s-md);
+  font-size: .8125rem; color: var(--mr-text-muted); margin: 0;
+}
+
+/* A name. The chosen one gets weight and a left rule, never a fill: a filled
+   row reads as a result, a rule reads as "this one continues", which is what a
+   pick is. */
+.name {
+  display: flex; min-height: var(--touch); width: 100%;
+  align-items: center; gap: var(--s-sm);
+  border: 0; border-left: 2px solid transparent;
+  padding: 0 var(--s-md); text-align: left; background: none;
+  font-family: inherit; color: inherit;
+  transition: background-color var(--mr-duration-instant) var(--mr-ease-standard);
+}
+button.name { cursor: pointer; }
+button.name:hover { background: var(--mr-sunken); }
+.name-seed { width: 16px; flex-shrink: 0; font-size: .8125rem; color: var(--mr-text-muted); }
+/* min-width:0 is what actually lets a flex child ellipsis; without it the
+   default min-width:auto keeps a long surname from ever shrinking. */
+.name-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+             font-size: .9375rem; color: var(--mr-text-secondary); }
+.name-country { margin-left: auto; flex-shrink: 0; font-size: .8125rem;
+                text-transform: uppercase; color: var(--mr-text-muted); }
+
+/* Colour arrives only once the tournament has ruled. Before that a pick is a
+   claim in ink; after it, it is right or it is wrong. That moment is the
+   emotional payload of the whole product. */
+.name--chosen              { border-left-color: var(--mr-read); }
+.name--chosen .name-text   { color: var(--mr-text-primary); font-weight: 500; }
+.name--correct             { border-left-color: var(--mr-data); }
+.name--correct .name-text  { color: var(--mr-data-strong); font-weight: 500; }
+.name--incorrect           { border-left-color: var(--mr-miss); }
+.name--incorrect .name-text{ color: var(--mr-miss-strong); text-decoration: line-through; }
+.name--voided              { border-left-color: var(--mr-line-control); }
+.name--voided .name-text   { color: var(--mr-text-muted); text-decoration: line-through;
+                             text-decoration-style: dashed; }
+.name--empty .name-text, .name--bye .name-text { color: var(--mr-text-muted); font-size: .8125rem; }
+
+/* --------------------------- the result artifact ------------------------- */
+/* The one screen allowed to be an object rather than a page. */
+
+.artifact {
+  border: 1px solid var(--mr-line-strong); border-radius: var(--r-2xl);
+  padding: var(--s-4xl); background: var(--mr-canvas);
+  max-width: 560px;
+}
+.artifact-mark {
+  display: flex; align-items: baseline; gap: var(--s-sm);
+  font-family: var(--mr-font-display); font-weight: 700; font-size: .9375rem;
+  letter-spacing: -.01em;
+}
+
+/* ------------------------------- skeleton -------------------------------- */
+/* Loading is the product declining to lie about what it knows yet. */
+
+.skel { border-radius: var(--r-sm); background: var(--mr-raised); position: relative; overflow: hidden; }
+.skel::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent);
+  transform: translateX(-100%);
+  animation: skel 1.4s var(--mr-ease-standard) infinite;
+}
+@keyframes skel { to { transform: translateX(100%); } }
+
+/* --------------------------------- forms --------------------------------- */
+
+.field-label { display: block; margin-bottom: var(--s-sm); }
+.input, .select {
+  width: 100%; min-height: var(--touch);
+  border: 1px solid var(--mr-line-control); border-radius: var(--r-md);
+  background: var(--mr-canvas); color: var(--mr-text-primary);
+  font-family: var(--mr-font-body); font-size: .9375rem;
+  padding: 0 var(--s-md);
+}
+.input::placeholder { color: var(--mr-text-muted); }
+.input[aria-invalid="true"] { border-color: var(--mr-miss); }
+.hint { font-size: .8125rem; color: var(--mr-text-muted); }
+.err  { font-size: .8125rem; color: var(--mr-miss-strong); }
+
+/* A radio card. Used for league format and visibility — two decisions the
+   commissioner cannot change later, so they are shown as consequences rather
+   than as a select. */
+.choice {
+  display: flex; gap: var(--s-md); align-items: flex-start;
+  border: 1px solid var(--mr-line-control); border-radius: var(--r-md);
+  padding: var(--s-lg); cursor: pointer;
+  transition: border-color var(--mr-duration-instant) var(--mr-ease-standard),
+              background-color var(--mr-duration-instant) var(--mr-ease-standard);
+}
+.choice:hover { border-color: var(--mr-read); }
+.choice[data-selected="true"] { border-color: var(--mr-read); background: var(--mr-sunken); }
+.choice input { margin-top: 3px; accent-color: var(--mr-text-primary); }
+
+/* -------------------------------- dialog --------------------------------- */
+
+.scrim {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(21,24,27,.4);
+  display: flex; align-items: center; justify-content: center; padding: var(--s-lg);
+  animation: fade var(--mr-duration-base) var(--mr-ease-standard);
+}
+.dialog {
+  width: 100%; max-width: 460px;
+  border: 1px solid var(--mr-line-strong); border-radius: var(--r-xl);
+  background: var(--mr-canvas); padding: var(--s-2xl);
+  animation: rise var(--mr-duration-base) var(--mr-ease-decelerate);
+}
+@keyframes fade { from { opacity: 0 } }
+@keyframes rise { from { opacity: 0; transform: translateY(8px) } }
+
+/* -------------------------------- toast ---------------------------------- */
+
+.toast-dock { position: fixed; left: 50%; bottom: 88px; z-index: 40; transform: translateX(-50%); }
+.toast {
+  border: 1px solid var(--mr-line-strong); border-radius: var(--r-pill);
+  background: var(--mr-inverse); color: var(--mr-inverse-text);
+  padding: var(--s-md) var(--s-xl); font-size: .8125rem;
+  animation: rise var(--mr-duration-base) var(--mr-ease-decelerate);
+}
+
+/* ------------------------------ misc chips ------------------------------- */
+
+.chip {
+  display: inline-flex; align-items: center; gap: var(--s-xs);
+  border: 1px solid var(--mr-line); border-radius: var(--r-pill);
+  padding: 2px var(--s-md); font-size: .8125rem; color: var(--mr-text-muted);
+}
+.chip--live { border-color: var(--mr-data); color: var(--mr-data-strong); }
+.live-dot { width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--mr-data);
+            animation: pulse 2s var(--mr-ease-standard) infinite; }
+@keyframes pulse { 50% { opacity: .35 } }
+
+.link {
+  color: var(--mr-text-secondary); text-decoration: underline; text-underline-offset: 2px;
+  transition: color var(--mr-duration-instant) var(--mr-ease-standard);
+}
+.link:hover { color: var(--mr-text-primary); }
+
+/* ------------------------------ responsive ------------------------------- */
+
+@media (max-width: 720px) {
+  .t-hero    { font-size: 2.5rem; line-height: 2.5rem; }
+  .t-display { font-size: 1.75rem; line-height: 2rem; }
+  .wordmark .descriptor { display: none; }
+  .shell-main { padding: var(--s-2xl) var(--s-lg) var(--s-4xl); }
+  .artifact { padding: var(--s-2xl); }
+}

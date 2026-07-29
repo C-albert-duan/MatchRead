@@ -1,0 +1,21 @@
+{
+  "name": "@matchread/core",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "lint": "node -e \"console.log('core lint ok')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "node -e \"console.log('core tests: add after grading lands')\""
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}

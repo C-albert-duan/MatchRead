@@ -1,0 +1,37 @@
+# Dependencies
+node_modules
+.pnpm-store
+
+# Env
+.env
+.env.*
+!.env.example
+apps/web/.env*.local
+
+# Next.js
+apps/web/.next
+apps/web/out
+
+# Build / coverage
+dist
+coverage
+*.tsbuildinfo
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# Supabase
+supabase/.branches
+supabase/.temp
+
+# Wireframe archives (extracted copies are tracked)
+Wireframe/**/*.zip
+Wireframe/**/*.tar.gz
+
+# Debug
+npm-debug.log*
+pnpm-debug.log*

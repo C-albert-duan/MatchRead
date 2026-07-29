@@ -1,0 +1,4 @@
+# supabase/functions
+
+Edge functions land here in later phases (ingest-events, settlement helpers).
+Service-role is platform-injected — never ship it to Vercel.

@@ -1,0 +1,22 @@
+# MatchRead Supabase project
+# Link with: supabase link --project-ref <ref>
+# Push migrations with: supabase db push
+
+[project]
+id = "matchread"
+
+[api]
+enabled = true
+
+[db]
+major_version = 15
+
+[auth]
+enabled = true
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = false

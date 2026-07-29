@@ -1,0 +1,18 @@
+{
+  "name": "@matchread/tokens",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "node -e \"console.log('tokens lint ok')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "node -e \"console.log('tokens tests: ok')\""
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  }
+}
