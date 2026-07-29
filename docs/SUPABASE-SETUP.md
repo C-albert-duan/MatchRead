@@ -24,6 +24,7 @@ Use **SQL Editor**. Run in order:
 2. `supabase/migrations/0002_leagues.sql` — leagues, members, invites, RLS, grants, `create_league` / join RPCs  
 3. `supabase/migrations/0003_brackets.sql` — tournaments, draws, seats, brackets, fixture seed, save/submit/lock RPCs  
 4. `supabase/migrations/0004_settlement.sql` — match results, snapshots, season standings, void stub  
+5. `supabase/migrations/0005_daily_check.sql` — `daily_check_log` cache for Daily Check  
 
 ### Already applied an older migration?
 

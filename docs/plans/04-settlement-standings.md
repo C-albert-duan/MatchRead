@@ -4,7 +4,7 @@
 
 Official results grade brackets; event and season tables move.
 
-## Status: **IN PROGRESS** (code shipped 2026-07-29 — apply `0004_settlement.sql` + E2E)
+## Status: **DONE** (2026-07-29)
 
 ## Done when
 
@@ -12,7 +12,7 @@ Official results grade brackets; event and season tables move.
 - [x] Settlement job can run (manual commissioner invoke; cron documented)
 - [x] Standings show scores and rank deltas after a pass
 - [x] Void / withdrawal path stubbed (`pick_voids` + voided match results)
-- [ ] Migration applied + owner E2E checklist
+- [x] Migration applied + owner E2E checklist
 
 ## Work
 

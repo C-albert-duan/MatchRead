@@ -1,27 +1,29 @@
 # Phase 4 test checklist — Settlement + Standings
 
+**Status: complete** (owner confirmed 2026-07-29). Kept for regression re-runs.
+
 Dev: **http://localhost:3001**
 
 ## Prerequisites
 
-- [ ] `0004_settlement.sql` applied (seeds official `uso-2026` results)
-- [ ] Submitted bracket in a US Open 2026 league
-- [ ] Signed in as commissioner
+- [x] `0004_settlement.sql` applied (seeds official `uso-2026` results)
+- [x] Submitted bracket in a US Open 2026 league
+- [x] Signed in as commissioner
 
 ## Settlement
 
-- [ ] Tournament page shows **Event standings** (empty before first run)
-- [ ] **Run settlement** grades submitted brackets
-- [ ] Your row appears with score / rank
-- [ ] Re-run updates Δ when scores change
+- [x] Tournament page shows **Event standings** (empty before first run)
+- [x] **Run settlement** grades submitted brackets
+- [x] Your row appears with score / rank
+- [x] Re-run updates Δ when scores change
 
 ## Season
 
-- [ ] `/leagues/[slug]/season` shows scaled points after settlement
+- [x] `/leagues/[slug]/season` shows scaled points after settlement
 
 ## Void stub
 
-- [ ] `pick_voids` table exists (operator path for Phase 7); match_results can be `voided`
+- [x] `pick_voids` table exists (operator path for Phase 7); match_results can be `voided`
 
 ## Pass
 

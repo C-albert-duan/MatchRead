@@ -38,6 +38,17 @@ export type {
   OfficialResults,
 } from "./grade";
 
+export { computeDailyCheck, ordinal } from "./pulse";
+export type {
+  DailyCheck,
+  PulseAction,
+  PulseBeat,
+  PulseEmotion,
+  PulseInput,
+  PulseKind,
+  StandingPulseRow,
+} from "./pulse";
+
 export const BRACKET_HEALTH = [
   "Elite",
   "Surviving",

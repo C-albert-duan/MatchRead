@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/AppShell";
+import { DailyCheckPanel } from "@/components/DailyCheckPanel";
 import { InvitePanel } from "@/components/InvitePanel";
 import { getSessionUser } from "@/lib/auth";
 import { siteUrl } from "@/lib/env";
+import { loadDailyCheck } from "@/lib/leagues/daily-check";
 import { createClient } from "@/lib/supabase/server";
 
 type Props = {
@@ -99,6 +101,13 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
     }
   }
 
+  const check = await loadDailyCheck({
+    supabase,
+    league,
+    userId: user.id,
+    memberCount: memberCount ?? 0,
+  });
+
   return (
     <AppShell signedIn email={user.email}>
       <div className="stack gap-4xl">
@@ -130,23 +139,15 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                 href={`/leagues/${league.slug}/t/${tournament.ref}`}
                 className="act act--prominent act--standard-size"
               >
-                {tournament.has_draw ? "Open tournament" : "Tournament (draw pending)"}
+                {tournament.has_draw
+                  ? "Open tournament"
+                  : "Tournament (draw pending)"}
               </Link>
             ) : null}
           </div>
         </div>
 
-        {tournament && !tournament.has_draw ? (
-          <section className="panel stack gap-md" aria-labelledby="draw-pending-home">
-            <h2 id="draw-pending-home" className="section-title">
-              Draw pending
-            </h2>
-            <p className="t-body">
-              {tournament.name} is on the calendar, but the draw is not out yet.
-              Invite friends now — brackets open the moment it lands.
-            </p>
-          </section>
-        ) : null}
+        <DailyCheckPanel check={check} />
 
         {isCommissioner && inviteUrl ? (
           <InvitePanel

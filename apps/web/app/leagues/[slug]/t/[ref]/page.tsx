@@ -173,6 +173,14 @@ export default async function TournamentInLeaguePage({ params }: Props) {
               Event standings
             </h2>
             <StandingsTable rows={standingRows} kind="event" />
+            {standingRows.length > 0 ? (
+              <Link
+                href={`/leagues/${league.slug}/t/${tournament.ref}/result`}
+                className="act act--standard act--standard-size"
+              >
+                See my result
+              </Link>
+            ) : null}
             {isCommissioner ? (
               <SettleButton
                 leagueId={league.id}

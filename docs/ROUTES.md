@@ -32,5 +32,7 @@ Source of truth for screens: `Wireframe/MatchRead-main/matchread-spec/docs/ENGIN
 |---|---|
 | `/leagues/[slug]/t/[ref]` | Tournament in league (draw pending or entry) |
 | `/leagues/[slug]/t/[ref]/bracket` | Fill / submit / locked bracket |
+| `/leagues/[slug]/t/[ref]/result` | Result artifact after settlement |
+| `/leagues/[slug]/season` | Season standings |
 
 Deep links in the wireframe prototype use hash routes (`#/bracket`); production uses the paths above.
