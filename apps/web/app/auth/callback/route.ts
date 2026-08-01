@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabaseAnonKey, getSupabaseUrl, hasSupabaseEnv } from "@/lib/env";
+import { publicOriginFromRequest } from "@/lib/site-origin";
 import { safeNext } from "@/lib/safe-next";
 import {
   REMEMBER_COOKIE,
@@ -10,18 +11,39 @@ import {
   parseRememberFlag,
 } from "@/lib/auth/remember";
 
+function mapAuthError(errorCode: string | null): string {
+  if (errorCode === "otp_expired") return "otp_expired";
+  if (errorCode === "access_denied") return "otp_expired";
+  return "auth";
+}
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const next = safeNext(url.searchParams.get("next"));
-  const origin = url.origin;
+  const origin = publicOriginFromRequest(request);
+  const providerError = url.searchParams.get("error");
+  const errorCode = url.searchParams.get("error_code");
+
+  const fail = (error: string) => {
+    const dest = new URL("/sign-in", origin);
+    dest.searchParams.set("error", error);
+    if (next && next !== "/") dest.searchParams.set("next", next);
+    return NextResponse.redirect(dest);
+  };
 
   if (!hasSupabaseEnv()) {
-    return NextResponse.redirect(`${origin}/sign-in?error=config`);
+    return fail("config");
+  }
+
+  // Supabase verify already failed (often otp_expired from a second click /
+  // email link scanner). No auth code to exchange.
+  if (providerError) {
+    return fail(mapAuthError(errorCode));
   }
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/sign-in?error=auth`);
+    return fail("auth");
   }
 
   const cookieStore = cookies();
@@ -56,7 +78,7 @@ export async function GET(request: Request) {
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    return NextResponse.redirect(`${origin}/sign-in?error=auth`);
+    return fail("auth");
   }
 
   const response = NextResponse.redirect(`${origin}${next}`);
@@ -64,7 +86,6 @@ export async function GET(request: Request) {
     response.cookies.set(cookie.name, cookie.value, cookie.options);
   }
 
-  // Persist remember preference for future middleware refreshes
   response.cookies.set({
     name: REMEMBER_COOKIE,
     value: remember ? "1" : "0",

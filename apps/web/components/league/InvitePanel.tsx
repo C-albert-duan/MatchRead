@@ -37,7 +37,7 @@ export function InvitePanel({
     return (
       <button
         type="button"
-        className="act act--standard act--standard-size"
+        className="act act--prominent act--prominent-size"
         onClick={() => setOpen(true)}
       >
         Invite friends

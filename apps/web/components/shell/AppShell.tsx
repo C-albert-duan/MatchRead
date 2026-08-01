@@ -1,25 +1,38 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { signOut } from "@/app/actions/auth";
-import { LocaleSwitcher } from "@/components/LocaleSwitcher";
-import { OfflineBanner } from "@/components/OfflineBanner";
+import { BackButton } from "@/components/shell/BackButton";
+import { CourtAtmosphere } from "@/components/shell/CourtAtmosphere";
+import { LocaleSwitcher } from "@/components/shell/LocaleSwitcher";
+import { NavigationProgressHost } from "@/components/shell/NavigationProgressHost";
+import { OfflineBanner } from "@/components/shell/OfflineBanner";
 import { getLocale, t } from "@/lib/i18n";
 
 type Props = {
   children: React.ReactNode;
   signedIn: boolean;
-  /** Optional email shown when signed in */
   email?: string | null;
+  /** Full arena atmosphere (landing). Default app routes still get a light wash. */
+  arena?: boolean;
 };
 
-export function AppShell({ children, signedIn, email }: Props) {
+export function AppShell({
+  children,
+  signedIn,
+  email,
+  arena = false,
+}: Props) {
   const locale = getLocale();
 
   return (
-    <div className="shell">
+    <div className={arena ? "shell shell--arena" : "shell"}>
+      <CourtAtmosphere />
+      <NavigationProgressHost />
       <OfflineBanner message={t("offline.banner")} />
       <header className="shell-header">
         <div className="shell-header-inner">
+          <BackButton />
           <Link href="/" className="wordmark">
+            <span className="wordmark-mark" aria-hidden />
             MatchRead
           </Link>
           <div className="shell-spacer" />
@@ -28,9 +41,12 @@ export function AppShell({ children, signedIn, email }: Props) {
               <>
                 <Link
                   href="/leagues"
-                  className="act act--standard act--standard-size"
+                  className="act act--prominent act--standard-size"
                 >
                   {t("nav.leagues")}
+                </Link>
+                <Link href="/tournaments" className="act act--quiet">
+                  Calendar
                 </Link>
                 <form action={signOut}>
                   <button
@@ -43,10 +59,7 @@ export function AppShell({ children, signedIn, email }: Props) {
               </>
             ) : (
               <>
-                <Link
-                  href="/sign-in"
-                  className="act act--standard act--standard-size"
-                >
+                <Link href="/sign-in" className="act act--quiet">
                   {t("nav.signIn")}
                 </Link>
                 <Link
@@ -62,6 +75,7 @@ export function AppShell({ children, signedIn, email }: Props) {
       </header>
       {email && signedIn ? (
         <div className="session-chip" aria-live="polite">
+          <span className="live-dot" aria-hidden />
           {t("nav.signedInAs")} {email}
         </div>
       ) : null}

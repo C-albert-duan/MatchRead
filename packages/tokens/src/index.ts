@@ -1,34 +1,41 @@
-/** Design tokens — sourced from Wireframe matchread-spec/css/tokens.css */
+/** Design tokens — MatchRead live-court energy.
+ * Primary CTA = hard-court blue (action). Green = verified data only.
+ */
 
 export const color = {
-  canvas: "#FFFFFF",
-  raised: "#F2F5F4",
-  sunken: "#FAFBFB",
-  line: "#E2E7E6",
-  lineStrong: "#C9D1CF",
-  lineControl: "#828E8B",
-  textPrimary: "#15181B",
-  textSecondary: "#3B4248",
-  textMuted: "#626A72",
-  inverse: "#15181B",
+  canvas: "#E9F2FA",
+  raised: "#D7E8F6",
+  sunken: "#F4F9FD",
+  line: "#B7CEE3",
+  lineStrong: "#7FA8C9",
+  lineControl: "#3E6F94",
+  textPrimary: "#0B1F33",
+  textSecondary: "#2A4660",
+  textMuted: "#5A7690",
+  inverse: "#0B1F33",
   inverseText: "#FFFFFF",
-  read: "#15181B",
-  readStrong: "#3B4248",
-  data: "#0A6B42",
-  dataStrong: "#053D26",
+  read: "#0B1F33",
+  readStrong: "#2A4660",
+  /** Action / live energy — not a verified result */
+  accent: "#0B7AD1",
+  accentStrong: "#085A9C",
+  data: "#0A8F55",
+  dataStrong: "#056B3E",
   wta: "#C6A2FF",
-  miss: "#C93F36",
-  missStrong: "#A8322A",
-  courtClay: "#C2633C",
-  courtGrass: "#5F8F3A",
-  courtHard: "#2F6FA8",
-  courtIndoor: "#293D5E",
+  miss: "#E0453A",
+  missStrong: "#B8322A",
+  courtClay: "#D96B3C",
+  courtGrass: "#4FA03A",
+  courtHard: "#0B7AD1",
+  courtIndoor: "#1A3554",
+  scoreboard: "#071826",
+  scoreboardRaised: "#0E2A42",
 } as const;
 
 export const font = {
-  display: 'Archivo, ui-sans-serif, system-ui, sans-serif',
-  body: '"Instrument Sans", ui-sans-serif, system-ui, sans-serif',
-  numeral: '"IBM Plex Mono", ui-monospace, monospace',
+  display: "var(--font-archivo), Archivo, ui-sans-serif, system-ui, sans-serif",
+  body: 'var(--font-instrument), "Instrument Sans", ui-sans-serif, system-ui, sans-serif',
+  numeral: 'var(--font-plex), "IBM Plex Mono", ui-monospace, monospace',
 } as const;
 
 export const spacing = {
@@ -44,7 +51,6 @@ export const spacing = {
   "5xl": "56px",
 } as const;
 
-/** Emit CSS custom properties for :root */
 export function cssVariables(): string {
   return [
     `--mr-canvas: ${color.canvas}`,
@@ -60,6 +66,8 @@ export function cssVariables(): string {
     `--mr-inverse-text: ${color.inverseText}`,
     `--mr-read: ${color.read}`,
     `--mr-read-strong: ${color.readStrong}`,
+    `--mr-accent: ${color.accent}`,
+    `--mr-accent-strong: ${color.accentStrong}`,
     `--mr-data: ${color.data}`,
     `--mr-data-strong: ${color.dataStrong}`,
     `--mr-wta: ${color.wta}`,
@@ -69,6 +77,8 @@ export function cssVariables(): string {
     `--mr-court-grass: ${color.courtGrass}`,
     `--mr-court-hard: ${color.courtHard}`,
     `--mr-court-indoor: ${color.courtIndoor}`,
+    `--mr-scoreboard: ${color.scoreboard}`,
+    `--mr-scoreboard-raised: ${color.scoreboardRaised}`,
     `--mr-font-display: ${font.display}`,
     `--mr-font-body: ${font.body}`,
     `--mr-font-numeral: ${font.numeral}`,
@@ -82,8 +92,5 @@ export function cssVariables(): string {
     `--s-3xl: ${spacing["3xl"]}`,
     `--s-4xl: ${spacing["4xl"]}`,
     `--s-5xl: ${spacing["5xl"]}`,
-    `--max-prose: 680px`,
-    `--max-content: 1180px`,
-    `--touch: 44px`,
-  ].join("; ");
+  ].join(";\n  ");
 }

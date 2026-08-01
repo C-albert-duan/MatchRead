@@ -33,6 +33,8 @@ const en = {
   "nav.leagues": "Leagues",
   "nav.signIn": "Sign in",
   "nav.signOut": "Sign out",
+  "nav.back": "Back",
+  "nav.loading": "Loading…",
   "cta.startLeague": "Start a league",
   "nav.signedInAs": "Signed in as",
 
@@ -112,6 +114,8 @@ const es: Record<MessageKey, string> = {
   "nav.leagues": "Ligas",
   "nav.signIn": "Entrar",
   "nav.signOut": "Salir",
+  "nav.back": "Atrás",
+  "nav.loading": "Cargando…",
   "cta.startLeague": "Crear una liga",
   "nav.signedInAs": "Sesión de",
 
@@ -189,6 +193,8 @@ const ja: Record<MessageKey, string> = {
   "nav.leagues": "リーグ",
   "nav.signIn": "サインイン",
   "nav.signOut": "サインアウト",
+  "nav.back": "戻る",
+  "nav.loading": "読み込み中…",
   "cta.startLeague": "リーグを始める",
   "nav.signedInAs": "サインイン中",
 

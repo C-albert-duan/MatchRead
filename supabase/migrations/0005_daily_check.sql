@@ -1,5 +1,6 @@
 -- 0005_daily_check.sql
 -- Phase 5: optional cache/log for computed Daily Check pulses.
+-- Idempotent: safe to re-run in SQL Editor.
 
 create table if not exists public.daily_check_log (
   id uuid primary key default gen_random_uuid(),

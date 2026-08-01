@@ -27,7 +27,7 @@ Run `supabase/migrations/0004_settlement.sql` after 0003.
 
 ## Test checklist
 
-[04-settlement-standings-checklist.md](./04-settlement-standings-checklist.md)
+[archive/04-settlement-standings-checklist.md](./archive/04-settlement-standings-checklist.md)
 
 ## Risk
 

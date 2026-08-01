@@ -4,16 +4,31 @@ Tennis bracket leagues for groups — US Open 2026 web launch.
 
 **Not gambling.** Create a league, share a link, fill brackets, come back for the Daily Check.
 
+## Run (Docker only)
+
+No host Node/npm install. Dependencies stay inside Docker.
+
+```bash
+cp .env.docker.example .env.docker
+# set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+docker compose --env-file .env.docker up --build
+```
+
+Open [http://localhost:3001](http://localhost:3001). Full guide: **[docs/DOCKER.md](./docs/DOCKER.md)**.
+
 ## Docs
 
-Start here: **[docs/STATUS.md](./docs/STATUS.md)** (live phase status) · **[docs/README.md](./docs/README.md)** (full index)
+Start here: **[docs/STATUS.md](./docs/STATUS.md)** · **[docs/CHECKLISTS.md](./docs/CHECKLISTS.md)** · **[docs/README.md](./docs/README.md)**
 
 | | |
 |---|---|
 | Status | [docs/STATUS.md](./docs/STATUS.md) |
+| Checklists | [docs/CHECKLISTS.md](./docs/CHECKLISTS.md) |
 | Product | [docs/PRODUCT.md](./docs/PRODUCT.md) |
 | Scope | [docs/MVP-SCOPE.md](./docs/MVP-SCOPE.md) |
 | Roadmap | [docs/ROADMAP.md](./docs/ROADMAP.md) |
+| Docker | [docs/DOCKER.md](./docs/DOCKER.md) |
 | Deploy | [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) |
 | Supabase | [docs/SUPABASE-SETUP.md](./docs/SUPABASE-SETUP.md) |
 
@@ -25,25 +40,12 @@ CEO priorities PDF: `Wireframe/MatchRead_US_Open_MVP_Feature_Priorities.pdf`
 
 ## Stack
 
-- `apps/web` — Next.js → Vercel
+- `apps/web` — Next.js (run via Docker; Vercel optional for prod)
 - `packages/core` — domain scoring / Daily Check
 - `packages/tokens` — design tokens
 - `packages/i18n` — locales
 - `supabase/` — schema, RLS, edge functions
 
-## Quick start
-
-```bash
-node -v   # >= 20.11
-npm install
-cp .env.example apps/web/.env.local   # fill Supabase anon URL/key
-npm run dev
-```
-
-(`pnpm-workspace.yaml` is present if you prefer pnpm later; this scaffold installs with npm workspaces.)
-
 ## Current phase
 
-**Phase 2 — Leagues + Invites** (code shipped). Apply `supabase/migrations/0002_leagues.sql` then run [docs/plans/02-leagues-invites-checklist.md](./docs/plans/02-leagues-invites-checklist.md).
-
-Details: [docs/STATUS.md](./docs/STATUS.md)
+Owner verification across [Phases 10–13](./docs/CHECKLISTS.md). Build 0–8 code-complete. Tier 2–3 deferred (Phase 14).

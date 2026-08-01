@@ -1,6 +1,9 @@
 -- 0003_brackets.sql
 -- Phase 3: tournaments, draws, seats, member brackets, lock-aware save/submit.
 -- Fresh install: run after 0001_init.sql and 0002_leagues.sql.
+-- Idempotent: safe to re-run. Fixture seed does not wipe existing seats/results.
+-- Includes final save_bracket_picks (confidence) + admin_lock (season) so a
+-- re-run of this file cannot undo 0006 / 0007.
 
 create extension if not exists "pgcrypto";
 
@@ -57,6 +60,10 @@ create table if not exists public.brackets (
 
 create index if not exists brackets_league_tournament_idx
   on public.brackets (league_id, tournament_id);
+
+-- Confidence map (also ensured in 0006; here so re-run of 0003 keeps Tier 1)
+alter table public.brackets
+  add column if not exists confidence jsonb not null default '{}'::jsonb;
 
 -- ---------------------------------------------------------------------------
 -- Privileges
@@ -146,10 +153,13 @@ create policy brackets_update_own on public.brackets
 -- ---------------------------------------------------------------------------
 
 drop function if exists public.save_bracket_picks(uuid, uuid, jsonb);
+drop function if exists public.save_bracket_picks(uuid, uuid, jsonb, jsonb);
+
 create or replace function public.save_bracket_picks(
   p_league_id uuid,
   p_tournament_id uuid,
-  p_picks jsonb
+  p_picks jsonb,
+  p_confidence jsonb default null
 )
 returns public.brackets
 language plpgsql
@@ -172,12 +182,33 @@ begin
   if p_picks is null or jsonb_typeof(p_picks) <> 'object' then
     raise exception 'invalid picks';
   end if;
+  if p_confidence is not null and jsonb_typeof(p_confidence) <> 'object' then
+    raise exception 'invalid confidence';
+  end if;
 
-  insert into public.brackets as b (league_id, tournament_id, user_id, picks, updated_at)
-  values (p_league_id, p_tournament_id, v_uid, p_picks, now())
+  insert into public.brackets as b (
+    league_id,
+    tournament_id,
+    user_id,
+    picks,
+    confidence,
+    updated_at
+  )
+  values (
+    p_league_id,
+    p_tournament_id,
+    v_uid,
+    p_picks,
+    coalesce(p_confidence, '{}'::jsonb),
+    now()
+  )
   on conflict (league_id, tournament_id, user_id)
   do update set
     picks = excluded.picks,
+    confidence = case
+      when p_confidence is null then b.confidence
+      else excluded.confidence
+    end,
     updated_at = now()
   where not public.tournament_is_locked(p_tournament_id)
   returning * into v_row;
@@ -190,8 +221,8 @@ begin
 end;
 $$;
 
-revoke all on function public.save_bracket_picks(uuid, uuid, jsonb) from public;
-grant execute on function public.save_bracket_picks(uuid, uuid, jsonb) to authenticated;
+revoke all on function public.save_bracket_picks(uuid, uuid, jsonb, jsonb) from public;
+grant execute on function public.save_bracket_picks(uuid, uuid, jsonb, jsonb) to authenticated;
 
 drop function if exists public.submit_bracket(uuid, uuid);
 create or replace function public.submit_bracket(
@@ -260,10 +291,14 @@ $$;
 revoke all on function public.submit_bracket(uuid, uuid) from public;
 grant execute on function public.submit_bracket(uuid, uuid) to authenticated;
 
+-- Final lock RPC (same body as 0007) — season + single commissioners.
 drop function if exists public.admin_lock_tournament(text, boolean);
+drop function if exists public.admin_lock_tournament(text, boolean, text);
+
 create or replace function public.admin_lock_tournament(
   p_tournament_ref text,
-  p_locked boolean
+  p_locked boolean,
+  p_league_slug text default null
 )
 returns public.tournaments
 language plpgsql
@@ -283,16 +318,35 @@ begin
     raise exception 'tournament not found';
   end if;
 
-  -- Any commissioner of a league tied to this tournament name may lock (fixture).
-  if not exists (
-    select 1
-    from public.leagues l
-    join public.league_members m on m.league_id = l.id
-    where m.user_id = v_uid
-      and m.role = 'commissioner'
-      and l.tournament_label = v_t.name
-  ) then
-    raise exception 'not commissioner';
+  if p_league_slug is not null and length(trim(p_league_slug)) > 0 then
+    if not exists (
+      select 1
+      from public.leagues l
+      join public.league_members m on m.league_id = l.id
+      where l.slug = trim(p_league_slug)
+        and m.user_id = v_uid
+        and m.role = 'commissioner'
+        and (
+          l.format = 'season'
+          or l.tournament_label = v_t.name
+        )
+    ) then
+      raise exception 'not commissioner';
+    end if;
+  else
+    if not exists (
+      select 1
+      from public.leagues l
+      join public.league_members m on m.league_id = l.id
+      where m.user_id = v_uid
+        and m.role = 'commissioner'
+        and (
+          l.tournament_label = v_t.name
+          or l.format = 'season'
+        )
+    ) then
+      raise exception 'not commissioner';
+    end if;
   end if;
 
   update public.tournaments
@@ -304,8 +358,8 @@ begin
 end;
 $$;
 
-revoke all on function public.admin_lock_tournament(text, boolean) from public;
-grant execute on function public.admin_lock_tournament(text, boolean) to authenticated;
+revoke all on function public.admin_lock_tournament(text, boolean, text) from public;
+grant execute on function public.admin_lock_tournament(text, boolean, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Fixture seed: US Open 2026 (16-draw for early UX) + Wimbledon (no draw yet)
@@ -353,13 +407,7 @@ insert into public.draws (tournament_id)
 select t.id from public.tournaments t where t.ref = 'uso-2026'
 on conflict (tournament_id) do nothing;
 
--- Clear and reseed seats for the US Open fixture draw (idempotent re-apply)
-delete from public.draw_seats ds
-using public.draws d, public.tournaments t
-where ds.draw_id = d.id
-  and d.tournament_id = t.id
-  and t.ref = 'uso-2026';
-
+-- Seed seats only when the fixture draw has none (never wipe existing seats).
 insert into public.draw_seats (draw_id, position, player_ref, last_name, seed, country_code, is_bye)
 select d.id, v.position, v.player_ref, v.last_name, v.seed, v.country_code, false
 from public.draws d
@@ -383,4 +431,7 @@ cross join (
     (14, 'p-14', 'Okonjo',      2,  'NGA'),
     (15, 'p-15', 'Pellerin',    null, 'FRA')
 ) as v(position, player_ref, last_name, seed, country_code)
-where t.ref = 'uso-2026';
+where t.ref = 'uso-2026'
+  and not exists (
+    select 1 from public.draw_seats ds where ds.draw_id = d.id
+  );

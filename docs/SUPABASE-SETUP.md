@@ -1,9 +1,10 @@
 # Supabase project link (local)
 
-**Project URL:** `https://rdfcklsshutampxsgltj.supabase.co`  
+**Project URL:** `https://opugihofwvunwkpcmboq.supabase.co`  
+**Project ref:** `opugihofwvunwkpcmboq`  
 **Repo:** https://github.com/C-albert-duan/MatchRead
 
-Local secrets live in `apps/web/.env.local` (gitignored). Never commit keys or the database password.
+Local secrets live in **`.env.docker`** (gitignored) for Compose. Never commit keys or the database password. See [DOCKER.md](./DOCKER.md).
 
 ## Auth redirect URLs
 
@@ -11,8 +12,8 @@ Supabase → **Authentication** → **URL configuration**:
 
 | Setting | Value |
 |---|---|
-| Site URL | `http://localhost:3001` |
-| Redirect URLs | `http://localhost:3001/auth/callback` |
+| Site URL | `http://localhost:3001` (**never** `0.0.0.0` — that is Docker’s bind address) |
+| Redirect URLs | `http://localhost:3001/**` and `http://localhost:3001/auth/callback` |
 
 Later (Vercel): add `https://<your-vercel-app>.vercel.app/auth/callback`.
 
@@ -25,13 +26,21 @@ Use **SQL Editor**. Run in order:
 3. `supabase/migrations/0003_brackets.sql` — tournaments, draws, seats, brackets, fixture seed, save/submit/lock RPCs  
 4. `supabase/migrations/0004_settlement.sql` — match results, snapshots, season standings, void stub  
 5. `supabase/migrations/0005_daily_check.sql` — `daily_check_log` cache for Daily Check  
-6. `supabase/migrations/0006_engagement.sql` — `brackets.confidence` + `save_bracket_picks` optional `p_confidence`  
+6. `supabase/migrations/0006_engagement.sql` — `brackets.confidence` + `save_bracket_picks` optional `p_confidence`
+7. `supabase/migrations/0007_lock_season_commissioner.sql` — season commissioners can lock draws (fixes UI vs RPC mismatch)  
 
 Phase 7 (founder / void / i18n) needs **no new migration** — uses `pick_voids` + `match_results.voided` from 0004. Void writes still require commissioner RLS for that tournament.
 
-### Already applied an older migration?
+### Already applied / re-pasting?
 
-Re-run the **current** file in the SQL Editor (`if not exists` / `create or replace` / `on conflict`). Safe to re-apply.
+All of `0001`–`0007` are **idempotent**. You may re-run them in order in the SQL Editor:
+
+- Policies use `drop policy if exists` then `create policy`
+- Tables/indexes use `if not exists`
+- RPCs use `drop function if exists` + `create or replace` (final signatures for save/lock live in both 0003 and 0006/0007 so a mid-sequence re-run does not regress)
+- Fixture **tournaments** upsert on `ref`
+- Fixture **draw seats** seed only when the US Open draw has zero seats (never wipe)
+- Fixture **match_results** use `on conflict do nothing` (never overwrite commissioner edits)
 
 ## Rotate database password
 

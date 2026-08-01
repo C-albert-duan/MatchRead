@@ -49,7 +49,8 @@ export type LeagueHighlight = {
 };
 
 /**
- * Ceiling-based health: (score + upside) / maxScore, with champion-out capping Elite.
+ * Ceiling-based health while the draw is live; score-share when upside is gone.
+ * Champion-out caps Elite during live play.
  */
 export function bracketHealth(input: {
   score: number;
@@ -58,7 +59,16 @@ export function bracketHealth(input: {
   championAlive: boolean | null;
 }): BracketHealth {
   const { score, maxScore, upside, championAlive } = input;
+  const pct = maxScore > 0 ? score / maxScore : 0;
   const ceiling = maxScore > 0 ? (score + upside) / maxScore : 0;
+
+  // Nothing left to play for — grade the finished bracket, not a dead ceiling.
+  if (upside <= 0) {
+    if (pct >= 0.75) return "Elite";
+    if (pct >= 0.5) return "Surviving";
+    if (pct >= 0.25) return "Hanging On";
+    return "In Trouble";
+  }
 
   if (championAlive === false) {
     if (ceiling >= 0.5) return "Surviving";
@@ -171,10 +181,11 @@ export function countPerfectBrackets(
 
 /**
  * Deterministic highlight labels. One member per label; ties → first by userId.
- * Same member may hold multiple labels.
+ * Same member may hold multiple labels. Needs at least two members — a solo
+ * league naming you Upset King and Cold Streak is noise.
  */
 export function leagueHighlights(rows: HighlightRow[]): LeagueHighlight[] {
-  if (rows.length === 0) return [];
+  if (rows.length < 2) return [];
 
   const byUserId = (a: HighlightRow, b: HighlightRow) =>
     a.userId.localeCompare(b.userId);

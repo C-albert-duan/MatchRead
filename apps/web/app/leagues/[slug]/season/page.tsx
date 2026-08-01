@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
-import { LiveRefresh } from "@/components/LiveRefresh";
-import { StandingsTable } from "@/components/StandingsTable";
+import { AppShell } from "@/components/shell/AppShell";
+import { LiveRefresh } from "@/components/shell/LiveRefresh";
+import { StandingsTable } from "@/components/league/StandingsTable";
 import { getSessionUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -60,30 +60,29 @@ export default async function SeasonStandingsPage({ params }: Props) {
   return (
     <AppShell signedIn email={user.email}>
       <LiveRefresh enabled={standingRows.length > 0} />
-      <div className="stack gap-4xl">
-        <div className="stack gap-lg">
-          <p className="eyebrow">Season</p>
-          <h1 className="t-page-title">{league.name}</h1>
-          <p className="t-lead">
-            Points are scaled per event so a perfect 250 equals a perfect Slam
-            on the table — weight changes the season total, not the grade.
-          </p>
-          <div className="row wrap gap-md">
+      <div className="page">
+        <header className="page-header page-header--split">
+          <div className="page-header-copy">
+            <p className="eyebrow">Season standings</p>
+            <h1 className="t-page-title">{league.name}</h1>
+            <p className="t-lead">
+              Did you move? Points are scaled per event so a perfect 250 equals
+              a perfect Slam on the table.
+            </p>
+          </div>
+          <div className="page-actions">
             <Link
               href={`/leagues/${league.slug}`}
-              className="act act--standard act--standard-size"
+              className="act act--prominent act--standard-size"
             >
               League home
             </Link>
           </div>
-        </div>
+        </header>
 
-        <section className="stack gap-lg" aria-labelledby="season-heading">
-          <h2 id="season-heading" className="section-title">
-            Season standings
-          </h2>
+        <div className="focus-band">
           <StandingsTable rows={standingRows} kind="season" />
-        </section>
+        </div>
       </div>
     </AppShell>
   );

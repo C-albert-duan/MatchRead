@@ -1,4 +1,2 @@
-# supabase/functions
-
-Edge functions land here in later phases (ingest-events, settlement helpers).
-Service-role is platform-injected — never ship it to Vercel.
+# Edge Functions live as named folders under this directory.
+# See ingest-events/ for machine ingest of official match results.

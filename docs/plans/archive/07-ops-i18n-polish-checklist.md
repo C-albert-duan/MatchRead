@@ -5,7 +5,7 @@ Dev: **http://localhost:3001**
 ## Prerequisites
 
 - [ ] Signed in locally
-- [ ] Optional: set `FOUNDER_EMAILS=you@example.com` in `apps/web/.env.local` (comma-separated). If unset, any signed-in user sees a beta banner on founder routes.
+- [ ] Optional: set `FOUNDER_EMAILS=you@example.com` in `.env.docker` (comma-separated), then recreate the web container. If unset, any signed-in user sees a beta banner on founder routes.
 
 ## Founder health
 

@@ -7,28 +7,33 @@ type Props = {
 
 export function DailyCheckPanel({ check }: Props) {
   return (
-    <section className="daily-check stack gap-xl" aria-labelledby="daily-check">
-      <div className="daily-check-lead">
-        <span
-          aria-hidden="true"
-          className={`check-rule check-rule--${check.emotion}`}
-        />
-        <div className="stack gap-md" style={{ minWidth: 0 }}>
-          <p className="eyebrow">
+    <section
+      className="daily-check focus-band"
+      aria-labelledby="daily-check"
+      data-emotion={check.emotion}
+    >
+      <div className="stack gap-xl">
+        <div className="daily-check-kicker">
+          <span className="daily-check-live">
+            <span className="live-dot" aria-hidden />
+            Live
+          </span>
+          <p className="eyebrow">Daily Check</p>
+          <span className="daily-check-frame">
             {check.frame} · {check.eventName}
-          </p>
-          <h2 id="daily-check" className="daily-check-headline">
-            {check.headline}
-          </h2>
-          <p className="t-lead">{check.detail}</p>
+          </span>
         </div>
+        <h2 id="daily-check" className="daily-check-headline">
+          {check.headline}
+        </h2>
+        <p className="t-lead">{check.detail}</p>
       </div>
 
       {check.action ? (
-        <div>
+        <div className="page-actions">
           <Link
             href={check.action.href}
-            className="act act--standard act--standard-size"
+            className="act act--prominent act--prominent-size"
           >
             {check.action.label}
           </Link>

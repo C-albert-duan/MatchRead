@@ -1,5 +1,7 @@
 # Plan 07 — Ops · i18n · Polish
 
+## Status: **CODE DONE** — owner E2E = [completion Phase 10](./09-completion-to-launch.md#phase-10--owner-e2e-sign-off); production auth = Phase 11+
+
 ## Goal
 
 Private-beta ready: operator tools, locales, error states, monitoring basics.

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { CSSProperties } from "react";
 import {
@@ -9,7 +9,7 @@ import {
   type DrawSeat,
   type SlotOccupant,
 } from "@matchread/core";
-import { PlayerChip } from "@/components/PlayerChip";
+import { PlayerChip } from "@/components/bracket/PlayerChip";
 
 type Props = {
   drawSize: number;

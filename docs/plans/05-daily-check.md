@@ -4,7 +4,7 @@
 
 League home answers "what happened in my league today" with a computed pulse, not a stats dashboard.
 
-## Status: **IN PROGRESS** (code shipped 2026-07-29 — apply `0005_daily_check.sql` + E2E)
+## Status: **CODE DONE** (2026-07-29) — owner E2E = completion Phase 10
 
 ## Done when
 
@@ -12,7 +12,7 @@ League home answers "what happened in my league today" with a computed pulse, no
 - [x] Numbers agree with standings table (deltas only from snapshots)
 - [x] Between-tournaments modules when nothing is in play (`draw_pending`)
 - [x] Result artifact route for finished event placement
-- [ ] Migration applied + owner E2E checklist
+- [ ] Migration applied + owner E2E checklist → [09-completion-to-launch Phase 10](./09-completion-to-launch.md#phase-10--owner-e2e-sign-off)
 
 ## Work
 
@@ -26,7 +26,7 @@ Run `supabase/migrations/0005_daily_check.sql` after 0004.
 
 ## Test checklist
 
-[05-daily-check-checklist.md](./05-daily-check-checklist.md)
+[archive/05-daily-check-checklist.md](./archive/05-daily-check-checklist.md) · active: [10-owner-e2e-checklist.md](./10-owner-e2e-checklist.md)
 
 ## References
 

@@ -1,5 +1,7 @@
 -- 0004_settlement.sql
 -- Phase 4: official results, bracket snapshots, season standings, void stub.
+-- Idempotent: safe to re-run. Fixture results are inserted only when missing
+-- (never deletes commissioner-entered results).
 
 create extension if not exists "pgcrypto";
 
@@ -156,13 +158,8 @@ create policy pick_voids_commissioner on public.pick_voids
 
 -- ---------------------------------------------------------------------------
 -- Fixture: seed a complete official result path for uso-2026 (deterministic)
--- Lower seed wins when both seeded; else even position wins — stable demo.
+-- Only fills keys that do not already exist — never overwrites live edits.
 -- ---------------------------------------------------------------------------
-
--- Clear prior fixture results for uso-2026 then reseed R0..Final
-delete from public.match_results mr
-using public.tournaments t
-where mr.tournament_id = t.id and t.ref = 'uso-2026';
 
 insert into public.match_results (tournament_id, match_key, winner_ref, voided)
 select t.id, v.match_key, v.winner_ref, false
@@ -189,4 +186,5 @@ cross join (
     -- Final
     ('r3-m0',  'p-0')
 ) as v(match_key, winner_ref)
-where t.ref = 'uso-2026';
+where t.ref = 'uso-2026'
+on conflict (tournament_id, match_key) do nothing;

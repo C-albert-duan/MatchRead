@@ -4,7 +4,7 @@
 
 Live listener strategy, proven settlement, and 128-draw perf — ready for the public US Open window.
 
-## Status: **IN PROGRESS** (code + docs 2026-07-29 — production auth / Vercel still open)
+## Status: **CODE DONE** (poll + math 2026-07-29) — production auth / cron / socket = [completion Phases 11–13](./09-completion-to-launch.md)
 
 ## Done when (pragmatic)
 
@@ -19,7 +19,7 @@ Live listener strategy, proven settlement, and 128-draw perf — ready for the p
 1. [x] `LiveRefresh` client poll → `router.refresh()` (~45s) on tournament / season when live-relevant
 2. [x] Runbook [LIVE-LISTENER.md](../runbooks/LIVE-LISTENER.md) — REST now; Railway/websocket later
 3. [x] `scripts/verify-settlement-math.mjs` + `packages/core` slam constants / perf notes
-4. [x] Perf checklist: [08-public-window-checklist.md](./08-public-window-checklist.md)
+4. [x] Perf checklist: [archive/08-public-window-checklist.md](./archive/08-public-window-checklist.md)
 
 ## Live refresh (MVP)
 

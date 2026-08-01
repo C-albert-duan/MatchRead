@@ -26,7 +26,7 @@ Local round trip confirmed. Vercel preview proof remains a later launch checklis
 
 ## Local setup
 
-See [SUPABASE-SETUP.md](../SUPABASE-SETUP.md) and [01-auth-landing-checklist.md](./01-auth-landing-checklist.md).
+See [SUPABASE-SETUP.md](../SUPABASE-SETUP.md) and [archive/01-auth-landing-checklist.md](./archive/01-auth-landing-checklist.md).
 
 ## References
 

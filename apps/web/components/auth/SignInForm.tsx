@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { siteUrl } from "@/lib/site-url-client";
+import { getClientSiteUrl } from "@/lib/site-url-client";
 import { safeNext } from "@/lib/safe-next";
 import {
   getRememberPref,
@@ -12,7 +13,23 @@ import {
 type Props = {
   nextParam: string | null;
   configured: boolean;
+  /** From `/sign-in?error=` after a failed magic-link callback. */
+  authError?: string | null;
 };
+
+function messageForAuthError(code: string | null | undefined): string | null {
+  if (!code) return null;
+  if (code === "config") {
+    return "Sign-in is not configured. Ask the host to check Supabase env on this deploy.";
+  }
+  if (code === "otp_expired") {
+    return "That email link was already used or burned by an email scanner. Request a new link, then either click it once in this browser — or type the verification code from the email below.";
+  }
+  if (code === "auth") {
+    return "That sign-in link is invalid or expired. Request a new one below — your invite destination is still saved.";
+  }
+  return "Could not finish sign-in. Request a new link below.";
+}
 
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
@@ -35,16 +52,22 @@ function isProviderRateLimit(error: {
 
 const RESEND_COOLDOWN_MS = 10_000;
 
-export function SignInForm({ nextParam, configured }: Props) {
+export function SignInForm({ nextParam, configured, authError }: Props) {
+  const router = useRouter();
   const next = useMemo(() => safeNext(nextParam), [nextParam]);
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
   const [remember, setRemember] = useState(true);
   const [status, setStatus] = useState<
     "idle" | "invalid" | "submitting" | "sent" | "rate_limited" | "error"
-  >("idle");
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  >(() => (authError ? "error" : "idle"));
+  const [errorMessage, setErrorMessage] = useState<string | null>(() =>
+    messageForAuthError(authError)
+  );
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  const [lastRedirectTo, setLastRedirectTo] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
 
   useEffect(() => {
     setRemember(getRememberPref());
@@ -64,7 +87,8 @@ export function SignInForm({ nextParam, configured }: Props) {
   async function sendOtp(address: string) {
     setRememberPref(remember);
     const supabase = createClient();
-    const redirectTo = `${siteUrl()}/auth/callback?next=${encodeURIComponent(next)}`;
+    const redirectTo = `${getClientSiteUrl()}/auth/callback?next=${encodeURIComponent(next)}`;
+    setLastRedirectTo(redirectTo);
     return supabase.auth.signInWithOtp({
       email: address,
       options: { emailRedirectTo: redirectTo },
@@ -90,7 +114,7 @@ export function SignInForm({ nextParam, configured }: Props) {
       setStatus(limited ? "rate_limited" : "error");
       setErrorMessage(
         limited
-          ? "Supabase email limit hit (common on free tier while testing). Wait a few minutes, check spam, or use a different address."
+          ? "Auth email rate limit hit (Supabase built-in sender is capped even on Pro). Wait a few minutes, check spam, try another inbox, or add custom SMTP in Supabase → Project Settings → Authentication → SMTP."
           : error.message
       );
       if (limited) {
@@ -99,6 +123,8 @@ export function SignInForm({ nextParam, configured }: Props) {
       return;
     }
 
+    setOtp("");
+    setEmailSent(true);
     setStatus("sent");
     setCooldownUntil(Date.now() + RESEND_COOLDOWN_MS);
   }
@@ -114,7 +140,7 @@ export function SignInForm({ nextParam, configured }: Props) {
       setStatus(limited ? "rate_limited" : "error");
       setErrorMessage(
         limited
-          ? "Supabase email limit hit (common on free tier while testing). Wait a few minutes, check spam, or use a different address."
+          ? "Auth email rate limit hit (Supabase built-in sender is capped even on Pro). Wait a few minutes, check spam, try another inbox, or add custom SMTP in Supabase → Project Settings → Authentication → SMTP."
           : error.message
       );
       if (limited) {
@@ -122,46 +148,124 @@ export function SignInForm({ nextParam, configured }: Props) {
       }
       return;
     }
+    setOtp("");
+    setEmailSent(true);
     setStatus("sent");
     setCooldownUntil(Date.now() + RESEND_COOLDOWN_MS);
+  }
+
+  async function onVerifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    const address = email.trim();
+    const token = otp.replace(/\s/g, "");
+    if (!isValidEmail(address)) {
+      setErrorMessage("Enter the same email you used for the link.");
+      return;
+    }
+    if (!/^\d{6,8}$/.test(token)) {
+      setErrorMessage("Enter the verification code from the email.");
+      return;
+    }
+
+    setStatus("submitting");
+    setErrorMessage(null);
+    setRememberPref(remember);
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({
+      email: address,
+      token,
+      type: "email",
+    });
+
+    if (error) {
+      setStatus("sent");
+      setErrorMessage(
+        error.message.includes("expired") || error.message.includes("invalid")
+          ? "That code is invalid or expired. Request a new email and try the new code."
+          : error.message
+      );
+      return;
+    }
+
+    router.replace(next);
+    router.refresh();
   }
 
   if (!configured) {
     return (
       <div className="stack gap-lg" style={{ maxWidth: 520 }}>
-        <div className="stack gap-lg">
+        <div className="page-header">
           <p className="eyebrow">Sign in</p>
           <h1 className="t-page-title">Sign in to MatchRead</h1>
         </div>
         <p className="form-error" role="alert">
-          Supabase is not configured. Copy <code>.env.example</code> to{" "}
-          <code>apps/web/.env.local</code>, add your project URL and anon key,
-          then restart <code>npm run dev</code>.
+          Supabase is not configured. Copy <code>.env.docker.example</code> to{" "}
+          <code>.env.docker</code>, add your project URL and anon key, then run{" "}
+          <code>docker compose --env-file .env.docker up --build</code>.
         </p>
         <p className="hint">
           In Supabase → Authentication → URL configuration, allow:{" "}
-          <code>{siteUrl()}/auth/callback</code>
+          <code>{getClientSiteUrl()}/auth/callback</code>
         </p>
       </div>
     );
   }
 
-  if (status === "sent") {
+  if (emailSent) {
+    const verifying = status === "submitting";
     return (
-      <div className="stack gap-2xl" style={{ maxWidth: 520 }}>
-        <div className="stack gap-lg">
+      <div className="stack gap-2xl focus-band" style={{ maxWidth: 520 }}>
+        <div className="page-header">
           <p className="eyebrow">Check your email</p>
           <h1 className="t-page-title">A sign-in link is on its way.</h1>
           <p className="t-lead">
-            We sent it to <strong>{email.trim()}</strong>. The link signs you in
-            and brings you straight back to where you were.
+            We sent it to <strong>{email.trim()}</strong>. Prefer the
+            verification code if your mail app previews links (that burns
+            one-time URLs).
           </p>
+          {errorMessage ? (
+            <p className="form-error" role="alert">
+              {errorMessage}
+            </p>
+          ) : null}
         </div>
+
+        <form className="stack gap-md" onSubmit={(e) => void onVerifyCode(e)}>
+          <label htmlFor="otp" className="field-label">
+            Verification code
+          </label>
+          <input
+            id="otp"
+            name="otp"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value)}
+            className="field"
+            placeholder="12345678"
+            disabled={verifying}
+          />
+          <button
+            type="submit"
+            className="act act--prominent act--prominent-size"
+            disabled={verifying}
+            style={{ alignSelf: "flex-start", minWidth: 160 }}
+          >
+            {verifying ? "Checking" : "Verify code"}
+          </button>
+        </form>
+
+        <p className="hint">
+          Or click the email link <strong>once</strong> in this same browser —
+          do not paste a link you already opened. Redirect target:{" "}
+          <code>{lastRedirectTo ?? `${getClientSiteUrl()}/auth/callback`}</code>
+        </p>
+
         <div className="row wrap gap-md">
           <button
             type="button"
             className="act act--standard act--standard-size"
-            disabled={coolingDown}
+            disabled={coolingDown || verifying}
             onClick={() => void onResend()}
           >
             {coolingDown ? `Send it again (${secondsLeft}s)` : "Send it again"}
@@ -169,36 +273,35 @@ export function SignInForm({ nextParam, configured }: Props) {
           <button
             type="button"
             className="act act--quiet"
+            disabled={verifying}
             onClick={() => {
               setStatus("idle");
               setErrorMessage(null);
+              setOtp("");
+              setLastRedirectTo(null);
+              setEmailSent(false);
             }}
           >
             Use a different address
           </button>
         </div>
-        <p className="hint">
-          Nothing arrived? Check spam. You can resend after a short pause — during
-          heavy testing Supabase&apos;s free email quota runs out quickly; use a
-          second inbox or wait a few minutes.
-        </p>
       </div>
     );
   }
 
   return (
     <form
-      className="stack gap-2xl"
+      className="stack gap-2xl focus-band"
       style={{ maxWidth: 480 }}
       onSubmit={(e) => void onSubmit(e)}
       noValidate
     >
-      <div className="stack gap-lg">
+      <div className="page-header">
         <p className="eyebrow">Sign in</p>
         <h1 className="t-page-title">Sign in to MatchRead</h1>
         <p className="t-lead">
-          We email you a link. No password to remember, and no account to create
-          first — a new address gets an account the first time it signs in.
+          We email you a link and a code. No password — a new address gets an
+          account the first time it signs in.
         </p>
       </div>
 

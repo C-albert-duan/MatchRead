@@ -331,3 +331,110 @@ export async function stubVoidPlayer(input: {
 
   return { ok: true, graded: voidedMatches };
 }
+
+/**
+ * Commissioner / founder: upsert one official match result (ingest path for beta).
+ */
+export async function recordOfficialResult(input: {
+  leagueId: string;
+  leagueSlug: string;
+  tournamentId: string;
+  tournamentRef: string;
+  matchKey: string;
+  winnerRef: string;
+  voided?: boolean;
+}): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { ok: false, error: "Sign in required." };
+
+  const matchKey = input.matchKey.trim();
+  const winnerRef = input.winnerRef.trim();
+  if (!matchKey) return { ok: false, error: "match_key is required." };
+  if (!input.voided && !winnerRef) {
+    return { ok: false, error: "winner_ref is required (or mark voided)." };
+  }
+
+  const founder = isFounderEmail(user.email ?? undefined);
+  if (!founder) {
+    const { data: membership } = await supabase
+      .from("league_members")
+      .select("role")
+      .eq("league_id", input.leagueId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (membership?.role !== "commissioner") {
+      return { ok: false, error: "Commissioner or founder access required." };
+    }
+  }
+
+  const { error } = await supabase.from("match_results").upsert(
+    {
+      tournament_id: input.tournamentId,
+      match_key: matchKey,
+      winner_ref: input.voided ? null : winnerRef,
+      voided: Boolean(input.voided),
+      settled_at: new Date().toISOString(),
+    },
+    { onConflict: "tournament_id,match_key" }
+  );
+
+  if (error) {
+    return {
+      ok: false,
+      error: `${error.message} (Need commissioner write RLS on match_results for this tournament.)`,
+    };
+  }
+
+  revalidatePath(`/leagues/${input.leagueSlug}/t/${input.tournamentRef}`);
+  return { ok: true, graded: 1 };
+}
+
+/**
+ * Founder: settle every league that has submitted brackets for this tournament.
+ */
+export async function settleAllLeaguesForTournament(input: {
+  tournamentId: string;
+  tournamentRef: string;
+  eventWeight?: number;
+}): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { ok: false, error: "Sign in required." };
+  if (!isFounderEmail(user.email ?? undefined)) {
+    return { ok: false, error: "Founder access required." };
+  }
+
+  const { data: bracketRows, error } = await supabase
+    .from("brackets")
+    .select("league_id")
+    .eq("tournament_id", input.tournamentId)
+    .not("submitted_at", "is", null);
+
+  if (error) return { ok: false, error: error.message };
+
+  const leagueIds = [...new Set((bracketRows ?? []).map((r) => r.league_id))];
+  if (leagueIds.length === 0) {
+    return { ok: true, graded: 0 };
+  }
+
+  const { data: leagues, error: leagueError } = await supabase
+    .from("leagues")
+    .select("id, slug")
+    .in("id", leagueIds);
+
+  if (leagueError) return { ok: false, error: leagueError.message };
+
+  let graded = 0;
+  for (const league of leagues ?? []) {
+    const result = await settleLeagueTournament({
+      leagueId: league.id,
+      leagueSlug: league.slug,
+      tournamentId: input.tournamentId,
+      tournamentRef: input.tournamentRef,
+      eventWeight: input.eventWeight,
+    });
+    if (!result.ok) return result;
+    graded += result.graded;
+  }
+
+  return { ok: true, graded };
+}

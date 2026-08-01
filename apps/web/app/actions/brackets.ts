@@ -114,6 +114,7 @@ export async function adminLockTournament(input: {
   const { error } = await supabase.rpc("admin_lock_tournament", {
     p_tournament_ref: input.tournamentRef,
     p_locked: input.locked,
+    p_league_slug: input.leagueSlug,
   });
 
   if (error) {

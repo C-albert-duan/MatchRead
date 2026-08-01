@@ -1,45 +1,56 @@
 # Deployment — GitHub · Vercel · Supabase
 
+**Phase 11 checklist:** [plans/11-production-auth-checklist.md](./plans/11-production-auth-checklist.md)  
+**Runbooks:** [FIRST-PRODUCTION](./runbooks/FIRST-PRODUCTION.md) · [SMTP](./runbooks/SMTP.md)
+
 ## 1. GitHub
 
-1. Create repo (e.g. `MatchRead` or `mh-2`).
-2. Push this workspace root (includes `Wireframe/`, `docs/`, `apps/`, `packages/`, `supabase/`).
-3. Protect `main`: PR required, linear history, squash merges.
-4. Required checks (when CI exists): lint/types/tests, web build.
+1. Repo: https://github.com/C-albert-duan/MatchRead
+2. Protect `main`: PR required, linear history, squash merges.
+3. Required checks (when CI exists): lint/types/tests, web build.
 
 ## 2. Supabase
 
-1. Create project.
-2. Copy Project URL + anon key → Vercel + local `.env`.
-3. Auth → URL configuration: add `http://localhost:3000/**`, Vercel preview pattern, production domain.
-4. Apply migrations: `pnpm db:migrate` (or `supabase db push`).
-5. For beta email volume, configure custom SMTP (Supabase built-in sender is heavily rate-limited).
+1. Project `opugihofwvunwkpcmboq` — URL + anon key → Vercel + `.env.docker`.
+2. Auth → URL configuration: localhost:3001, Vercel Preview pattern, production domain. **Never** `0.0.0.0` or parking domains.
+3. Migrations `0001`–`0006` applied.
+4. **Custom SMTP** required for invite waves — [SMTP.md](./runbooks/SMTP.md).
 
 **Never** put the service-role key in the web app or Vercel.
 
 ## 3. Vercel
 
 1. Import the GitHub repo.
-2. Set root / app directory to `apps/web` (or monorepo settings that build that package).
-3. Env (Production):
+2. **Root Directory:** `apps/web` (uses committed `apps/web/vercel.json` for monorepo `npm ci` / build).
+3. Env:
 
-   | Variable | Notes |
-   |---|---|
-   | `NEXT_PUBLIC_SUPABASE_URL` | Required |
-   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Required |
-   | `NEXT_PUBLIC_SITE_URL` | Production only, e.g. `https://matchreadtennis.com` |
+   | Variable | Preview | Production |
+   |---|---|---|
+   | `NEXT_PUBLIC_SUPABASE_URL` | ● | ● |
+   | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ● | ● |
+   | `NEXT_PUBLIC_SITE_URL` | — (omit; browser origin used) | ● canonical HTTPS |
+   | `FOUNDER_EMAILS` | ○ | ○ recommended |
 
-4. Preview: do **not** set `NEXT_PUBLIC_SITE_URL` (use `VERCEL_URL` for auth callbacks).
-5. Confirm `SUPABASE_SERVICE_ROLE_KEY` and any `RAPIDAPI_*` are **absent**.
+4. Confirm `SUPABASE_SERVICE_ROLE_KEY` and any `RAPIDAPI_*` are **absent**.
+5. Prove magic link on Preview before inviting anyone.
 
 ## 4. Order of first go-live
 
-1. Supabase project + Auth URLs  
-2. Vercel preview with anon env  
-3. Prove magic-link round trip  
-4. Migrations + create/join league  
+1. Supabase project + Auth URLs + SMTP  
+2. Vercel Preview with anon env  
+3. Prove magic-link round trip on Preview  
+4. Migrations + create/join league on Preview  
 5. Arm settlement only after grading is tested (see runbooks)
 
 ## Domain
 
-Planned: `matchreadtennis.com` — connect after auth + growth loop work on preview.
+Planned: `matchreadtennis.com` — connect after Preview auth works; set Production `NEXT_PUBLIC_SITE_URL` and Auth allow-list.
+
+## 5. Docker (local)
+
+Day-to-day local work is **Docker-only**. See [DOCKER.md](./DOCKER.md).
+
+```bash
+cp .env.docker.example .env.docker
+docker compose --env-file .env.docker up --build
+```

@@ -11,15 +11,15 @@ Dev: **http://localhost:3001**
 
 ## Settlement dry-run
 
-- [ ] `node scripts/verify-settlement-math.mjs` exits 0
+- [ ] Settlement math exits 0: `docker compose --env-file .env.docker --profile verify run --rm verify-math`
 - [ ] Commissioner settlement on fixture updates event + season tables
 - [ ] Re-run settlement updates Δ (regression from Phase 4)
 
 ## Bracket 128 perf
 
-- [ ] Fixture or slam draw_size 128 loads bracket without crash
-- [ ] Horizontal scroll reaches Final on narrow viewports
-- [ ] Pick / save still works on early rounds (smoke)
+- [ ] `/showcase` 128-draw smoke loads without crash
+- [ ] Horizontal scroll reaches Final on narrow viewports (showcase or fixture)
+- [ ] Pick works on early rounds (showcase local picks and/or fixture save)
 - [ ] Optional later: row virtualization if scroll/paint feels heavy on low-end phones
 
 ## Showcase

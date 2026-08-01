@@ -1,65 +1,57 @@
 # Project status
 
-**Updated:** 2026-07-29  
+**Updated:** 2026-07-31  
 **Repo:** https://github.com/C-albert-duan/MatchRead  
-**Supabase project:** `rdfcklsshutampxsgltj` (`https://rdfcklsshutampxsgltj.supabase.co`)  
-**Local app:** http://localhost:3001
+**Supabase project:** `opugihofwvunwkpcmboq` (`https://opugihofwvunwkpcmboq.supabase.co`)  
+**Local app:** http://localhost:3001 via **Docker only** — [DOCKER.md](./DOCKER.md)
+
+**All checklists:** [CHECKLISTS.md](./CHECKLISTS.md)
 
 ---
 
-## Current phase
+## Where we are
+
+**Build 0–8: code shipped.**  
+**Completion 10–13: engineering assist shipped — owner verification open.**  
+**Phase 14 (Tier 2–3): deferred / not built.**
+
+| Track | Status |
+|---|---|
+| Engineering 0–8 | **Code done** — E2E open (Phase 10) |
+| CEO Tier 1 | **Code done** — E2E open (Phase 10) |
+| CEO Tier 2–3 | **Not started** (Phase 14) |
+| Private beta | **Blocked** on Phase 11 auth/SMTP + Phase 12 smoke |
+| Public US Open window | **Assist shipped** — cron/domain/socket still owner (Phase 13) |
+
+---
+
+## Phases 0–8 (build)
 
 | Phase | Status |
 |---|---|
-| **0 — Bootstrap** | **Done** |
-| **1 — Auth + Landing** | **Done** |
-| **2 — Leagues + Invites** | **Done** |
-| **3 — Brackets** | **Done** |
-| **4 — Settlement + Standings** | **Done** |
-| **5 — Daily Check** | **Code done — E2E** |
-| **6 — CEO Tier 1** | **Code done — apply `0006` + E2E** |
-| **7 — Ops · i18n · Polish** | **Code done — E2E** |
-| **8 — Public window** | **Code done — poll + math; Vercel/auth open** |
+| **0–4** | **Done** |
+| **5–8** | **Code done — owner E2E (Phase 10)** |
 
-All engineering phases through 8 have **code shipped**. Remaining work is owner E2E, apply migrations `0005`/`0006`, and production (Vercel + real-domain auth).
+## Completion phases (09–14)
 
----
-
-## Apply migrations (SQL Editor)
-
-1. `0005_daily_check.sql` — Daily Check log cache  
-2. `0006_engagement.sql` — pick confidence column + RPC  
-
-(0001–0004 assumed applied.)
-
----
-
-## Phase summaries
-
-| Phase | Highlights |
-|---|---|
-| 5 | League home Daily Check; result artifact |
-| 6 | Confidence 1–5; health; highlights; miss; perfect remaining |
-| 7 | `/founder` + disruption; en/es/ja; offline banner; `FOUNDER_EMAILS` |
-| 8 | `LiveRefresh` REST poll; 128→512 math script; LIVE-LISTENER runbook |
+| Phase | Checklist | Status |
+|---|---|---|
+| **9 Baseline** | overlaps 10 §0 | Owner |
+| **10 Owner E2E** | [10-owner-e2e-checklist](./plans/10-owner-e2e-checklist.md) | Owner |
+| **11 Production auth** | [11-production-auth-checklist](./plans/11-production-auth-checklist.md) | Owner |
+| **12 Private beta** | [12-private-beta-checklist](./plans/12-private-beta-checklist.md) | Owner |
+| **13 Public window** | [13-public-window-checklist](./plans/13-public-window-checklist.md) | **Assist shipped — owner** |
+| **14 Tier 2–3** | [14-ceo-tier2-tier3-checklist](./plans/14-ceo-tier2-tier3-checklist.md) | Deferred |
 
 ---
 
 ## Still open (honest)
 
-- [ ] Owner E2E checklists 05–08  
-- [ ] Vercel deploy + magic link on real domain  
-- [ ] Custom SMTP / email quota for invite wave  
-- [ ] Railway live socket (REST poll is the interim)  
-- [ ] Arm production settlement cron after dry run  
+- [ ] Owner E2E Phase 10  
+- [ ] Vercel + SMTP + Preview magic link (Phase 11)  
+- [ ] Invite-wave smoke + CI green (Phase 12)  
+- [ ] Settlement cron armed + real domain (Phase 13)  
+- [ ] Railway socket (or accept REST poll for launch)  
+- [ ] CEO Tier 2–3 (optional)
 
-Checklists: `docs/plans/*-checklist.md` · [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md)
-
----
-
-## First-week checkpoint
-
-- [x] Repo on GitHub  
-- [x] Local auth + growth loop + bracket + settlement  
-- [ ] Daily Check / Tier 1 / founder E2E signed off  
-- [ ] Vercel preview auth  
+Also: [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md)

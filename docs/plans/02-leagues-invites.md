@@ -32,7 +32,7 @@ See [SUPABASE-SETUP.md](../SUPABASE-SETUP.md) — run `0002_leagues.sql` in the 
 
 ## Test checklist
 
-[02-leagues-invites-checklist.md](./02-leagues-invites-checklist.md)
+[archive/02-leagues-invites-checklist.md](./archive/02-leagues-invites-checklist.md)
 
 ## References
 

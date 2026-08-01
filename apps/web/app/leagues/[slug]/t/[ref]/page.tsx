@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
-import { LiveRefresh } from "@/components/LiveRefresh";
-import { SettleButton } from "@/components/SettleButton";
-import { StandingsTable } from "@/components/StandingsTable";
+import { AppShell } from "@/components/shell/AppShell";
+import { LiveRefresh } from "@/components/shell/LiveRefresh";
+import { OfficialResultsPanel } from "@/components/league/OfficialResultsPanel";
+import { SettleButton } from "@/components/league/SettleButton";
+import { StandingsTable } from "@/components/league/StandingsTable";
 import { getSessionUser } from "@/lib/auth";
+import { isFounderEmail } from "@/lib/auth/founder";
 import { isTournamentLocked } from "@/lib/brackets/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -81,6 +83,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
   const locked = isTournamentLocked(tournament);
   const hasDraw = Boolean(draw);
   const isCommissioner = membership.role === "commissioner";
+  const isFounder = isFounderEmail(user.email ?? undefined);
   const bracketHref = `/leagues/${league.slug}/t/${tournament.ref}/bracket`;
 
   let bracketLabel = "Open my bracket";
@@ -104,19 +107,29 @@ export default async function TournamentInLeaguePage({ params }: Props) {
   return (
     <AppShell signedIn email={user.email}>
       <LiveRefresh enabled={hasDraw} />
-      <div className="stack gap-4xl">
-        <div className="stack gap-lg">
-          <p className="eyebrow">{league.name}</p>
-          <h1 className="t-page-title">{tournament.name}</h1>
-          <p className="t-lead">
-            {tournament.surface} court
-            {tournament.starts_on ? ` · starts ${tournament.starts_on}` : ""}
-            {tournament.lock_at
-              ? ` · locks ${new Date(tournament.lock_at).toUTCString()}`
-              : ""}
-            {locked ? " · locked" : ""}
-          </p>
-          <div className="row wrap gap-md">
+      <div className="page">
+        <header className="page-header page-header--split">
+          <div className="page-header-copy">
+            <p className="eyebrow">{league.name}</p>
+            <h1 className="t-page-title">{tournament.name}</h1>
+            <p className="t-lead">
+              {tournament.surface} court
+              {tournament.starts_on ? ` · starts ${tournament.starts_on}` : ""}
+              {tournament.lock_at
+                ? ` · locks ${new Date(tournament.lock_at).toUTCString()}`
+                : ""}
+              {locked ? " · locked" : ""}
+            </p>
+          </div>
+          <div className="page-actions">
+            {hasDraw ? (
+              <Link
+                href={bracketHref}
+                className="act act--prominent act--prominent-size"
+              >
+                {bracketLabel}
+              </Link>
+            ) : null}
             <Link
               href={`/leagues/${league.slug}`}
               className="act act--standard act--standard-size"
@@ -125,71 +138,73 @@ export default async function TournamentInLeaguePage({ params }: Props) {
             </Link>
             <Link
               href={`/leagues/${league.slug}/season`}
-              className="act act--standard act--standard-size"
+              className="act act--quiet"
             >
               Season standings
             </Link>
-            {hasDraw ? (
-              <Link
-                href={bracketHref}
-                className="act act--prominent act--standard-size"
-              >
-                {bracketLabel}
-              </Link>
-            ) : null}
           </div>
-        </div>
+        </header>
 
         {!hasDraw ? (
-          <section className="panel stack gap-md" aria-labelledby="draw-pending">
+          <section
+            className="panel stack gap-md focus-band"
+            aria-labelledby="draw-pending"
+          >
             <h2 id="draw-pending" className="section-title">
               Draw pending
             </h2>
             <p className="t-body">
-              The draw has not been published yet. Your league is waiting, not
-              finished — invite friends and come back when the bracket opens.
+              The draw has not been published yet. Invite friends and come back
+              when the bracket opens.
             </p>
           </section>
         ) : (
-          <section className="stack gap-md">
+          <section className="section focus-band" style={{ borderTop: "none", paddingTop: 0 }}>
             <h2 className="section-title">Your entry</h2>
             <p className="t-body">
               {locked
                 ? "The draw is locked. You can view your picks; they can no longer be changed."
                 : bracket?.submitted_at
-                  ? "Your bracket is submitted for this league. You can still edit until the lock."
+                  ? "Your bracket is submitted. You can still edit until the lock."
                   : "Fill the tree, save as you go, then submit when every match has a pick."}
             </p>
-            <Link
-              href={bracketHref}
-              className="act act--prominent act--standard-size"
-            >
-              {bracketLabel}
-            </Link>
           </section>
         )}
 
         {hasDraw ? (
-          <section className="stack gap-lg" aria-labelledby="event-standings">
+          <section className="section" aria-labelledby="event-standings">
             <h2 id="event-standings" className="section-title">
               Event standings
             </h2>
             <StandingsTable rows={standingRows} kind="event" />
             {standingRows.length > 0 ? (
-              <Link
-                href={`/leagues/${league.slug}/t/${tournament.ref}/result`}
-                className="act act--standard act--standard-size"
-              >
-                See my result
-              </Link>
+              <div className="page-actions">
+                <Link
+                  href={`/leagues/${league.slug}/t/${tournament.ref}/result`}
+                  className="act act--standard act--standard-size"
+                >
+                  See my result
+                </Link>
+              </div>
             ) : null}
-            {isCommissioner ? (
-              <SettleButton
-                leagueId={league.id}
-                leagueSlug={league.slug}
-                tournamentId={tournament.id}
-                tournamentRef={tournament.ref}
-              />
+            {isCommissioner || isFounder ? (
+              <>
+                <OfficialResultsPanel
+                  leagueId={league.id}
+                  leagueSlug={league.slug}
+                  tournamentId={tournament.id}
+                  tournamentRef={tournament.ref}
+                  isFounder={isFounder}
+                />
+                {isCommissioner ? (
+                  <SettleButton
+                    leagueId={league.id}
+                    leagueSlug={league.slug}
+                    tournamentId={tournament.id}
+                    tournamentRef={tournament.ref}
+                  />
+                ) : null}
+              </>
             ) : null}
           </section>
         ) : null}

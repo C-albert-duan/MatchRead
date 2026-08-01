@@ -13,7 +13,7 @@ export function CreateLeagueForm() {
 
   return (
     <form
-      className="stack gap-3xl"
+      className="stack gap-3xl focus-band"
       style={{ maxWidth: 560 }}
       action={(fd) => {
         startTransition(async () => {
@@ -25,7 +25,7 @@ export function CreateLeagueForm() {
         });
       }}
     >
-      <div className="stack gap-lg">
+      <div className="page-header">
         <p className="eyebrow">New league</p>
         <h1 className="t-page-title">Start a league</h1>
         <p className="t-lead">
@@ -149,8 +149,11 @@ export function CreateLeagueForm() {
             ))}
           </select>
           <p className="hint">
-            The draw does not have to exist yet. Members join now and the
-            bracket opens the moment it lands.
+            These are calendar events (US Open, etc.), not your existing leagues.
+            This form always starts a <strong>new</strong> league. Your private
+            leagues stay on{" "}
+            <Link href="/leagues">My leagues</Link>. The draw does not have to
+            exist yet — members join now and the bracket opens when it lands.
           </p>
         </div>
       ) : (

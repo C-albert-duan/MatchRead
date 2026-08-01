@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
-import { CreateLeagueForm } from "@/components/CreateLeagueForm";
+import { AppShell } from "@/components/shell/AppShell";
+import { CreateLeagueForm } from "@/components/league/CreateLeagueForm";
 import { getSessionUser } from "@/lib/auth";
 
 export default async function NewLeaguePage() {
@@ -11,7 +11,9 @@ export default async function NewLeaguePage() {
 
   return (
     <AppShell signedIn email={user.email}>
-      <CreateLeagueForm />
+      <div className="page">
+        <CreateLeagueForm />
+      </div>
     </AppShell>
   );
 }

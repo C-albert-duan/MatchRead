@@ -1,11 +1,12 @@
 -- 0006_engagement.sql
 -- Phase 6: pick confidence + save_bracket_picks extension.
 -- Picks stay { matchKey: playerRef }; confidence is a separate jsonb map.
+-- Idempotent: safe to re-run (same final RPC as 0003).
 
 alter table public.brackets
   add column if not exists confidence jsonb not null default '{}'::jsonb;
 
--- Replace 3-arg save with optional confidence (null = leave existing / default {}).
+-- Replace any older overloads with the final 4-arg signature.
 drop function if exists public.save_bracket_picks(uuid, uuid, jsonb);
 drop function if exists public.save_bracket_picks(uuid, uuid, jsonb, jsonb);
 

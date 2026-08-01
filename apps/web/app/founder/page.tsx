@@ -1,7 +1,7 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
-import { ErrorNote } from "@/components/ErrorNote";
+import { AppShell } from "@/components/shell/AppShell";
+import { ErrorNote } from "@/components/shell/ErrorNote";
 import { getSessionUser } from "@/lib/auth";
 import {
   founderEmailsUnset,
@@ -65,7 +65,7 @@ export default async function FounderPage() {
     lastSnapRes.error;
 
   const fmt = (count: number | null | undefined, err: unknown) =>
-    err || count == null ? "—" : String(count);
+    err || count == null ? "â€”" : String(count);
 
   const stats: { label: string; value: string }[] = [
     {

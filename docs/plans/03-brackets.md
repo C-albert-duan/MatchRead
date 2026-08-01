@@ -29,7 +29,7 @@ See [SUPABASE-SETUP.md](../SUPABASE-SETUP.md).
 
 ## Test checklist
 
-[03-brackets-checklist.md](./03-brackets-checklist.md)
+[archive/03-brackets-checklist.md](./archive/03-brackets-checklist.md)
 
 ## References
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ordinal } from "@matchread/core";
-import { AppShell } from "@/components/AppShell";
+import { AppShell } from "@/components/shell/AppShell";
 import { getSessionUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 
@@ -96,35 +96,40 @@ export default async function ResultArtifactPage({ params }: Props) {
   }
 
   const maxScore = snap?.max_score || 1;
-  const percent = snap
-    ? Math.round((snap.score / maxScore) * 100)
-    : null;
+  const percent = snap ? Math.round((snap.score / maxScore) * 100) : null;
 
   return (
     <AppShell signedIn email={user.email}>
-      <div className="stack gap-4xl">
-        <div className="stack gap-lg">
-          <p className="eyebrow">{league.name}</p>
-          <h1 className="t-page-title">Result</h1>
-          <p className="t-lead">{tournament.name}</p>
-        </div>
+      <div className="page">
+        <header className="page-header page-header--split">
+          <div className="page-header-copy">
+            <p className="eyebrow">{league.name}</p>
+            <h1 className="t-page-title">Your result</h1>
+            <p className="t-lead">{tournament.name}</p>
+          </div>
+          <div className="page-actions">
+            <Link
+              href={`/leagues/${league.slug}/t/${tournament.ref}`}
+              className="act act--prominent act--standard-size"
+            >
+              Tournament
+            </Link>
+            <Link href={`/leagues/${league.slug}`} className="act act--quiet">
+              League home
+            </Link>
+          </div>
+        </header>
 
         {!snap ? (
-          <section className="panel stack gap-md">
+          <section className="panel stack gap-md focus-band">
             <h2 className="section-title">Not yet available</h2>
             <p className="t-body">
               Your result appears here after settlement grades submitted
               brackets.
             </p>
-            <Link
-              href={`/leagues/${league.slug}/t/${tournament.ref}`}
-              className="act act--standard act--standard-size"
-            >
-              Tournament
-            </Link>
           </section>
         ) : (
-          <article className="artifact stack gap-2xl">
+          <article className="artifact stack gap-2xl focus-band">
             <div className="artifact-mark">
               <span>MatchRead</span>
               <span className="t-caption">· {tournament.name}</span>
@@ -149,11 +154,11 @@ export default async function ResultArtifactPage({ params }: Props) {
             <dl className="meta-grid">
               <div>
                 <dt className="t-caption">Correct</dt>
-                <dd className="numeral">{snap.correct}</dd>
+                <dd className="numeral stat--good">{snap.correct}</dd>
               </div>
               <div>
                 <dt className="t-caption">Misses</dt>
-                <dd className="numeral">{snap.incorrect}</dd>
+                <dd className="numeral stat--miss">{snap.incorrect}</dd>
               </div>
               <div>
                 <dt className="t-caption">Champion</dt>
@@ -180,21 +185,6 @@ export default async function ResultArtifactPage({ params }: Props) {
             </dl>
           </article>
         )}
-
-        <div className="row wrap gap-md">
-          <Link
-            href={`/leagues/${league.slug}`}
-            className="act act--standard act--standard-size"
-          >
-            League home
-          </Link>
-          <Link
-            href={`/leagues/${league.slug}/t/${tournament.ref}`}
-            className="act act--standard act--standard-size"
-          >
-            Tournament
-          </Link>
-        </div>
       </div>
     </AppShell>
   );

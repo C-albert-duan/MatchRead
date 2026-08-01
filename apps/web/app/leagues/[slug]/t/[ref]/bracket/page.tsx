@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { BracketConfidence, BracketPicks, DrawSeat } from "@matchread/core";
-import { AppShell } from "@/components/AppShell";
-import { BracketEditor } from "@/components/BracketEditor";
+import { AppShell } from "@/components/shell/AppShell";
+import { BracketEditor } from "@/components/bracket/BracketEditor";
 import { getSessionUser } from "@/lib/auth";
 import { isTournamentLocked } from "@/lib/brackets/types";
 import { createClient } from "@/lib/supabase/server";
@@ -90,31 +90,31 @@ export default async function BracketPage({ params }: Props) {
 
   return (
     <AppShell signedIn email={user.email}>
-      <div className="stack gap-3xl">
-        <div className="stack gap-lg">
-          <p className="eyebrow">{league.name}</p>
-          <h1 className="t-page-title">{tournament.name} bracket</h1>
-          <p className="t-lead">
-            {locked
-              ? "Locked — picks are read-only."
-              : "Pick a winner in each match. Changes save automatically."}
-          </p>
-          <div className="row wrap gap-md">
+      <div className="page">
+        <header className="page-header page-header--split">
+          <div className="page-header-copy">
+            <p className="eyebrow">{league.name}</p>
+            <h1 className="t-page-title">{tournament.name} bracket</h1>
+            <p className="t-lead">
+              {locked
+                ? "Locked — picks are read-only."
+                : "Pick a winner in each match. Changes save automatically."}
+            </p>
+          </div>
+          <div className="page-actions">
             <Link
               href={`/leagues/${league.slug}/t/${tournament.ref}`}
               className="act act--standard act--standard-size"
             >
               Tournament
             </Link>
-            <Link
-              href={`/leagues/${league.slug}`}
-              className="act act--standard act--standard-size"
-            >
+            <Link href={`/leagues/${league.slug}`} className="act act--quiet">
               League home
             </Link>
           </div>
-        </div>
+        </header>
 
+        <div className="focus-band">
         <BracketEditor
           leagueId={league.id}
           leagueSlug={league.slug}
@@ -128,6 +128,7 @@ export default async function BracketPage({ params }: Props) {
           locked={locked}
           isCommissioner={membership.role === "commissioner"}
         />
+        </div>
       </div>
     </AppShell>
   );

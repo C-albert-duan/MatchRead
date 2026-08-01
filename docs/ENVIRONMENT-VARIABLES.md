@@ -20,23 +20,27 @@ Adapted from `Wireframe/MatchRead-main/Engineer Handoff/ENVIRONMENT-VARIABLES.md
 |---|---|---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | public | ● | ● | ● |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | public | ● | ● | ● |
-| `NEXT_PUBLIC_SITE_URL` | public | ○ | — | ● |
-| `FOUNDER_EMAILS` | server-only | ○ | ○ | ● |
+| `NEXT_PUBLIC_SITE_URL` | public | ○ Docker/local | — **omit on Preview** | ● canonical domain |
+| `FOUNDER_EMAILS` | server-only | ○ | ○ | ○ recommended |
+
+On the **client**, magic-link `emailRedirectTo` uses `window.location.origin` (see `site-url-client.ts`) so Preview always matches the deployment host. Set `NEXT_PUBLIC_SITE_URL` on Production for server-side absolute URLs and consistency.
 
 `FOUNDER_EMAILS` — comma-separated emails allowed to open `/founder` and `/founder/disruption`. If unset or empty, any signed-in user is allowed (private beta) and founder pages show a clear beta banner.
 
 Must **not** be present on Vercel: `SUPABASE_SERVICE_ROLE_KEY`, any `RAPIDAPI_*`.
 
-## Local `.env` (gitignored)
+## Local / Docker `.env` (gitignored)
 
-Copy from repo root `.env.example`.
-
-Optional in `apps/web/.env.local`:
+**Primary:** copy `.env.docker.example` → `.env.docker` and run Compose (see [DOCKER.md](./DOCKER.md)).
 
 ```
-FOUNDER_EMAILS=you@example.com,ops@example.com
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+NEXT_PUBLIC_SITE_URL=http://localhost:3001
+# FOUNDER_EMAILS=you@example.com,ops@example.com
 ```
 
+Do not use host `npm install` / `apps/web/.env.local` for day-to-day work — Compose does not load `.env.local`.
 ## Edge functions / listener (later)
 
 | Variable | Where |

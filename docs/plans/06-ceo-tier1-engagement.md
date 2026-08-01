@@ -1,6 +1,6 @@
 # Plan 06 — CEO Tier 1 Engagement
 
-**Status: IN PROGRESS — code shipped** (apply `0006` + E2E)
+**Status: CODE DONE** — apply `0006` + E2E via [completion Phase 10](./09-completion-to-launch.md#phase-10--owner-e2e-sign-off)
 
 ## Goal
 

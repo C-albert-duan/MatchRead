@@ -1,8 +1,8 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
-import { DisruptionForm } from "@/components/DisruptionForm";
-import { ErrorNote } from "@/components/ErrorNote";
+import { AppShell } from "@/components/shell/AppShell";
+import { DisruptionForm } from "@/components/founder/DisruptionForm";
+import { ErrorNote } from "@/components/shell/ErrorNote";
 import { getSessionUser } from "@/lib/auth";
 import {
   founderEmailsUnset,
@@ -79,7 +79,7 @@ export default async function DisruptionPage() {
         <p className="hint">{t("founder.note.noServiceRole")}</p>
 
         <Link href="/founder" className="act act--standard act--standard-size">
-          ← {t("founder.title")}
+          â† {t("founder.title")}
         </Link>
       </div>
     </AppShell>

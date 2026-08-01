@@ -2,24 +2,30 @@
 
 ## In scope (Launch MVP)
 
-| Area | Includes |
-|---|---|
-| Auth | Magic link email only; no separate account-creation screen |
-| Landing | Public argument + tournament calendar strip |
-| Leagues | Create (single \| season), invite link, join, home |
-| Brackets | Full tree entry, submit, lock, settled colour |
-| Standings | Event + season tables, movement |
-| Daily Check | Morning / live / evening computed pulse |
-| Between tournaments | Designed waiting state |
-| Result artifact | Shareable placement object |
-| Reference | `/tournaments`, `/players` (rankings — not user directory) |
-| Shell | Global nav, settings (locale + basic prefs), errors |
-| Ops | Founder dashboard + disruption console (minimum) |
-| i18n | English first; es/ja before public launch |
+| Area | Includes | Build status |
+|---|---|---|
+| Auth | Magic link email only; no separate account-creation screen | Code done — prod E2E open |
+| Landing | Public argument + tournament calendar strip | Done |
+| Leagues | Create (single \| season), invite link, join, home | Done (local E2E) |
+| Brackets | Full tree entry, submit, lock, settled colour | Done (local E2E) |
+| Standings | Event + season tables, movement | Done (local E2E) |
+| Daily Check | Morning / live / evening computed pulse | Code done — E2E open |
+| Between tournaments | Designed waiting state | Code done — E2E open |
+| Result artifact | Shareable placement object | Code done — E2E open |
+| Reference | `/tournaments`, `/players` (rankings — not user directory) | Done |
+| Shell | Global nav, settings (locale + basic prefs), errors | Done |
+| Ops | Founder dashboard + disruption console (minimum) | Code done — E2E open |
+| i18n | English first; es/ja before public launch | Code done — E2E open |
 
 ## CEO Tier 1 (on top of the loop — see FEATURE-PRIORITIES)
 
-Pick Confidence · Bracket Health · Biggest Miss · Perfect Picks Remaining · Live Leaderboard Movement · League Highlights · Daily Recap
+Pick Confidence · Bracket Health · Biggest Miss · Perfect Picks Remaining · Live Leaderboard Movement · League Highlights · Daily Recap  
+
+**Status:** code shipped — sign-off = [completion Phase 10](./plans/09-completion-to-launch.md#phase-10--owner-e2e-sign-off).
+
+## Finish line
+
+Remaining work (auth/SMTP, invite wave, public cron/ingest, optional Tier 2–3): [plans/09-completion-to-launch.md](./plans/09-completion-to-launch.md).
 
 ## Out of scope for web launch
 

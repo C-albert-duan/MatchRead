@@ -1,6 +1,7 @@
 -- 0002_leagues.sql
 -- Phase 2: leagues, membership, invites, RLS, grants, and create/join RPCs.
 -- Fresh install: run after 0001_init.sql (profiles must exist).
+-- Idempotent: safe to re-run in SQL Editor.
 
 create extension if not exists "pgcrypto";
 

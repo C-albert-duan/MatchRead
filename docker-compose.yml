@@ -1,0 +1,86 @@
+# MatchRead — Docker-only runtime (no host npm install)
+#
+# 1. cp .env.docker.example .env.docker   # fill Supabase anon URL/key
+# 2. docker compose --env-file .env.docker up --build
+#
+# App: http://localhost:3001
+#
+# Production image:  --profile prod up --build web-prod
+# Migrations:        --profile migrate run --rm migrate
+#
+# Supabase Auth/API/DB stay hosted (or supabase CLI outside Compose).
+
+services:
+  # Default: Next.js dev server with source bind-mounts (hot reload)
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    image: matchread-web:dev
+    ports:
+      - "${WEB_PORT:-3001}:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      HOSTNAME: 0.0.0.0
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "true"
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3001}
+      FOUNDER_EMAILS: ${FOUNDER_EMAILS:-}
+    volumes:
+      - ./apps:/app/apps
+      - ./packages:/app/packages
+      - ./scripts:/app/scripts:ro
+      - ./supabase/migrations:/app/supabase/migrations:ro
+      - web_node_modules:/app/node_modules
+    entrypoint: ["dev-entrypoint.sh"]
+    command: ["npm", "run", "dev", "-w", "@matchread/web"]
+    restart: unless-stopped
+
+  # Optimized standalone server (no bind mounts)
+  web-prod:
+    profiles: ["prod"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3001}
+    image: matchread-web:prod
+    ports:
+      - "${WEB_PORT:-3001}:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOSTNAME: 0.0.0.0
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3001}
+      FOUNDER_EMAILS: ${FOUNDER_EMAILS:-}
+    restart: unless-stopped
+
+  migrate:
+    profiles: ["migrate"]
+    build:
+      context: .
+      dockerfile: docker/migrate/Dockerfile
+    image: matchread-migrate:local
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-}
+
+  # Settlement math dry-run (no DB) — Phase 8 / 10
+  verify-math:
+    profiles: ["verify"]
+    image: node:22-alpine
+    working_dir: /work
+    volumes:
+      - ./scripts/verify-settlement-math.mjs:/work/verify-settlement-math.mjs:ro
+    command: ["node", "verify-settlement-math.mjs"]
+
+volumes:
+  web_node_modules:

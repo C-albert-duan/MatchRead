@@ -1,5 +1,5 @@
-import Link from "next/link";
-import { AppShell } from "@/components/AppShell";
+﻿import Link from "next/link";
+import { AppShell } from "@/components/shell/AppShell";
 import { getSessionUser } from "@/lib/auth";
 import { t } from "@/lib/i18n";
 
@@ -8,8 +8,6 @@ const CALENDAR = [
   { name: "Wimbledon", surface: "grass" as const, when: "Jun 2026" },
   { name: "US Open", surface: "hard" as const, when: "Aug 2026 · draw pending" },
 ];
-
-const US_OPEN_MAX = 512;
 
 const HOW_STEPS = [
   ["landing.how.1.title", "landing.how.1.body"],
@@ -23,15 +21,16 @@ export default async function HomePage() {
   const signedIn = Boolean(user);
 
   return (
-    <AppShell signedIn={signedIn} email={user?.email}>
-      <div className="stack gap-4xl">
-        <div className="stack gap-lg" style={{ padding: "8px 0" }}>
+    <AppShell signedIn={signedIn} email={user?.email} arena>
+      <div className="page">
+        <header className="page-header page-header--landing">
           <p className="eyebrow">{t("landing.eyebrow")}</p>
-          <h1 className="t-hero">{t("landing.title")}</h1>
+          <h1 className="t-hero">MatchRead</h1>
           <p className="t-lead">
-            {t("landing.lede")} A full US Open bracket tops out at {US_OPEN_MAX}.
+            Your league. One bracket. The Daily Check every morning — what
+            happened today, and did you move?
           </p>
-          <div className="row wrap gap-md" style={{ marginTop: 8 }}>
+          <div className="page-actions">
             {signedIn ? (
               <Link
                 href="/leagues"
@@ -47,19 +46,20 @@ export default async function HomePage() {
                 {t("landing.cta.start")}
               </Link>
             )}
-            <Link
-              href="/showcase"
-              className="act act--standard act--standard-size"
-            >
+            <Link href="/showcase" className="act act--quiet">
               {t("landing.cta.showcase")}
             </Link>
           </div>
-        </div>
+        </header>
 
         <section className="section" aria-labelledby="calendar-heading">
           <h2 id="calendar-heading" className="section-title">
             {t("landing.calendar.title")}
           </h2>
+          <p className="section-lede">
+            The events your league can gather around. Brackets open when the
+            draw is published.
+          </p>
           <ul className="calendar">
             {CALENDAR.map((event) => (
               <li key={event.name}>
@@ -80,6 +80,10 @@ export default async function HomePage() {
           <h2 id="how-heading" className="section-title">
             {t("landing.how.title")}
           </h2>
+          <p className="section-lede">
+            Create a league, share a link, fill brackets together, return for
+            the Daily Check.
+          </p>
           <ol className="steps">
             {HOW_STEPS.map((step, i) => (
               <li key={step[0]} className="stack gap-sm">

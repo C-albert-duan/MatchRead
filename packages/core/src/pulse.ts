@@ -188,6 +188,11 @@ function engagementBeats(input: PulseInput): PulseBeat[] {
 }
 
 function withEngagement(check: DailyCheck, input: PulseInput): DailyCheck {
+  // Finished event: placement is the story. Live health / perfect-remaining /
+  // biggest-miss beats contradict a celebration (or a quiet final).
+  if (input.eventComplete || check.kind === "final") {
+    return check;
+  }
   const extra = engagementBeats(input);
   if (extra.length === 0) return check;
   return { ...check, beats: [...check.beats, ...extra] };

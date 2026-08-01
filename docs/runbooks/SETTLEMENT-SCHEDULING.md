@@ -2,48 +2,53 @@
 
 Until settlement runs, standings and Daily Check do not move.
 
-## Current (Phase 4)
+## Current
 
-**Manual commissioner trigger** on the tournament page: **Run settlement**.
+| Trigger | Who | Where |
+|---|---|---|
+| **Run settlement** | Commissioner | Tournament page (this league) |
+| **Settle all leagues** | Founder | Tournament page after official results |
+| Fixture seed | Dev | `0004_settlement.sql` for `uso-2026` |
 
 Flow:
 
-1. Official winners live in `match_results` (fixture seeded by `0004_settlement.sql` for `uso-2026`)
-2. `settleLeagueTournament` server action grades submitted brackets with `@matchread/core` `gradeBracket`
-3. Writes `bracket_snapshots` (score, rank, deltas) and recomputes `season_standings`
-4. UI: event table on `/leagues/[slug]/t/[ref]` · season on `/leagues/[slug]/season`
+1. Official winners in `match_results` ([INGEST.md](./INGEST.md) — UI, Edge, or seed)
+2. `settleLeagueTournament` grades submitted brackets (`@matchread/core` `gradeBracket`)
+3. Writes `bracket_snapshots` + recomputes `season_standings`
+4. UI: event + season tables; Daily Check reads deltas
 
-Void / withdrawal: `pick_voids` + `match_results.voided` stub for Phase 7 operator UI. Do not score voided picks as misses.
+Void / withdrawal: `pick_voids` + voided results — do not score as misses.
 
 ## Intent (production)
 
 Periodic job that:
 
-1. Reads new official match results (from projections / ingest)
-2. Grades locked brackets via `packages/core`
-3. Writes snapshots / standings deltas
-4. Updates inputs used by Daily Check
+1. Reads new official match results (ingest)
+2. Grades locked/submitted brackets
+3. Writes snapshots / standings
+4. Feeds Daily Check
 
-## Options (choose one for beta)
+## Options
 
 | Option | Pros | Cons |
 |---|---|---|
-| Manual commissioner / founder trigger | Safest for first week — **armed now** | Not scalable |
-| Supabase `pg_cron` + edge invoke | Co-located with DB | Must arm carefully; test first |
-| Scheduled Edge Function / external cron | Easy to observe | Needs secrets |
+| Manual commissioner / founder | Safest for beta — **armed now** | Not scalable |
+| Supabase Edge + `pg_cron` | Co-located; service role OK on Edge | Must dry-run first |
+| Railway worker after ingest | Natural with socket listener | Extra service |
+| Vercel Cron + service role | Convenient | **Forbidden** — no service-role on Vercel |
 
-## Verification
+## Verification before arming cron
 
-1. Apply `0004_settlement.sql`; submit a fixture bracket.
-2. Run settlement once from the tournament page.
-3. Assert scores and rank deltas change.
-4. Assert Daily Check is no longer permanently "quiet" when movement exists (Phase 5).
-5. Math dry-run (no DB): `node scripts/verify-settlement-math.mjs` — `128 → 512`, 7 rounds.
-6. Only then schedule recurring runs.
+1. Save/ingest at least one official result.
+2. Run settlement; assert scores and Δ.
+3. Daily Check shows movement when Δ exists.
+4. Math: `docker compose --env-file .env.docker --profile verify run --rm verify-math`
+5. Only then schedule recurring settle (Edge/Railway — not Vercel service-role).
 
-Live standings in the browser: [LIVE-LISTENER.md](./LIVE-LISTENER.md) (REST poll MVP).
+Live browser refresh: [LIVE-LISTENER.md](./LIVE-LISTENER.md).
 
 ## Do not
 
 - Arm production cron before a dry run on a known fixture.
 - Compute grades only in the client.
+- Put `SUPABASE_SERVICE_ROLE_KEY` on Vercel.

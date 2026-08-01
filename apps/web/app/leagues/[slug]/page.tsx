@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
-import { DailyCheckPanel } from "@/components/DailyCheckPanel";
-import { EngagementStrip } from "@/components/EngagementStrip";
-import { InvitePanel } from "@/components/InvitePanel";
-import { LeagueHighlights } from "@/components/LeagueHighlights";
+import { AppShell } from "@/components/shell/AppShell";
+import { DailyCheckPanel } from "@/components/league/DailyCheckPanel";
+import { EngagementStrip } from "@/components/league/EngagementStrip";
+import { InvitePanel } from "@/components/league/InvitePanel";
+import { LeagueHighlights } from "@/components/league/LeagueHighlights";
 import { getSessionUser } from "@/lib/auth";
-import { siteUrl } from "@/lib/env";
+import { getServerSiteUrl } from "@/lib/env";
 import { loadDailyCheck } from "@/lib/leagues/daily-check";
 import { createClient } from "@/lib/supabase/server";
 
@@ -14,6 +14,13 @@ type Props = {
   params: { slug: string };
   searchParams: { invite?: string };
 };
+
+function surfaceClass(surface: string | null | undefined) {
+  const s = (surface ?? "").toLowerCase();
+  if (s.includes("clay")) return "clay";
+  if (s.includes("grass")) return "grass";
+  return "hard";
+}
 
 export default async function LeagueHomePage({ params, searchParams }: Props) {
   const user = await getSessionUser();
@@ -32,158 +39,207 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
     notFound();
   }
 
-  const { data: membership } = await supabase
-    .from("league_members")
-    .select("role")
-    .eq("league_id", league.id)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const [membershipRes, membersRes] = await Promise.all([
+    supabase
+      .from("league_members")
+      .select("role")
+      .eq("league_id", league.id)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("league_members")
+      .select("user_id, role, joined_at")
+      .eq("league_id", league.id)
+      .order("joined_at", { ascending: true }),
+  ]);
 
-  if (!membership) {
+  if (!membershipRes.data) {
     notFound();
   }
 
-  const { count: memberCount } = await supabase
-    .from("league_members")
-    .select("*", { count: "exact", head: true })
-    .eq("league_id", league.id);
-
-  const { data: members } = await supabase
-    .from("league_members")
-    .select("user_id, role, joined_at")
-    .eq("league_id", league.id)
-    .order("joined_at", { ascending: true });
-
-  let inviteUrl: string | null = null;
+  const membership = membershipRes.data;
+  const members = membersRes.data ?? [];
+  const memberCount = members.length;
   const isCommissioner = membership.role === "commissioner";
 
-  if (isCommissioner) {
-    const { data: invite } = await supabase
-      .from("league_invites")
-      .select("token")
-      .eq("league_id", league.id)
-      .is("revoked_at", null)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  const [bundle, inviteRes, tournamentsRes, drawsRes] = await Promise.all([
+    loadDailyCheck({
+      supabase,
+      league,
+      userId: user.id,
+      memberCount,
+    }),
+    isCommissioner
+      ? supabase
+          .from("league_invites")
+          .select("token")
+          .eq("league_id", league.id)
+          .is("revoked_at", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null as { token: string } | null }),
+    supabase
+      .from("tournaments")
+      .select("id, ref, name, surface, starts_on, draw_size")
+      .order("starts_on", { ascending: true }),
+    supabase.from("draws").select("tournament_id"),
+  ]);
 
-    if (invite?.token) {
-      inviteUrl = `${siteUrl()}/join/${invite.token}`;
-    }
+  const { check, engagement, tournament } = bundle;
+
+  let inviteUrl: string | null = null;
+  if (inviteRes.data?.token) {
+    inviteUrl = `${getServerSiteUrl()}/join/${inviteRes.data.token}`;
   }
 
   const openInvite = searchParams.invite === "1" && Boolean(inviteUrl);
 
-  let tournament:
-    | {
-        ref: string;
-        name: string;
-        has_draw: boolean;
-      }
-    | null = null;
+  const publishedIds = new Set(
+    (drawsRes.data ?? []).map((d) => d.tournament_id)
+  );
 
-  if (league.tournament_label) {
-    const { data: t } = await supabase
-      .from("tournaments")
-      .select("id, ref, name")
-      .eq("name", league.tournament_label)
-      .maybeSingle();
-
-    if (t) {
-      const { data: draw } = await supabase
-        .from("draws")
-        .select("id")
-        .eq("tournament_id", t.id)
-        .maybeSingle();
-      tournament = {
-        ref: t.ref,
-        name: t.name,
-        has_draw: Boolean(draw),
-      };
+  const leagueTournaments = (tournamentsRes.data ?? []).filter((t) => {
+    if (league.format === "single" && league.tournament_label) {
+      return t.name === league.tournament_label;
     }
-  }
-
-  const { check, engagement } = await loadDailyCheck({
-    supabase,
-    league,
-    userId: user.id,
-    memberCount: memberCount ?? 0,
+    return league.format === "season";
   });
 
   return (
     <AppShell signedIn email={user.email}>
-      <div className="stack gap-4xl">
-        <div className="stack gap-lg">
-          <p className="eyebrow">League</p>
-          <h1 className="t-page-title">{league.name}</h1>
-          <p className="t-lead">
-            {league.format === "single"
-              ? league.tournament_label ?? "Single tournament"
-              : "Season league"}
-            {" · "}
-            {league.visibility}
-            {" · "}
-            {memberCount ?? 0}{" "}
-            {(memberCount ?? 0) === 1 ? "member" : "members"}
-          </p>
-          <div className="row wrap gap-md">
-            <Link href="/leagues" className="act act--standard act--standard-size">
-              All leagues
-            </Link>
-            <Link
-              href={`/leagues/${league.slug}/season`}
-              className="act act--standard act--standard-size"
-            >
-              Season standings
-            </Link>
+      <div className="page">
+        <header className="page-header page-header--split">
+          <div className="page-header-copy">
+            <p className="eyebrow">League</p>
+            <h1 className="t-page-title">{league.name}</h1>
+            <p className="t-lead">
+              {league.format === "single"
+                ? league.tournament_label ?? "Single tournament"
+                : "Season league"}
+              {" · "}
+              {league.visibility}
+              {" · "}
+              {memberCount} {memberCount === 1 ? "member" : "members"}
+            </p>
+          </div>
+          <div className="page-actions">
             {tournament ? (
               <Link
                 href={`/leagues/${league.slug}/t/${tournament.ref}`}
-                className="act act--prominent act--standard-size"
+                className="act act--prominent act--prominent-size"
               >
                 {tournament.has_draw
                   ? "Open tournament"
                   : "Tournament (draw pending)"}
               </Link>
             ) : null}
+            <Link
+              href={`/leagues/${league.slug}/season`}
+              className="act act--standard act--standard-size"
+            >
+              Season standings
+            </Link>
+            <Link href="/leagues" className="act act--quiet">
+              All leagues
+            </Link>
           </div>
-        </div>
+        </header>
 
         <DailyCheckPanel check={check} />
 
         {engagement ? (
-          <EngagementStrip
-            health={engagement.health}
-            perfectRemaining={engagement.perfectRemaining}
-            perfectLeagueCount={engagement.perfectLeagueCount}
-          />
+          <section className="section" aria-label="Engagement">
+            <EngagementStrip
+              health={engagement.health}
+              perfectRemaining={engagement.perfectRemaining}
+              perfectLeagueCount={engagement.perfectLeagueCount}
+            />
+          </section>
         ) : null}
 
         {engagement && engagement.highlights.length > 0 ? (
-          <LeagueHighlights
-            items={engagement.highlights.map((h) => ({
-              label: h.label,
-              memberLabel: h.memberLabel,
-              isYou: h.isYou,
-            }))}
-          />
+          <section className="section" aria-label="Highlights">
+            <LeagueHighlights
+              items={engagement.highlights.map((h) => ({
+                label: h.label,
+                memberLabel: h.memberLabel,
+                isYou: h.isYou,
+              }))}
+            />
+          </section>
         ) : null}
 
         {isCommissioner && inviteUrl ? (
-          <InvitePanel
-            leagueId={league.id}
-            slug={league.slug}
-            inviteUrl={inviteUrl}
-            defaultOpen={openInvite}
-          />
+          <section className="section" aria-labelledby="invite-heading">
+            <h2 id="invite-heading" className="section-title">
+              Grow the league
+            </h2>
+            <p className="section-lede">
+              Share one link. Friends join, fill brackets, and the Daily Check
+              gets interesting.
+            </p>
+            <InvitePanel
+              leagueId={league.id}
+              slug={league.slug}
+              inviteUrl={inviteUrl}
+              defaultOpen={openInvite}
+            />
+          </section>
         ) : null}
+
+        <section className="section" aria-labelledby="tournaments-heading">
+          <h2 id="tournaments-heading" className="section-title">
+            Tournaments
+          </h2>
+          {leagueTournaments.length === 0 ? (
+            <p className="t-body">
+              No tournaments in the calendar yet. Apply{" "}
+              <code>supabase/migrations/0003_brackets.sql</code>.
+            </p>
+          ) : (
+            <ul className="league-list">
+              {leagueTournaments.map((t) => {
+                const hasDraw = publishedIds.has(t.id);
+                return (
+                  <li key={t.id}>
+                    <Link
+                      href={`/leagues/${league.slug}/t/${t.ref}`}
+                      className="league-card"
+                    >
+                      <span
+                        className={`court-hairline court-${surfaceClass(t.surface)}`}
+                        aria-hidden
+                      />
+                      <span
+                        className="stack gap-sm"
+                        style={{ flex: 1, minWidth: 0 }}
+                      >
+                        <span className="league-card-name">{t.name}</span>
+                        <span className="t-caption">
+                          {t.surface}
+                          {t.starts_on ? ` · ${t.starts_on}` : ""}
+                          {" · "}
+                          {t.draw_size}-draw
+                        </span>
+                      </span>
+                      <span className="league-card-status">
+                        {hasDraw ? "Draw open" : "Draw pending"}
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
 
         <section className="section" aria-labelledby="members-heading">
           <h2 id="members-heading" className="section-title">
             Members
           </h2>
           <ul className="member-list">
-            {(members ?? []).map((m) => (
+            {members.map((m) => (
               <li key={m.user_id} className="member-row">
                 <span className="numeral">
                   {m.user_id === user.id

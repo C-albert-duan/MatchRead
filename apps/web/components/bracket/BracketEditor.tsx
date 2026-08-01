@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
@@ -15,7 +15,7 @@ import {
   saveBracketPicks,
   submitBracket,
 } from "@/app/actions/brackets";
-import { BracketGrid } from "@/components/BracketGrid";
+import { BracketGrid } from "@/components/bracket/BracketGrid";
 
 type Props = {
   leagueId: string;
@@ -120,7 +120,7 @@ export function BracketEditor({
       setStatus("failed");
       setMessage(
         result.error ||
-          "Your bracket did not save. Nothing has been lost — try again."
+          "Your bracket did not save. Nothing has been lost â€” try again."
       );
       return;
     }
@@ -199,7 +199,7 @@ export function BracketEditor({
         ? "You are offline. Bracket edits stay on this page until you reconnect."
         : status === "failed"
           ? message ??
-            "Your bracket did not save. Nothing has been lost — try again."
+            "Your bracket did not save. Nothing has been lost â€” try again."
           : status === "saved"
             ? "Bracket saved"
             : status === "pending"
@@ -217,8 +217,8 @@ export function BracketEditor({
             {made} of {need}
           </span>{" "}
           picks made
-          {submitted ? " · Submitted" : ""}
-          {isLocked ? " · Locked" : ""}
+          {submitted ? " Â· Submitted" : ""}
+          {isLocked ? " Â· Locked" : ""}
         </p>
         <div className="row wrap gap-md">
           {!isLocked ? (
@@ -260,7 +260,7 @@ export function BracketEditor({
       {!complete && !isLocked ? (
         <p className="hint">
           Submit stays off until every match has a pick ({need - made} left).
-          After a pick, set confidence 1–5.
+          After a pick, set confidence 1â€“5.
         </p>
       ) : null}
 

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { AppShell } from "@/components/AppShell";
-import { JoinLeagueButton } from "@/components/JoinLeagueButton";
+import { AppShell } from "@/components/shell/AppShell";
+import { JoinLeagueButton } from "@/components/league/JoinLeagueButton";
 import { getSessionUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { InvitePreview } from "@/lib/leagues/types";
@@ -24,47 +24,29 @@ export default async function JoinPage({ params }: Props) {
     | null
     | undefined;
 
-  if (error || !preview) {
+  if (error || !preview || preview.revoked) {
     return (
       <AppShell signedIn={Boolean(user)} email={user?.email}>
-        <div className="stack gap-2xl" style={{ maxWidth: 520 }}>
-          <div className="stack gap-lg">
+        <div className="page">
+          <header className="page-header">
             <p className="eyebrow">Invite</p>
             <h1 className="t-page-title">This invite is no longer valid</h1>
             <p className="t-lead">
-              The link may have been replaced by the commissioner, or it never
-              existed. Ask whoever sent it for a fresh one.
+              {preview?.revoked
+                ? "The commissioner revoked this link. Ask them for a fresh one."
+                : "The link may have been replaced, or it never existed."}
             </p>
-          </div>
-          <Link href="/" className="act act--standard act--standard-size">
-            Go to MatchRead
-          </Link>
+            <div className="page-actions">
+              <Link href="/" className="act act--standard act--standard-size">
+                Go to MatchRead
+              </Link>
+            </div>
+          </header>
         </div>
       </AppShell>
     );
   }
 
-  if (preview.revoked) {
-    return (
-      <AppShell signedIn={Boolean(user)} email={user?.email}>
-        <div className="stack gap-2xl" style={{ maxWidth: 520 }}>
-          <div className="stack gap-lg">
-            <p className="eyebrow">Invite</p>
-            <h1 className="t-page-title">This invite is no longer valid</h1>
-            <p className="t-lead">
-              The commissioner revoked this link. Ask them for a fresh one —
-              nothing is wrong with your account.
-            </p>
-          </div>
-          <Link href="/" className="act act--standard act--standard-size">
-            Go to MatchRead
-          </Link>
-        </div>
-      </AppShell>
-    );
-  }
-
-  // Signed-in: already a member → league home
   if (user) {
     const { data: membership } = await supabase
       .from("league_members")
@@ -77,7 +59,6 @@ export default async function JoinPage({ params }: Props) {
       redirect(`/leagues/${preview.league_slug}`);
     }
 
-    // Signed-in + valid invite → join automatically, then league home
     const { error: joinError } = await supabase.rpc("join_league_with_token", {
       p_token: params.token,
     });
@@ -88,11 +69,10 @@ export default async function JoinPage({ params }: Props) {
       redirect(`/leagues/${preview.league_slug}`);
     }
 
-    // Join failed — show invite + retry button
     return (
       <AppShell signedIn email={user.email}>
-        <div className="stack gap-2xl" style={{ maxWidth: 560 }}>
-          <div className="stack gap-lg">
+        <div className="page">
+          <header className="page-header">
             <p className="eyebrow">Invite</p>
             <h1 className="t-page-title">
               You&apos;re invited to {preview.league_name}
@@ -102,7 +82,7 @@ export default async function JoinPage({ params }: Props) {
                 ? "This invite is no longer valid."
                 : joinError.message || "Could not join automatically."}
             </p>
-          </div>
+          </header>
           <JoinLeagueButton token={params.token} />
           <Link href="/leagues" className="act act--quiet">
             Back to my leagues
@@ -112,20 +92,23 @@ export default async function JoinPage({ params }: Props) {
     );
   }
 
-  // Signed out — sign in, then this page auto-joins
   const nextPath = `/join/${params.token}`;
 
   return (
     <AppShell signedIn={false}>
-      <div className="stack gap-2xl" style={{ maxWidth: 560 }}>
-        <div className="stack gap-lg">
+      <div className="page">
+        <header className="page-header">
           <p className="eyebrow">Invite</p>
           <h1 className="t-page-title">
             You&apos;re invited to {preview.league_name}
           </h1>
-        </div>
+          <p className="t-lead">
+            Brackets open when the draw lands. Join now so you&apos;re in the
+            group when it does.
+          </p>
+        </header>
 
-        <div className="panel stack gap-lg">
+        <div className="panel stack gap-lg focus-band">
           <dl className="meta-grid">
             <div>
               <dt className="eyebrow">Format</dt>
@@ -153,13 +136,6 @@ export default async function JoinPage({ params }: Props) {
               </div>
             ) : null}
           </dl>
-          <p className="t-caption">
-            Brackets open when the draw lands. Join now so you&apos;re in the
-            group when it does.
-          </p>
-        </div>
-
-        <div className="stack gap-md">
           <Link
             href={`/sign-in?next=${encodeURIComponent(nextPath)}`}
             className="act act--prominent act--prominent-size"
@@ -167,8 +143,7 @@ export default async function JoinPage({ params }: Props) {
             Sign in and join
           </Link>
           <p className="hint">
-            After the magic link, you&apos;ll land in the league automatically —
-            no second Join click.
+            After the magic link, you&apos;ll land in the league automatically.
           </p>
         </div>
       </div>

@@ -6,16 +6,19 @@ node_modules
 .env
 .env.*
 !.env.example
+!.env.docker.example
 apps/web/.env*.local
 
-# Next.js
+# Next.js / Vercel
 apps/web/.next
 apps/web/out
+.vercel
 
 # Build / coverage
 dist
 coverage
 *.tsbuildinfo
+.turbo
 
 # OS / IDE
 .DS_Store
@@ -32,6 +35,8 @@ supabase/.temp
 Wireframe/**/*.zip
 Wireframe/**/*.tar.gz
 
-# Debug
+# Debug / local tooling
+*.log
 npm-debug.log*
 pnpm-debug.log*
+agent-transcripts

@@ -1,0 +1,40 @@
+# Git / IDE
+.git
+.github
+.cursor
+.vscode
+.idea
+**/.DS_Store
+**/Thumbs.db
+
+# Dependencies & build artifacts
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/*.tsbuildinfo
+.pnpm-store
+
+# Env & secrets (pass via compose / build-args)
+.env
+.env.*
+!.env.example
+!.env.docker.example
+apps/web/.env*.local
+
+# Large / non-runtime trees
+Wireframe
+agent-transcripts
+docs/plans
+**/*.md
+!README.md
+
+# Logs / debug
+npm-debug.log*
+pnpm-debug.log*
+*.log
+
+# Supabase CLI local state
+supabase/.branches
+supabase/.temp
+supabase/.temp/**
