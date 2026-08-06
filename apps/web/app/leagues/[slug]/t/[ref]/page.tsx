@@ -8,6 +8,9 @@ import { StandingsTable } from "@/components/league/StandingsTable";
 import { getSessionUser } from "@/lib/auth";
 import { isFounderEmail } from "@/lib/auth/founder";
 import { isTournamentLocked } from "@/lib/brackets/types";
+import { t } from "@/lib/i18n";
+import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
+import { redirectIfMissingDisplayName } from "@/lib/profiles/require-name";
 import { createClient } from "@/lib/supabase/server";
 
 type Props = {
@@ -41,6 +44,12 @@ export default async function TournamentInLeaguePage({ params }: Props) {
 
   if (!membership) notFound();
 
+  await redirectIfMissingDisplayName(
+    supabase,
+    user.id,
+    `/leagues/${params.slug}/t/${params.ref}`
+  );
+
   const { data: tournament } = await supabase
     .from("tournaments")
     .select("*")
@@ -63,33 +72,78 @@ export default async function TournamentInLeaguePage({ params }: Props) {
     .eq("tournament_id", tournament.id)
     .maybeSingle();
 
-  const { data: bracket } = await supabase
-    .from("brackets")
-    .select("submitted_at, updated_at")
-    .eq("league_id", league.id)
-    .eq("tournament_id", tournament.id)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const isCommissioner = membership.role === "commissioner";
+  const isFounder = isFounderEmail(user.email ?? undefined);
 
-  const { data: snapshots } = await supabase
-    .from("bracket_snapshots")
-    .select(
-      "user_id, score, position, previous_position, position_delta, score_delta, upside, champion_alive"
-    )
-    .eq("league_id", league.id)
-    .eq("tournament_id", tournament.id)
-    .order("position", { ascending: true });
+  const [bracketRes, snapshotsRes, seatsRes, resultsRes] = await Promise.all([
+    supabase
+      .from("brackets")
+      .select("submitted_at, updated_at")
+      .eq("league_id", league.id)
+      .eq("tournament_id", tournament.id)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("bracket_snapshots")
+      .select(
+        "user_id, score, position, previous_position, position_delta, score_delta, upside, champion_alive"
+      )
+      .eq("league_id", league.id)
+      .eq("tournament_id", tournament.id)
+      .order("position", { ascending: true }),
+    isCommissioner && draw
+      ? supabase
+          .from("draw_seats")
+          .select(
+            "position, player_ref, last_name, seed, country_code, is_bye"
+          )
+          .eq("draw_id", draw.id)
+          .order("position", { ascending: true })
+      : Promise.resolve({ data: [] as Array<{
+          position: number;
+          player_ref: string;
+          last_name: string;
+          seed: number | null;
+          country_code: string;
+          is_bye: boolean;
+        }> }),
+    isCommissioner
+      ? supabase
+          .from("match_results")
+          .select("match_key, winner_ref, voided")
+          .eq("tournament_id", tournament.id)
+      : Promise.resolve({
+          data: [] as Array<{
+            match_key: string;
+            winner_ref: string | null;
+            voided: boolean;
+          }>,
+        }),
+  ]);
+
+  const bracket = bracketRes.data;
+  const snapshots = snapshotsRes.data;
+  const seats = seatsRes.data ?? [];
+  const initialResults: Record<string, string> = {};
+  for (const row of resultsRes.data ?? []) {
+    if (!row.voided && row.winner_ref) {
+      initialResults[row.match_key] = row.winner_ref;
+    }
+  }
 
   const locked = isTournamentLocked(tournament);
   const hasDraw = Boolean(draw);
-  const isCommissioner = membership.role === "commissioner";
-  const isFounder = isFounderEmail(user.email ?? undefined);
   const bracketHref = `/leagues/${league.slug}/t/${tournament.ref}/bracket`;
 
-  let bracketLabel = "Open my bracket";
-  if (locked) bracketLabel = "View my bracket";
+  let bracketLabel = t("tournament.openBracket");
+  if (locked) bracketLabel = t("tournament.viewBracket");
   else if (bracket?.submitted_at || bracket?.updated_at)
-    bracketLabel = "Review my bracket";
+    bracketLabel = t("tournament.reviewBracket");
+
+  const standingNames = await loadDisplayNames(
+    supabase,
+    (snapshots ?? []).map((s) => s.user_id)
+  );
 
   const standingRows = (snapshots ?? []).map((s) => ({
     user_id: s.user_id,
@@ -100,7 +154,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
     position_delta: s.position_delta,
     upside: s.upside,
     champion_alive: s.champion_alive,
-    label: s.user_id === user.id ? "You" : `${s.user_id.slice(0, 8)}…`,
+    label: memberLabel(s.user_id, user.id, standingNames),
     isYou: s.user_id === user.id,
   }));
 
@@ -134,13 +188,13 @@ export default async function TournamentInLeaguePage({ params }: Props) {
               href={`/leagues/${league.slug}`}
               className="act act--standard act--standard-size"
             >
-              League home
+              {t("tournament.leagueHome")}
             </Link>
             <Link
               href={`/leagues/${league.slug}/season`}
               className="act act--quiet"
             >
-              Season standings
+              {t("league.seasonStandings")}
             </Link>
           </div>
         </header>
@@ -151,22 +205,19 @@ export default async function TournamentInLeaguePage({ params }: Props) {
             aria-labelledby="draw-pending"
           >
             <h2 id="draw-pending" className="section-title">
-              Draw pending
+              {t("tournament.drawPending.title")}
             </h2>
-            <p className="t-body">
-              The draw has not been published yet. Invite friends and come back
-              when the bracket opens.
-            </p>
+            <p className="t-body">{t("tournament.drawPending.body")}</p>
           </section>
         ) : (
           <section className="section focus-band" style={{ borderTop: "none", paddingTop: 0 }}>
-            <h2 className="section-title">Your entry</h2>
+            <h2 className="section-title">{t("tournament.yourEntry")}</h2>
             <p className="t-body">
               {locked
-                ? "The draw is locked. You can view your picks; they can no longer be changed."
+                ? t("tournament.entry.locked")
                 : bracket?.submitted_at
-                  ? "Your bracket is submitted. You can still edit until the lock."
-                  : "Fill the tree, save as you go, then submit when every match has a pick."}
+                  ? t("tournament.entry.submitted")
+                  : t("tournament.entry.draft")}
             </p>
           </section>
         )}
@@ -174,7 +225,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
         {hasDraw ? (
           <section className="section" aria-labelledby="event-standings">
             <h2 id="event-standings" className="section-title">
-              Event standings
+              {t("tournament.eventStandings")}
             </h2>
             <StandingsTable rows={standingRows} kind="event" />
             {standingRows.length > 0 ? (
@@ -183,27 +234,31 @@ export default async function TournamentInLeaguePage({ params }: Props) {
                   href={`/leagues/${league.slug}/t/${tournament.ref}/result`}
                   className="act act--standard act--standard-size"
                 >
-                  See my result
+                  {t("tournament.seeResult")}
                 </Link>
               </div>
             ) : null}
-            {isCommissioner || isFounder ? (
+            {/* Ops controls: commissioner only — never invitees/members.
+                (When FOUNDER_EMAILS is unset, every user is "founder"; do not
+                use that flag to show this panel.) */}
+            {isCommissioner ? (
               <>
                 <OfficialResultsPanel
                   leagueId={league.id}
                   leagueSlug={league.slug}
                   tournamentId={tournament.id}
                   tournamentRef={tournament.ref}
+                  drawSize={tournament.draw_size}
+                  seats={seats}
+                  initialResults={initialResults}
                   isFounder={isFounder}
                 />
-                {isCommissioner ? (
-                  <SettleButton
-                    leagueId={league.id}
-                    leagueSlug={league.slug}
-                    tournamentId={tournament.id}
-                    tournamentRef={tournament.ref}
-                  />
-                ) : null}
+                <SettleButton
+                  leagueId={league.id}
+                  leagueSlug={league.slug}
+                  tournamentId={tournament.id}
+                  tournamentRef={tournament.ref}
+                />
               </>
             ) : null}
           </section>

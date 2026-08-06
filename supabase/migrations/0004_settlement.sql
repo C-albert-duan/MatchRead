@@ -156,35 +156,6 @@ create policy pick_voids_commissioner on public.pick_voids
     )
   );
 
--- ---------------------------------------------------------------------------
--- Fixture: seed a complete official result path for uso-2026 (deterministic)
--- Only fills keys that do not already exist — never overwrites live edits.
--- ---------------------------------------------------------------------------
-
-insert into public.match_results (tournament_id, match_key, winner_ref, voided)
-select t.id, v.match_key, v.winner_ref, false
-from public.tournaments t
-cross join (
-  values
-    -- Round of 16 (favorites / even indices for unseeded pairs)
-    ('r0-m0',  'p-0'),   -- Aldecoa over Brennig
-    ('r0-m1',  'p-2'),   -- Castellan over Duvernay
-    ('r0-m2',  'p-4'),   -- Erlandsen over Falkner
-    ('r0-m3',  'p-6'),   -- Gadea over Halvorsen
-    ('r0-m4',  'p-8'),   -- Ivarsson over Jelinek
-    ('r0-m5',  'p-10'),  -- Kaltenbach over Lindqvist
-    ('r0-m6',  'p-12'),  -- Marchetti over Norrbom
-    ('r0-m7',  'p-14'),  -- Okonjo over Pellerin
-    -- Quarters
-    ('r1-m0',  'p-0'),
-    ('r1-m1',  'p-4'),
-    ('r1-m2',  'p-8'),
-    ('r1-m3',  'p-14'),
-    -- Semis
-    ('r2-m0',  'p-0'),
-    ('r2-m1',  'p-14'),
-    -- Final
-    ('r3-m0',  'p-0')
-) as v(match_key, winner_ref)
-where t.ref = 'uso-2026'
-on conflict (tournament_id, match_key) do nothing;
+-- Official match results are entered by the commissioner in the UI
+-- (one finished match at a time). Do not seed winners here — that made
+-- every fixture look "Saved" before any real game was played.

@@ -3,9 +3,21 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { createLeague } from "@/app/actions/leagues";
+import { useT } from "@/components/shell/LocaleProvider";
 import { TOURNAMENT_OPTIONS } from "@/lib/leagues/types";
+import type { MessageKey } from "@matchread/i18n";
+
+const OPTION_LABEL_KEY: Record<
+  (typeof TOURNAMENT_OPTIONS)[number]["ref"],
+  MessageKey
+> = {
+  "uso-2026": "create.opt.uso",
+  "wim-2026": "create.opt.wim",
+  "rg-2026": "create.opt.rg",
+};
 
 export function CreateLeagueForm() {
+  const t = useT();
   const [format, setFormat] = useState<"single" | "season">("single");
   const [visibility, setVisibility] = useState<"private" | "public">("private");
   const [error, setError] = useState<string | null>(null);
@@ -26,12 +38,9 @@ export function CreateLeagueForm() {
       }}
     >
       <div className="page-header">
-        <p className="eyebrow">New league</p>
-        <h1 className="t-page-title">Start a league</h1>
-        <p className="t-lead">
-          Four decisions. Two of them cannot be changed afterwards, and both
-          are marked.
-        </p>
+        <p className="eyebrow">{t("create.eyebrow")}</p>
+        <h1 className="t-page-title">{t("create.title")}</h1>
+        <p className="t-lead">{t("create.lede")}</p>
       </div>
 
       {error ? (
@@ -42,13 +51,13 @@ export function CreateLeagueForm() {
 
       <div className="stack gap-sm">
         <label htmlFor="name" className="field-label">
-          League name
+          {t("create.name")}
         </label>
         <input
           id="name"
           name="name"
           className="field"
-          placeholder="Fourth Floor Slam Challenge"
+          placeholder={t("create.name.placeholder")}
           required
           maxLength={80}
           disabled={pending}
@@ -57,7 +66,7 @@ export function CreateLeagueForm() {
       </div>
 
       <fieldset className="choice-set">
-        <legend className="eyebrow">Format — cannot be changed later</legend>
+        <legend className="eyebrow">{t("create.format.legend")}</legend>
         <label className="choice" data-selected={format === "single"}>
           <input
             type="radio"
@@ -68,10 +77,8 @@ export function CreateLeagueForm() {
             disabled={pending}
           />
           <span className="stack gap-xs">
-            <span className="choice-title">Single tournament</span>
-            <span className="t-caption">
-              One draw, one table, and the league ends with the final.
-            </span>
+            <span className="choice-title">{t("league.format.single")}</span>
+            <span className="t-caption">{t("create.format.single.body")}</span>
           </span>
         </label>
         <label className="choice" data-selected={format === "season"}>
@@ -84,17 +91,14 @@ export function CreateLeagueForm() {
             disabled={pending}
           />
           <span className="stack gap-xs">
-            <span className="choice-title">Season league</span>
-            <span className="t-caption">
-              Every event you add scores into a running table. The league keeps
-              its people between tournaments.
-            </span>
+            <span className="choice-title">{t("league.format.season")}</span>
+            <span className="t-caption">{t("create.format.season.body")}</span>
           </span>
         </label>
       </fieldset>
 
       <fieldset className="choice-set">
-        <legend className="eyebrow">Who can see it</legend>
+        <legend className="eyebrow">{t("create.visibility.legend")}</legend>
         <label className="choice" data-selected={visibility === "private"}>
           <input
             type="radio"
@@ -105,9 +109,11 @@ export function CreateLeagueForm() {
             disabled={pending}
           />
           <span className="stack gap-xs">
-            <span className="choice-title">Private</span>
+            <span className="choice-title">
+              {t("create.visibility.private")}
+            </span>
             <span className="t-caption">
-              Only people with the invite link. This is the default.
+              {t("create.visibility.private.body")}
             </span>
           </span>
         </label>
@@ -121,10 +127,9 @@ export function CreateLeagueForm() {
             disabled={pending}
           />
           <span className="stack gap-xs">
-            <span className="choice-title">Public</span>
+            <span className="choice-title">{t("create.visibility.public")}</span>
             <span className="t-caption">
-              Anyone can find and read the standings. Members still hold their
-              picks until the lock.
+              {t("create.visibility.public.body")}
             </span>
           </span>
         </label>
@@ -133,7 +138,7 @@ export function CreateLeagueForm() {
       {format === "single" ? (
         <div className="stack gap-sm">
           <label htmlFor="tournament_label" className="field-label">
-            Which tournament
+            {t("create.tournament")}
           </label>
           <select
             id="tournament_label"
@@ -142,18 +147,18 @@ export function CreateLeagueForm() {
             disabled={pending}
             defaultValue={TOURNAMENT_OPTIONS[0].value}
           >
-            {TOURNAMENT_OPTIONS.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
+            {TOURNAMENT_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {t(OPTION_LABEL_KEY[opt.ref])}
               </option>
             ))}
           </select>
           <p className="hint">
-            These are calendar events (US Open, etc.), not your existing leagues.
-            This form always starts a <strong>new</strong> league. Your private
-            leagues stay on{" "}
-            <Link href="/leagues">My leagues</Link>. The draw does not have to
-            exist yet — members join now and the bracket opens when it lands.
+            {t("create.tournament.hint.before")}{" "}
+            <strong>{t("create.tournament.hint.new")}</strong>{" "}
+            {t("create.tournament.hint.mid")}{" "}
+            <Link href="/leagues">{t("create.tournament.hint.myLeagues")}</Link>
+            {t("create.tournament.hint.after")}
           </p>
         </div>
       ) : (
@@ -166,10 +171,10 @@ export function CreateLeagueForm() {
           className="act act--prominent act--prominent-size"
           disabled={pending}
         >
-          {pending ? "Creating" : "Create league"}
+          {pending ? t("create.creating") : t("create.submit")}
         </button>
         <Link href="/leagues" className="act act--quiet">
-          Cancel
+          {t("common.cancel")}
         </Link>
       </div>
     </form>

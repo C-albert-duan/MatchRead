@@ -26,7 +26,7 @@ export function OfflineBanner({ message }: Props) {
 
   return (
     <div className="status-banner" role="status" aria-live="polite">
-      {message}
+      {message || "You are offline. Changes may not save until you reconnect."}
     </div>
   );
 }

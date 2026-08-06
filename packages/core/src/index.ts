@@ -25,6 +25,7 @@ export type {
 
 export {
   computeAlive,
+  detailBracketGrade,
   expectedPickCount,
   gradeBracket,
   maxBracketScore,
@@ -34,6 +35,10 @@ export {
 } from "./grade";
 export type {
   BracketGrade,
+  BracketGradeDetail,
+  ChampionBonusDetail,
+  MatchGradeDetail,
+  MatchGradeOutcome,
   OfficialMatch,
   OfficialResults,
 } from "./grade";

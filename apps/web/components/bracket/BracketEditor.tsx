@@ -9,6 +9,7 @@ import {
   type BracketConfidence,
   type BracketPicks,
   type DrawSeat,
+  type OfficialResults,
 } from "@matchread/core";
 import {
   adminLockTournament,
@@ -16,6 +17,7 @@ import {
   submitBracket,
 } from "@/app/actions/brackets";
 import { BracketGrid } from "@/components/bracket/BracketGrid";
+import { useT, useTf } from "@/components/shell/LocaleProvider";
 
 type Props = {
   leagueId: string;
@@ -29,6 +31,7 @@ type Props = {
   submittedAt: string | null;
   locked: boolean;
   isCommissioner: boolean;
+  officialResults?: OfficialResults;
 };
 
 type SaveStatus =
@@ -53,6 +56,7 @@ export function BracketEditor({
   submittedAt,
   locked,
   isCommissioner,
+  officialResults = {},
 }: Props) {
   const [picks, setPicks] = useState<BracketPicks>(() =>
     applyByeAdvances(seats, initialPicks, drawSize)
@@ -70,6 +74,8 @@ export function BracketEditor({
   const confidenceRef = useRef(confidence);
   picksRef.current = picks;
   confidenceRef.current = confidence;
+  const t = useT();
+  const tf = useTf();
 
   useEffect(() => {
     function onOnline() {
@@ -118,17 +124,15 @@ export function BracketEditor({
         setIsLocked(true);
       }
       setStatus("failed");
-      setMessage(
-        result.error ||
-          "Your bracket did not save. Nothing has been lost â€” try again."
-      );
+      setMessage(result.error || t("bracket.fail"));
       return;
     }
     setStatus("saved");
-    setMessage("Bracket saved");
+    const savedMessage = t("bracket.saved");
+    setMessage(savedMessage);
     window.setTimeout(() => {
       setStatus((s) => (s === "saved" ? "idle" : s));
-      setMessage((m) => (m === "Bracket saved" ? null : m));
+      setMessage((m) => (m === savedMessage ? null : m));
     }, 1600);
   }
 
@@ -164,7 +168,7 @@ export function BracketEditor({
         return;
       }
       setSubmitted(true);
-      setMessage("Entry submitted for this league.");
+      setMessage(t("tournament.entry.submitted"));
     });
   }
 
@@ -180,11 +184,7 @@ export function BracketEditor({
         return;
       }
       setIsLocked(lockedNext);
-      setMessage(
-        lockedNext
-          ? "Draw locked. Brackets are read-only."
-          : "Lock cleared. Brackets are editable again."
-      );
+      setMessage(lockedNext ? t("bracket.lockedMsg") : t("bracket.unlockedMsg"));
     });
   }
 
@@ -192,33 +192,32 @@ export function BracketEditor({
   const need = totalMatches(drawSize);
   const complete = isBracketComplete(picks, drawSize);
 
+  const hasOfficial = Object.keys(officialResults).length > 0;
   const statusText =
     status === "saving"
-      ? "Saving your bracket"
+      ? t("bracket.saving")
       : status === "offline"
-        ? "You are offline. Bracket edits stay on this page until you reconnect."
+        ? t("bracket.offline")
         : status === "failed"
-          ? message ??
-            "Your bracket did not save. Nothing has been lost â€” try again."
+          ? message ?? t("bracket.fail")
           : status === "saved"
-            ? "Bracket saved"
+            ? t("bracket.saved")
             : status === "pending"
-              ? "Changes save automatically"
+              ? t("bracket.autosave")
               : message ??
                 (isLocked
-                  ? "This draw is locked."
-                  : "Changes save automatically");
+                  ? hasOfficial
+                    ? t("bracket.gradedHint")
+                    : t("bracket.lockedHint")
+                  : t("bracket.autosave"));
 
   return (
     <div className="stack gap-2xl">
       <div className="row wrap gap-md between">
         <p className="t-lead" aria-live="polite">
-          <span className="numeral">
-            {made} of {need}
-          </span>{" "}
-          picks made
-          {submitted ? " Â· Submitted" : ""}
-          {isLocked ? " Â· Locked" : ""}
+          <span className="numeral">{tf("bracket.picksMade", { made, need })}</span>
+          {submitted ? ` · ${t("bracket.submitted")}` : ""}
+          {isLocked ? ` · ${t("bracket.locked")}` : ""}
         </p>
         <div className="row wrap gap-md">
           {!isLocked ? (
@@ -228,11 +227,11 @@ export function BracketEditor({
               disabled={!complete || pending || submitted}
               onClick={handleSubmit}
             >
-              {submitted ? "Submitted" : "Submit my bracket"}
+              {submitted ? t("bracket.submitted") : t("bracket.submit")}
             </button>
           ) : (
             <span className="act act--standard act--standard-size" aria-disabled="true">
-              Locked
+              {t("bracket.locked")}
             </span>
           )}
           {isCommissioner ? (
@@ -242,7 +241,7 @@ export function BracketEditor({
               disabled={pending}
               onClick={() => handleLockToggle(!isLocked)}
             >
-              {isLocked ? "Unlock (fixture)" : "Lock draw now"}
+              {isLocked ? t("bracket.unlock") : t("bracket.lock")}
             </button>
           ) : null}
         </div>
@@ -259,8 +258,7 @@ export function BracketEditor({
 
       {!complete && !isLocked ? (
         <p className="hint">
-          Submit stays off until every match has a pick ({need - made} left).
-          After a pick, set confidence 1â€“5.
+          {tf("bracket.completeHint", { left: need - made })}
         </p>
       ) : null}
 
@@ -270,6 +268,7 @@ export function BracketEditor({
         picks={picks}
         confidence={confidence}
         locked={isLocked}
+        official={officialResults}
         onPick={handlePick}
         onConfidence={handleConfidence}
       />

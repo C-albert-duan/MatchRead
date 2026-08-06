@@ -11,6 +11,7 @@ import {
   type LeagueHighlight,
   type OfficialResults,
 } from "@matchread/core";
+import { memberLabel } from "@/lib/profiles/labels";
 
 export type LeagueEngagement = {
   health: BracketHealth | null;
@@ -49,8 +50,10 @@ export function buildLeagueEngagement(input: {
   official: OfficialResults;
   seats: DrawSeat[];
   picks: BracketPicks;
+  displayNames?: Record<string, string>;
 }): LeagueEngagement {
   const { userId, drawSize, official, seats, picks } = input;
+  const names = input.displayNames ?? {};
   const snaps = input.snaps ?? [];
   if (snaps.length === 0) return EMPTY_ENGAGEMENT;
 
@@ -106,8 +109,7 @@ export function buildLeagueEngagement(input: {
 
   const highlights = leagueHighlights(highlightRows).map((h) => ({
     ...h,
-    memberLabel:
-      h.userId === userId ? "You" : `${h.userId.slice(0, 8)}…`,
+    memberLabel: memberLabel(h.userId, userId, names),
     isYou: h.userId === userId,
   }));
 

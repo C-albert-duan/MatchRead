@@ -2,7 +2,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/AppShell";
 import { getSessionUser } from "@/lib/auth";
-import { t } from "@/lib/i18n";
+import { t, tf } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
 import type { LeagueListItem, MemberRole } from "@/lib/leagues/types";
 
@@ -10,13 +10,13 @@ function leagueStatus(
   league: LeagueListItem,
   drawByTournamentName: Map<string, boolean>
 ): string {
-  if (league.format === "season") return "Season";
+  if (league.format === "season") return t("leagues.status.season");
   const label = league.tournament_label;
-  if (!label) return "Single event";
+  if (!label) return t("league.format.single");
   const hasDraw = drawByTournamentName.get(label);
-  if (hasDraw === true) return "Bracket open";
-  if (hasDraw === false) return "Awaiting draw";
-  return "Single event";
+  if (hasDraw === true) return t("leagues.status.bracketOpen");
+  if (hasDraw === false) return t("leagues.status.awaitingDraw");
+  return t("league.format.single");
 }
 
 export default async function LeaguesPage() {
@@ -98,19 +98,16 @@ export default async function LeaguesPage() {
       <div className="page">
         <header className="page-header page-header--split">
           <div className="page-header-copy">
-            <p className="eyebrow">Leagues</p>
-            <h1 className="t-page-title">My leagues</h1>
-            <p className="t-lead">
-              Your groups. Open the one with something happening — or start the
-              next one.
-            </p>
+            <p className="eyebrow">{t("nav.leagues")}</p>
+            <h1 className="t-page-title">{t("leagues.my.title")}</h1>
+            <p className="t-lead">{t("leagues.my.lede")}</p>
           </div>
           <div className="page-actions">
             <Link
               href="/leagues/new"
               className="act act--prominent act--prominent-size"
             >
-              Start a league
+              {t("cta.startLeague")}
             </Link>
           </div>
         </header>
@@ -147,14 +144,21 @@ export default async function LeaguesPage() {
                     <span className="league-card-name">{league.name}</span>
                     <span className="t-caption">
                       {league.format === "single"
-                        ? league.tournament_label ?? "Single tournament"
-                        : "Season league"}
+                        ? league.tournament_label ?? t("league.format.single")
+                        : t("league.format.season")}
                       {" · "}
                       {league.visibility}
                       {" · "}
-                      {league.member_count}{" "}
-                      {league.member_count === 1 ? "member" : "members"}
-                      {league.role === "commissioner" ? " · commissioner" : ""}
+                      {league.member_count === 1
+                        ? tf("leagues.members.count.one", {
+                            n: league.member_count,
+                          })
+                        : tf("leagues.members.count", {
+                            n: league.member_count,
+                          })}
+                      {league.role === "commissioner"
+                        ? ` · ${t("league.role.commissioner").toLowerCase()}`
+                        : ""}
                     </span>
                   </span>
                   <span className="league-card-status">

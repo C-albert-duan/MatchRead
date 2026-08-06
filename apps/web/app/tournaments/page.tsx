@@ -1,6 +1,7 @@
 ﻿import Link from "next/link";
 import { AppShell } from "@/components/shell/AppShell";
 import { getSessionUser } from "@/lib/auth";
+import { t } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
 
 function surfaceClass(surface: string | null | undefined) {
@@ -77,12 +78,9 @@ export default async function TournamentsPage() {
       <div className="page">
         <header className="page-header page-header--split">
           <div className="page-header-copy">
-            <p className="eyebrow">Calendar</p>
-            <h1 className="t-page-title">Tournament calendar</h1>
-            <p className="t-lead">
-              Tap an event to open it in your league. Brackets open once the
-              draw is published.
-            </p>
+            <p className="eyebrow">{t("calendar.eyebrow")}</p>
+            <h1 className="t-page-title">{t("calendar.title")}</h1>
+            <p className="t-lead">{t("calendar.lede")}</p>
           </div>
           <div className="page-actions">
             {user ? (
@@ -90,14 +88,14 @@ export default async function TournamentsPage() {
                 href="/leagues"
                 className="act act--prominent act--prominent-size"
               >
-                My leagues
+                {t("leagues.my.title")}
               </Link>
             ) : (
               <Link
                 href="/sign-in?next=%2Fleagues%2Fnew"
                 className="act act--prominent act--prominent-size"
               >
-                Start a league
+                {t("cta.startLeague")}
               </Link>
             )}
             <Link href="/" className="act act--quiet">
@@ -113,29 +111,33 @@ export default async function TournamentsPage() {
           </p>
         ) : (
           <ul className="calendar focus-band">
-            {(tournaments ?? []).map((t) => {
+            {(tournaments ?? []).map((row) => {
               const href = hrefForTournament(
-                t.name,
-                t.ref,
+                row.name,
+                row.ref,
                 Boolean(user),
                 leagues
               );
-              const hasDraw = publishedIds.has(t.id);
+              const hasDraw = publishedIds.has(row.id);
               return (
-                <li key={t.ref}>
+                <li key={row.ref}>
                   <Link href={href} className="trow">
                     <span
-                      className={`court-hairline court-${surfaceClass(t.surface)}`}
+                      className={`court-hairline court-${surfaceClass(row.surface)}`}
                       aria-hidden
                     />
-                    <span className="trow-name">{t.name}</span>
+                    <span className="trow-name">{row.name}</span>
                     <span className="trow-meta">
-                      {t.surface}
-                      {t.starts_on ? ` · ${t.starts_on}` : ""}
+                      {row.surface}
+                      {row.starts_on ? ` · ${row.starts_on}` : ""}
                       {" · "}
-                      {hasDraw ? "draw open" : "draw pending"}
+                      {hasDraw
+                        ? t("calendar.drawOpen")
+                        : t("calendar.drawPending")}
                     </span>
-                    <span className="league-card-status">Open</span>
+                    <span className="league-card-status">
+                      {t("calendar.open")}
+                    </span>
                   </Link>
                 </li>
               );

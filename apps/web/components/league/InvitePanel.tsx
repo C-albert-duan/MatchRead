@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { revokeAndReissueInvite } from "@/app/actions/leagues";
+import { useT } from "@/components/shell/LocaleProvider";
 
 type Props = {
   leagueId: string;
@@ -21,6 +22,7 @@ export function InvitePanel({
   const [copyFailed, setCopyFailed] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const t = useT();
 
   async function copyLink() {
     setCopyFailed(false);
@@ -40,20 +42,17 @@ export function InvitePanel({
         className="act act--prominent act--prominent-size"
         onClick={() => setOpen(true)}
       >
-        Invite friends
+        {t("invite.cta")}
       </button>
     );
   }
 
   return (
-    <section className="panel stack gap-lg" aria-label="Invite friends">
+    <section className="panel stack gap-lg" aria-label={t("invite.cta")}>
       <div className="stack gap-sm">
-        <p className="eyebrow">Invite</p>
-        <h2 className="t-title3">One link. Copy it into the group chat.</h2>
-        <p className="t-caption">
-          Anyone with this link can join after signing in. You can revoke it and
-          issue a fresh one anytime.
-        </p>
+        <p className="eyebrow">{t("invite.eyebrow")}</p>
+        <h2 className="t-title3">{t("invite.title")}</h2>
+        <p className="t-caption">{t("invite.hint")}</p>
       </div>
 
       <div className="invite-url" tabIndex={0}>
@@ -66,7 +65,7 @@ export function InvitePanel({
           className="act act--prominent act--prominent-size"
           onClick={() => void copyLink()}
         >
-          {copied ? "Copied" : "Copy invite link"}
+          {copied ? t("invite.copied") : t("invite.copy")}
         </button>
         <button
           type="button"
@@ -80,25 +79,25 @@ export function InvitePanel({
                 setMessage(result.error);
                 return;
               }
-              setMessage("Old link revoked. Refresh if the URL below looks stale.");
+              setMessage(t("invite.revoked"));
               window.location.reload();
             });
           }}
         >
-          {pending ? "Working…" : "Revoke and re-issue"}
+          {pending ? t("invite.working") : t("invite.revoke")}
         </button>
         <button
           type="button"
           className="act act--quiet"
           onClick={() => setOpen(false)}
         >
-          Close
+          {t("invite.close")}
         </button>
       </div>
 
       {copyFailed ? (
         <p className="form-error" role="alert">
-          Could not copy — select the link and copy manually.
+          {t("invite.copyFailed")}
         </p>
       ) : null}
       {message ? <p className="hint">{message}</p> : null}

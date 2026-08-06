@@ -7,7 +7,10 @@ import { InvitePanel } from "@/components/league/InvitePanel";
 import { LeagueHighlights } from "@/components/league/LeagueHighlights";
 import { getSessionUser } from "@/lib/auth";
 import { getServerSiteUrl } from "@/lib/env";
+import { t, tf } from "@/lib/i18n";
 import { loadDailyCheck } from "@/lib/leagues/daily-check";
+import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
+import { redirectIfMissingDisplayName } from "@/lib/profiles/require-name";
 import { createClient } from "@/lib/supabase/server";
 
 type Props = {
@@ -20,6 +23,22 @@ function surfaceClass(surface: string | null | undefined) {
   if (s.includes("clay")) return "clay";
   if (s.includes("grass")) return "grass";
   return "hard";
+}
+
+/** Badge on league home tournament list — not just “does a draw exist?”. */
+function tournamentListStatus(input: {
+  hasDraw: boolean;
+  drawSize: number;
+  decidedCount: number;
+  settled: boolean;
+}): string {
+  if (!input.hasDraw) return t("league.status.drawPending");
+  const expected = Math.max(input.drawSize - 1, 0);
+  if (expected > 0 && input.decidedCount >= expected) {
+    return input.settled ? t("league.status.settled") : t("league.status.complete");
+  }
+  if (input.decidedCount > 0) return t("league.status.live");
+  return t("league.status.drawOpen");
 }
 
 export default async function LeagueHomePage({ params, searchParams }: Props) {
@@ -57,10 +76,21 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
     notFound();
   }
 
+  await redirectIfMissingDisplayName(
+    supabase,
+    user.id,
+    `/leagues/${params.slug}`
+  );
+
   const membership = membershipRes.data;
   const members = membersRes.data ?? [];
   const memberCount = members.length;
   const isCommissioner = membership.role === "commissioner";
+
+  const memberNames = await loadDisplayNames(
+    supabase,
+    members.map((m) => m.user_id)
+  );
 
   const [bundle, inviteRes, tournamentsRes, drawsRes] = await Promise.all([
     loadDailyCheck({
@@ -106,21 +136,55 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
     return league.format === "season";
   });
 
+  const tournamentIds = leagueTournaments.map((t) => t.id);
+  const [{ data: resultRows }, { data: snapRows }] =
+    tournamentIds.length > 0
+      ? await Promise.all([
+          supabase
+            .from("match_results")
+            .select("tournament_id, winner_ref, voided")
+            .in("tournament_id", tournamentIds),
+          supabase
+            .from("bracket_snapshots")
+            .select("tournament_id")
+            .eq("league_id", league.id)
+            .in("tournament_id", tournamentIds),
+        ])
+      : [
+          { data: [] as Array<{ tournament_id: string; winner_ref: string | null; voided: boolean }> },
+          { data: [] as Array<{ tournament_id: string }> },
+        ];
+
+  const decidedByTournament = new Map<string, number>();
+  for (const row of resultRows ?? []) {
+    if (row.voided || row.winner_ref) {
+      decidedByTournament.set(
+        row.tournament_id,
+        (decidedByTournament.get(row.tournament_id) ?? 0) + 1
+      );
+    }
+  }
+  const settledTournaments = new Set(
+    (snapRows ?? []).map((s) => s.tournament_id)
+  );
+
   return (
     <AppShell signedIn email={user.email}>
       <div className="page">
         <header className="page-header page-header--split">
           <div className="page-header-copy">
-            <p className="eyebrow">League</p>
+            <p className="eyebrow">{t("league.eyebrow")}</p>
             <h1 className="t-page-title">{league.name}</h1>
             <p className="t-lead">
               {league.format === "single"
-                ? league.tournament_label ?? "Single tournament"
-                : "Season league"}
+                ? league.tournament_label ?? t("league.format.single")
+                : t("league.format.season")}
               {" · "}
               {league.visibility}
               {" · "}
-              {memberCount} {memberCount === 1 ? "member" : "members"}
+              {memberCount === 1
+                ? tf("leagues.members.count.one", { n: memberCount })
+                : tf("leagues.members.count", { n: memberCount })}
             </p>
           </div>
           <div className="page-actions">
@@ -130,18 +194,18 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                 className="act act--prominent act--prominent-size"
               >
                 {tournament.has_draw
-                  ? "Open tournament"
-                  : "Tournament (draw pending)"}
+                  ? t("league.openTournament")
+                  : t("league.drawPendingCta")}
               </Link>
             ) : null}
             <Link
               href={`/leagues/${league.slug}/season`}
               className="act act--standard act--standard-size"
             >
-              Season standings
+              {t("league.seasonStandings")}
             </Link>
             <Link href="/leagues" className="act act--quiet">
-              All leagues
+              {t("league.allLeagues")}
             </Link>
           </div>
         </header>
@@ -173,12 +237,9 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
         {isCommissioner && inviteUrl ? (
           <section className="section" aria-labelledby="invite-heading">
             <h2 id="invite-heading" className="section-title">
-              Grow the league
+              {t("league.grow.title")}
             </h2>
-            <p className="section-lede">
-              Share one link. Friends join, fill brackets, and the Daily Check
-              gets interesting.
-            </p>
+            <p className="section-lede">{t("league.grow.lede")}</p>
             <InvitePanel
               leagueId={league.id}
               slug={league.slug}
@@ -190,17 +251,23 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
 
         <section className="section" aria-labelledby="tournaments-heading">
           <h2 id="tournaments-heading" className="section-title">
-            Tournaments
+            {t("league.tournaments")}
           </h2>
           {leagueTournaments.length === 0 ? (
             <p className="t-body">
-              No tournaments in the calendar yet. Apply{" "}
+              {t("league.noTournaments")} Apply{" "}
               <code>supabase/migrations/0003_brackets.sql</code>.
             </p>
           ) : (
             <ul className="league-list">
               {leagueTournaments.map((t) => {
                 const hasDraw = publishedIds.has(t.id);
+                const status = tournamentListStatus({
+                  hasDraw,
+                  drawSize: t.draw_size,
+                  decidedCount: decidedByTournament.get(t.id) ?? 0,
+                  settled: settledTournaments.has(t.id),
+                });
                 return (
                   <li key={t.id}>
                     <Link
@@ -223,9 +290,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                           {t.draw_size}-draw
                         </span>
                       </span>
-                      <span className="league-card-status">
-                        {hasDraw ? "Draw open" : "Draw pending"}
-                      </span>
+                      <span className="league-card-status">{status}</span>
                     </Link>
                   </li>
                 );
@@ -236,18 +301,18 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
 
         <section className="section" aria-labelledby="members-heading">
           <h2 id="members-heading" className="section-title">
-            Members
+            {t("league.members")}
           </h2>
           <ul className="member-list">
             {members.map((m) => (
               <li key={m.user_id} className="member-row">
                 <span className="numeral">
-                  {m.user_id === user.id
-                    ? "You"
-                    : `${m.user_id.slice(0, 8)}…`}
+                  {memberLabel(m.user_id, user.id, memberNames)}
                 </span>
                 <span className="t-caption">
-                  {m.role === "commissioner" ? "Commissioner" : "Member"}
+                  {m.role === "commissioner"
+                    ? t("league.role.commissioner")
+                    : t("league.role.member")}
                 </span>
               </li>
             ))}

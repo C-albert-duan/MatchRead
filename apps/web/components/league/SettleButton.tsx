@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { settleLeagueTournament } from "@/app/actions/settlement";
+import { useT, useTf } from "@/components/shell/LocaleProvider";
 
 type Props = {
   leagueId: string;
@@ -18,6 +19,8 @@ export function SettleButton({
 }: Props) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const t = useT();
+  const tf = useTf();
 
   return (
     <div className="stack gap-sm">
@@ -39,22 +42,20 @@ export function SettleButton({
             }
             setMessage(
               result.graded === 0
-                ? "Settlement ran — no submitted brackets yet."
-                : `Settled ${result.graded} bracket${result.graded === 1 ? "" : "s"}.`
+                ? t("settle.okZero")
+                : tf("settle.ok", { n: result.graded })
             );
           });
         }}
       >
-        {pending ? "Settling…" : "Run settlement"}
+        {pending ? t("settle.settling") : t("settle.run")}
       </button>
       {message ? (
         <p className="hint" role="status">
           {message}
         </p>
       ) : (
-        <p className="hint">
-          Grades submitted brackets against official fixture results (server).
-        </p>
+        <p className="hint">{t("settle.hint")}</p>
       )}
     </div>
   );

@@ -21,7 +21,7 @@ docker compose --env-file .env.docker up --build
 | --- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0.1 | App loads    | Open `/` → landing renders                                                                                                                                                |
 | 0.2 | Signed in    | Magic link from `/sign-in` → land on `/leagues` (SMTP/quota permitting)                                                                                                   |
-| 0.3 | Schema       | Migrations `0001`–`0007` on project `opugihofwvunwkpcmboq` (SQL Editor or `docker compose --env-file .env.docker --profile migrate run --rm migrate` with `DATABASE_URL`) |
+| 0.3 | Schema       | Migrations `0001`–`0009` on project `opugihofwvunwkpcmboq` (SQL Editor or `docker compose --env-file .env.docker --profile migrate run --rm migrate` with `DATABASE_URL`) |
 | 0.4 | Math dry-run | `docker compose --env-file .env.docker --profile verify run --rm verify-math` → prints `Settlement math dry-run passed.`                                                  |
 
 

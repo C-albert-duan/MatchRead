@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { AppShell } from "@/components/shell/AppShell";
 import { JoinLeagueButton } from "@/components/league/JoinLeagueButton";
 import { getSessionUser } from "@/lib/auth";
+import { t, tf } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
 import type { InvitePreview } from "@/lib/leagues/types";
 
@@ -29,16 +30,16 @@ export default async function JoinPage({ params }: Props) {
       <AppShell signedIn={Boolean(user)} email={user?.email}>
         <div className="page">
           <header className="page-header">
-            <p className="eyebrow">Invite</p>
-            <h1 className="t-page-title">This invite is no longer valid</h1>
+            <p className="eyebrow">{t("join.eyebrow")}</p>
+            <h1 className="t-page-title">{t("join.invalid.title")}</h1>
             <p className="t-lead">
               {preview?.revoked
-                ? "The commissioner revoked this link. Ask them for a fresh one."
-                : "The link may have been replaced, or it never existed."}
+                ? t("join.invalid.revoked")
+                : t("join.invalid.missing")}
             </p>
             <div className="page-actions">
               <Link href="/" className="act act--standard act--standard-size">
-                Go to MatchRead
+                {t("join.home")}
               </Link>
             </div>
           </header>
@@ -73,19 +74,19 @@ export default async function JoinPage({ params }: Props) {
       <AppShell signedIn email={user.email}>
         <div className="page">
           <header className="page-header">
-            <p className="eyebrow">Invite</p>
+            <p className="eyebrow">{t("join.eyebrow")}</p>
             <h1 className="t-page-title">
-              You&apos;re invited to {preview.league_name}
+              {tf("join.invited", { name: preview.league_name })}
             </h1>
             <p className="form-error" role="alert">
               {/revoked|invalid/i.test(joinError.message)
-                ? "This invite is no longer valid."
-                : joinError.message || "Could not join automatically."}
+                ? t("join.invalid.title")
+                : joinError.message || t("error.generic")}
             </p>
           </header>
           <JoinLeagueButton token={params.token} />
           <Link href="/leagues" className="act act--quiet">
-            Back to my leagues
+            {t("join.backLeagues")}
           </Link>
         </div>
       </AppShell>
@@ -98,35 +99,32 @@ export default async function JoinPage({ params }: Props) {
     <AppShell signedIn={false}>
       <div className="page">
         <header className="page-header">
-          <p className="eyebrow">Invite</p>
+          <p className="eyebrow">{t("join.eyebrow")}</p>
           <h1 className="t-page-title">
-            You&apos;re invited to {preview.league_name}
+            {tf("join.invited", { name: preview.league_name })}
           </h1>
-          <p className="t-lead">
-            Brackets open when the draw lands. Join now so you&apos;re in the
-            group when it does.
-          </p>
+          <p className="t-lead">{t("join.lede")}</p>
         </header>
 
         <div className="panel stack gap-lg focus-band">
           <dl className="meta-grid">
             <div>
-              <dt className="eyebrow">Format</dt>
+              <dt className="eyebrow">{t("join.format")}</dt>
               <dd className="t-body" style={{ color: "var(--mr-text-primary)" }}>
                 {preview.format === "single"
-                  ? "Single tournament"
-                  : "Season league"}
+                  ? t("league.format.single")
+                  : t("league.format.season")}
               </dd>
             </div>
             <div>
-              <dt className="eyebrow">Members</dt>
+              <dt className="eyebrow">{t("join.members")}</dt>
               <dd className="t-body" style={{ color: "var(--mr-text-primary)" }}>
                 {preview.member_count}
               </dd>
             </div>
             {preview.tournament_label ? (
               <div>
-                <dt className="eyebrow">Tournament</dt>
+                <dt className="eyebrow">{t("join.tournament")}</dt>
                 <dd
                   className="t-body"
                   style={{ color: "var(--mr-text-primary)" }}
@@ -140,11 +138,9 @@ export default async function JoinPage({ params }: Props) {
             href={`/sign-in?next=${encodeURIComponent(nextPath)}`}
             className="act act--prominent act--prominent-size"
           >
-            Sign in and join
+            {t("join.signIn")}
           </Link>
-          <p className="hint">
-            After the magic link, you&apos;ll land in the league automatically.
-          </p>
+          <p className="hint">{t("join.afterLink")}</p>
         </div>
       </div>
     </AppShell>

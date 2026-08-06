@@ -1,9 +1,38 @@
 import Link from "next/link";
 import type { DailyCheck } from "@matchread/core";
+import { t, type MessageKey } from "@/lib/i18n";
 
 type Props = {
   check: DailyCheck;
 };
+
+const FRAME_KEYS: Record<string, MessageKey> = {
+  Today: "daily.frame.today",
+  "This morning": "daily.frame.morning",
+  "Live now": "daily.frame.live",
+  Tonight: "daily.frame.tonight",
+  "Between tournaments": "daily.frame.between",
+};
+
+const CTA_KEYS: Record<string, MessageKey> = {
+  "Invite friends": "daily.cta.invite",
+  "Open my bracket": "daily.cta.openBracket",
+  "View my bracket": "daily.cta.viewBracket",
+  "See the full result": "daily.cta.seeResult",
+  "Open tournament": "daily.cta.openTournament",
+};
+
+/** Known English frame strings map to translated chrome; unknown values pass through untranslated. */
+function localizeFrame(frame: string): string {
+  const key = FRAME_KEYS[frame];
+  return key ? t(key) : frame;
+}
+
+/** Known English CTA labels translate; complex/dynamic labels pass through untranslated for now. */
+function localizeCta(label: string): string {
+  const key = CTA_KEYS[label];
+  return key ? t(key) : label;
+}
 
 export function DailyCheckPanel({ check }: Props) {
   return (
@@ -16,11 +45,11 @@ export function DailyCheckPanel({ check }: Props) {
         <div className="daily-check-kicker">
           <span className="daily-check-live">
             <span className="live-dot" aria-hidden />
-            Live
+            {t("daily.live")}
           </span>
-          <p className="eyebrow">Daily Check</p>
+          <p className="eyebrow">{t("daily.title")}</p>
           <span className="daily-check-frame">
-            {check.frame} · {check.eventName}
+            {localizeFrame(check.frame)} · {check.eventName}
           </span>
         </div>
         <h2 id="daily-check" className="daily-check-headline">
@@ -35,7 +64,7 @@ export function DailyCheckPanel({ check }: Props) {
             href={check.action.href}
             className="act act--prominent act--prominent-size"
           >
-            {check.action.label}
+            {localizeCta(check.action.label)}
           </Link>
         </div>
       ) : null}

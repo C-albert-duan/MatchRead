@@ -4,7 +4,10 @@ import { AppShell } from "@/components/shell/AppShell";
 import { LiveRefresh } from "@/components/shell/LiveRefresh";
 import { StandingsTable } from "@/components/league/StandingsTable";
 import { getSessionUser } from "@/lib/auth";
+import { t } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
+import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
+import { redirectIfMissingDisplayName } from "@/lib/profiles/require-name";
 
 type Props = {
   params: { slug: string };
@@ -37,11 +40,22 @@ export default async function SeasonStandingsPage({ params }: Props) {
 
   if (!membership) notFound();
 
+  await redirectIfMissingDisplayName(
+    supabase,
+    user.id,
+    `/leagues/${params.slug}/season`
+  );
+
   const { data: rows } = await supabase
     .from("season_standings")
     .select("user_id, points, position, previous_position, points_delta")
     .eq("league_id", league.id)
     .order("position", { ascending: true });
+
+  const names = await loadDisplayNames(
+    supabase,
+    (rows ?? []).map((r) => r.user_id)
+  );
 
   const standingRows = (rows ?? []).map((r) => ({
     user_id: r.user_id,
@@ -53,7 +67,7 @@ export default async function SeasonStandingsPage({ params }: Props) {
       r.previous_position != null && r.position != null
         ? r.previous_position - r.position
         : null,
-    label: r.user_id === user.id ? "You" : `${r.user_id.slice(0, 8)}…`,
+    label: memberLabel(r.user_id, user.id, names),
     isYou: r.user_id === user.id,
   }));
 
@@ -63,19 +77,16 @@ export default async function SeasonStandingsPage({ params }: Props) {
       <div className="page">
         <header className="page-header page-header--split">
           <div className="page-header-copy">
-            <p className="eyebrow">Season standings</p>
+            <p className="eyebrow">{t("season.title")}</p>
             <h1 className="t-page-title">{league.name}</h1>
-            <p className="t-lead">
-              Did you move? Points are scaled per event so a perfect 250 equals
-              a perfect Slam on the table.
-            </p>
+            <p className="t-lead">{t("season.lede")}</p>
           </div>
           <div className="page-actions">
             <Link
               href={`/leagues/${league.slug}`}
               className="act act--prominent act--standard-size"
             >
-              League home
+              {t("common.leagueHome")}
             </Link>
           </div>
         </header>

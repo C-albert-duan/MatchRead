@@ -2,8 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { joinLeagueWithToken } from "@/app/actions/leagues";
+import { useT } from "@/components/shell/LocaleProvider";
 
 export function JoinLeagueButton({ token }: { token: string }) {
+  const t = useT();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -23,7 +25,7 @@ export function JoinLeagueButton({ token }: { token: string }) {
           });
         }}
       >
-        {pending ? "Joining" : "Join this league"}
+        {pending ? t("join.joining") : t("join.cta")}
       </button>
       {error ? (
         <p className="form-error" role="alert">

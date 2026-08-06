@@ -9,6 +9,10 @@ import {
   getRememberPref,
   setRememberPref,
 } from "@/lib/auth/remember-client";
+import { saveMyDisplayName } from "@/app/actions/profile";
+import { PENDING_DISPLAY_NAME_KEY } from "@/components/shell/DisplayNameBootstrap";
+import { useT, useTf } from "@/components/shell/LocaleProvider";
+import type { MessageKey } from "@matchread/i18n";
 
 type Props = {
   nextParam: string | null;
@@ -17,18 +21,12 @@ type Props = {
   authError?: string | null;
 };
 
-function messageForAuthError(code: string | null | undefined): string | null {
+function keyForAuthError(code: string | null | undefined): MessageKey | null {
   if (!code) return null;
-  if (code === "config") {
-    return "Sign-in is not configured. Ask the host to check Supabase env on this deploy.";
-  }
-  if (code === "otp_expired") {
-    return "That email link was already used or burned by an email scanner. Request a new link, then either click it once in this browser — or type the verification code from the email below.";
-  }
-  if (code === "auth") {
-    return "That sign-in link is invalid or expired. Request a new one below — your invite destination is still saved.";
-  }
-  return "Could not finish sign-in. Request a new link below.";
+  if (code === "config") return "signin.errors.notConfigured";
+  if (code === "otp_expired") return "signin.errors.otpExpired";
+  if (code === "auth") return "signin.errors.authFailed";
+  return "signin.errors.generic";
 }
 
 function isValidEmail(value: string): boolean {
@@ -54,16 +52,20 @@ const RESEND_COOLDOWN_MS = 10_000;
 
 export function SignInForm({ nextParam, configured, authError }: Props) {
   const router = useRouter();
+  const t = useT();
+  const tf = useTf();
   const next = useMemo(() => safeNext(nextParam), [nextParam]);
   const [email, setEmail] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [otp, setOtp] = useState("");
   const [remember, setRemember] = useState(true);
   const [status, setStatus] = useState<
     "idle" | "invalid" | "submitting" | "sent" | "rate_limited" | "error"
   >(() => (authError ? "error" : "idle"));
-  const [errorMessage, setErrorMessage] = useState<string | null>(() =>
-    messageForAuthError(authError)
-  );
+  const [errorMessage, setErrorMessage] = useState<string | null>(() => {
+    const key = keyForAuthError(authError);
+    return key ? t(key) : null;
+  });
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [lastRedirectTo, setLastRedirectTo] = useState<string | null>(null);
@@ -86,6 +88,12 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
 
   async function sendOtp(address: string) {
     setRememberPref(remember);
+    try {
+      const pending = displayName.trim();
+      if (pending) sessionStorage.setItem(PENDING_DISPLAY_NAME_KEY, pending);
+    } catch {
+      /* ignore */
+    }
     const supabase = createClient();
     const redirectTo = `${getClientSiteUrl()}/auth/callback?next=${encodeURIComponent(next)}`;
     setLastRedirectTo(redirectTo);
@@ -98,9 +106,15 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const value = email.trim();
+    const name = displayName.trim().replace(/\s+/g, " ");
+    if (name.length < 2 || name.length > 32) {
+      setStatus("invalid");
+      setErrorMessage(t("signin.errors.invalidDisplayName"));
+      return;
+    }
     if (!isValidEmail(value)) {
       setStatus("invalid");
-      setErrorMessage("Enter a valid email address.");
+      setErrorMessage(t("signin.errors.invalidEmail"));
       return;
     }
 
@@ -113,9 +127,7 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
       const limited = isProviderRateLimit(error);
       setStatus(limited ? "rate_limited" : "error");
       setErrorMessage(
-        limited
-          ? "Auth email rate limit hit (Supabase built-in sender is capped even on Pro). Wait a few minutes, check spam, try another inbox, or add custom SMTP in Supabase → Project Settings → Authentication → SMTP."
-          : error.message
+        limited ? t("signin.errors.rateLimited") : error.message
       );
       if (limited) {
         setCooldownUntil(Date.now() + 60_000);
@@ -139,9 +151,7 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
       const limited = isProviderRateLimit(error);
       setStatus(limited ? "rate_limited" : "error");
       setErrorMessage(
-        limited
-          ? "Auth email rate limit hit (Supabase built-in sender is capped even on Pro). Wait a few minutes, check spam, try another inbox, or add custom SMTP in Supabase → Project Settings → Authentication → SMTP."
-          : error.message
+        limited ? t("signin.errors.rateLimited") : error.message
       );
       if (limited) {
         setCooldownUntil(Date.now() + 60_000);
@@ -159,11 +169,11 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
     const address = email.trim();
     const token = otp.replace(/\s/g, "");
     if (!isValidEmail(address)) {
-      setErrorMessage("Enter the same email you used for the link.");
+      setErrorMessage(t("signin.errors.sameEmailHint"));
       return;
     }
     if (!/^\d{6,8}$/.test(token)) {
-      setErrorMessage("Enter the verification code from the email.");
+      setErrorMessage(t("signin.errors.invalidCode"));
       return;
     }
 
@@ -181,10 +191,26 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
       setStatus("sent");
       setErrorMessage(
         error.message.includes("expired") || error.message.includes("invalid")
-          ? "That code is invalid or expired. Request a new email and try the new code."
+          ? t("signin.errors.codeExpired")
           : error.message
       );
       return;
+    }
+
+    const pendingName =
+      displayName.trim() ||
+      (typeof sessionStorage !== "undefined"
+        ? sessionStorage.getItem(PENDING_DISPLAY_NAME_KEY) ?? ""
+        : "");
+    if (pendingName) {
+      const saved = await saveMyDisplayName(pendingName);
+      if (saved.ok) {
+        try {
+          sessionStorage.removeItem(PENDING_DISPLAY_NAME_KEY);
+        } catch {
+          /* ignore */
+        }
+      }
     }
 
     router.replace(next);
@@ -195,8 +221,8 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
     return (
       <div className="stack gap-lg" style={{ maxWidth: 520 }}>
         <div className="page-header">
-          <p className="eyebrow">Sign in</p>
-          <h1 className="t-page-title">Sign in to MatchRead</h1>
+          <p className="eyebrow">{t("signin.eyebrow")}</p>
+          <h1 className="t-page-title">{t("signin.title")}</h1>
         </div>
         <p className="form-error" role="alert">
           Supabase is not configured. Copy <code>.env.docker.example</code> to{" "}
@@ -216,12 +242,10 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
     return (
       <div className="stack gap-2xl focus-band" style={{ maxWidth: 520 }}>
         <div className="page-header">
-          <p className="eyebrow">Check your email</p>
-          <h1 className="t-page-title">A sign-in link is on its way.</h1>
+          <p className="eyebrow">{t("signin.checkEmail.eyebrow")}</p>
+          <h1 className="t-page-title">{t("signin.checkEmail.title")}</h1>
           <p className="t-lead">
-            We sent it to <strong>{email.trim()}</strong>. Prefer the
-            verification code if your mail app previews links (that burns
-            one-time URLs).
+            {tf("signin.checkEmail.lede", { email: email.trim() })}
           </p>
           {errorMessage ? (
             <p className="form-error" role="alert">
@@ -232,7 +256,7 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
 
         <form className="stack gap-md" onSubmit={(e) => void onVerifyCode(e)}>
           <label htmlFor="otp" className="field-label">
-            Verification code
+            {t("signin.otp")}
           </label>
           <input
             id="otp"
@@ -251,14 +275,14 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
             disabled={verifying}
             style={{ alignSelf: "flex-start", minWidth: 160 }}
           >
-            {verifying ? "Checking" : "Verify code"}
+            {verifying ? t("signin.verifying") : t("signin.verify")}
           </button>
         </form>
 
         <p className="hint">
-          Or click the email link <strong>once</strong> in this same browser —
-          do not paste a link you already opened. Redirect target:{" "}
-          <code>{lastRedirectTo ?? `${getClientSiteUrl()}/auth/callback`}</code>
+          {tf("signin.redirectNote", {
+            url: lastRedirectTo ?? `${getClientSiteUrl()}/auth/callback`,
+          })}
         </p>
 
         <div className="row wrap gap-md">
@@ -268,7 +292,9 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
             disabled={coolingDown || verifying}
             onClick={() => void onResend()}
           >
-            {coolingDown ? `Send it again (${secondsLeft}s)` : "Send it again"}
+            {coolingDown
+              ? tf("signin.resendWait", { s: secondsLeft })
+              : t("signin.resend")}
           </button>
           <button
             type="button"
@@ -282,7 +308,7 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
               setEmailSent(false);
             }}
           >
-            Use a different address
+            {t("signin.differentEmail")}
           </button>
         </div>
       </div>
@@ -297,17 +323,38 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
       noValidate
     >
       <div className="page-header">
-        <p className="eyebrow">Sign in</p>
-        <h1 className="t-page-title">Sign in to MatchRead</h1>
-        <p className="t-lead">
-          We email you a link and a code. No password — a new address gets an
-          account the first time it signs in.
-        </p>
+        <p className="eyebrow">{t("signin.eyebrow")}</p>
+        <h1 className="t-page-title">{t("signin.title")}</h1>
+        <p className="t-lead">{t("signin.lede")}</p>
+      </div>
+
+      <div className="stack gap-sm">
+        <label htmlFor="display-name" className="field-label">
+          {t("signin.displayName")}
+        </label>
+        <input
+          id="display-name"
+          name="displayName"
+          autoComplete="nickname"
+          value={displayName}
+          onChange={(e) => {
+            setDisplayName(e.target.value);
+            if (status === "invalid" || status === "error") {
+              setStatus("idle");
+              setErrorMessage(null);
+            }
+          }}
+          className="field"
+          placeholder={t("signin.displayName.hint")}
+          maxLength={32}
+          disabled={status === "submitting"}
+          required
+        />
       </div>
 
       <div className="stack gap-sm">
         <label htmlFor="email" className="field-label">
-          Email
+          {t("signin.email")}
         </label>
         <input
           id="email"
@@ -355,11 +402,8 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
           disabled={status === "submitting"}
         />
         <span className="stack gap-xs">
-          <span className="choice-title">Stay signed in on this device</span>
-          <span className="t-caption">
-            You won&apos;t need a new email link every visit. Uncheck on shared
-            computers.
-          </span>
+          <span className="choice-title">{t("signin.remember")}</span>
+          <span className="t-caption">{t("signin.remember.hint")}</span>
         </span>
       </label>
 
@@ -370,10 +414,10 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
         style={{ alignSelf: "flex-start", minWidth: 160 }}
       >
         {status === "submitting"
-          ? "Sending"
+          ? t("signin.sending")
           : coolingDown
-            ? `Wait ${secondsLeft}s`
-            : "Send me a link"}
+            ? tf("signin.wait", { s: secondsLeft })
+            : t("signin.sendLink")}
       </button>
     </form>
   );

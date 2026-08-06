@@ -48,6 +48,10 @@ export async function settleLeagueTournament(input: {
     return { ok: false, error: "Not a member of this league." };
   }
 
+  if (membership.role !== "commissioner") {
+    return { ok: false, error: "Only the commissioner can run settlement." };
+  }
+
   const { data: tournament } = await supabase
     .from("tournaments")
     .select("id, draw_size")
@@ -186,6 +190,9 @@ export async function settleLeagueTournament(input: {
   revalidatePath(`/leagues/${input.leagueSlug}`);
   revalidatePath(`/leagues/${input.leagueSlug}/season`);
   revalidatePath(`/leagues/${input.leagueSlug}/t/${input.tournamentRef}`);
+  revalidatePath(
+    `/leagues/${input.leagueSlug}/t/${input.tournamentRef}/result`
+  );
 
   return { ok: true, graded: ranked.length };
 }
@@ -344,6 +351,27 @@ export async function recordOfficialResult(input: {
   winnerRef: string;
   voided?: boolean;
 }): Promise<ActionResult> {
+  return saveOfficialWinner({
+    ...input,
+    clearMatchKeys: [],
+  });
+}
+
+/**
+ * One round-trip: optionally clear dependent later results, then save this winner.
+ * Faster than clearOfficialResults + recordOfficialResult back-to-back.
+ */
+export async function saveOfficialWinner(input: {
+  leagueId: string;
+  leagueSlug: string;
+  tournamentId: string;
+  tournamentRef: string;
+  matchKey: string;
+  winnerRef: string;
+  voided?: boolean;
+  /** Later-round keys that become invalid when this winner changes. */
+  clearMatchKeys?: string[];
+}): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) return { ok: false, error: "Sign in required." };
 
@@ -367,6 +395,23 @@ export async function recordOfficialResult(input: {
     }
   }
 
+  const toClear = (input.clearMatchKeys ?? []).filter(
+    (k) => k && k !== matchKey
+  );
+  if (toClear.length > 0) {
+    const { error: clearError } = await supabase
+      .from("match_results")
+      .delete()
+      .eq("tournament_id", input.tournamentId)
+      .in("match_key", toClear);
+    if (clearError) {
+      return {
+        ok: false,
+        error: `${clearError.message} (Need commissioner write RLS on match_results.)`,
+      };
+    }
+  }
+
   const { error } = await supabase.from("match_results").upsert(
     {
       tournament_id: input.tournamentId,
@@ -382,6 +427,57 @@ export async function recordOfficialResult(input: {
     return {
       ok: false,
       error: `${error.message} (Need commissioner write RLS on match_results for this tournament.)`,
+    };
+  }
+
+  // Refresh this tournament hub (standings / bracket grades). Local panel
+  // already updated optimistically — one revalidate is enough.
+  revalidatePath(`/leagues/${input.leagueSlug}/t/${input.tournamentRef}`);
+  return { ok: true, graded: 1 };
+}
+
+/**
+ * Commissioner / founder: delete one or more official results (e.g. clear a
+ * match so it can be recorded later, or wipe seeded demo rows).
+ */
+export async function clearOfficialResults(input: {
+  leagueId: string;
+  leagueSlug: string;
+  tournamentId: string;
+  tournamentRef: string;
+  /** If omitted, clears every result for this tournament. */
+  matchKeys?: string[];
+}): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) return { ok: false, error: "Sign in required." };
+
+  const founder = isFounderEmail(user.email ?? undefined);
+  if (!founder) {
+    const { data: membership } = await supabase
+      .from("league_members")
+      .select("role")
+      .eq("league_id", input.leagueId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (membership?.role !== "commissioner") {
+      return { ok: false, error: "Commissioner or founder access required." };
+    }
+  }
+
+  let query = supabase
+    .from("match_results")
+    .delete()
+    .eq("tournament_id", input.tournamentId);
+
+  if (input.matchKeys && input.matchKeys.length > 0) {
+    query = query.in("match_key", input.matchKeys);
+  }
+
+  const { error } = await query;
+  if (error) {
+    return {
+      ok: false,
+      error: `${error.message} (Need commissioner write RLS on match_results.)`,
     };
   }
 

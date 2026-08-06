@@ -47,7 +47,7 @@ export function ShowcaseBracket128() {
         <p className="t-lead">
           Synthetic slam-size bracket ({DRAW} players, {rounds.length} rounds).
           Scroll horizontally to the Final. Early-round picks stay in this
-          browser only â€” nothing is saved.
+          browser only — nothing is saved.
         </p>
       </div>
       <BracketGrid

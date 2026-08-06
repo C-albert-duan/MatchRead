@@ -13,6 +13,7 @@ import {
   EMPTY_ENGAGEMENT,
   type LeagueEngagement,
 } from "@/lib/leagues/engagement";
+import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
 
 type LeagueRow = {
   id: string;
@@ -174,13 +175,18 @@ export async function loadDailyCheck(input: {
   const fieldSize = Math.max(memberCount, snaps.length);
   let you: StandingPulseRow | null = null;
   let leader: { score: number; upside: number; label: string } | null = null;
+  let displayNames: Record<string, string> = {};
 
   if (snaps.length > 0) {
+    displayNames = await loadDisplayNames(
+      supabase,
+      snaps.map((s) => s.user_id)
+    );
     const top = snaps[0];
     leader = {
       score: top.score,
       upside: top.upside ?? 0,
-      label: top.user_id === userId ? "You" : "The leader",
+      label: memberLabel(top.user_id, userId, displayNames),
     };
 
     const mine = snaps.find((s) => s.user_id === userId);
@@ -224,6 +230,7 @@ export async function loadDailyCheck(input: {
           official,
           seats,
           picks,
+          displayNames,
         })
       : EMPTY_ENGAGEMENT;
 

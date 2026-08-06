@@ -1,3 +1,5 @@
+import { t } from "@/lib/i18n";
+
 type StandingRow = {
   user_id: string;
   score: number;
@@ -36,11 +38,7 @@ function formatScoreDelta(n: number | null | undefined): string {
 
 export function StandingsTable({ rows, kind = "event" }: Props) {
   if (rows.length === 0) {
-    return (
-      <p className="t-body">
-        No standings yet. Submit brackets, then run settlement.
-      </p>
-    );
+    return <p className="t-body">{t("standings.empty")}</p>;
   }
 
   return (
@@ -50,12 +48,12 @@ export function StandingsTable({ rows, kind = "event" }: Props) {
           <th className="col-rank" scope="col">
             #
           </th>
-          <th scope="col">Member</th>
+          <th scope="col">{t("standings.member")}</th>
           <th className="col-score" scope="col">
-            {kind === "season" ? "Pts" : "Score"}
+            {kind === "season" ? t("standings.pts") : t("standings.score")}
           </th>
           <th className="col-delta" scope="col">
-            Move
+            {t("standings.move")}
           </th>
         </tr>
       </thead>
@@ -73,7 +71,7 @@ export function StandingsTable({ rows, kind = "event" }: Props) {
               <td>
                 {row.label}
                 {row.champion_alive === false ? (
-                  <span className="t-caption"> · champion out</span>
+                  <span className="t-caption"> · {t("standings.championOut")}</span>
                 ) : null}
               </td>
               <td className="col-score numeral">{row.score}</td>

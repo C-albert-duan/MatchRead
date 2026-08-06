@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import type { BracketConfidence, BracketPicks, DrawSeat } from "@matchread/core";
+import type {
+  BracketConfidence,
+  BracketPicks,
+  DrawSeat,
+  OfficialResults,
+} from "@matchread/core";
 import { AppShell } from "@/components/shell/AppShell";
 import { BracketEditor } from "@/components/bracket/BracketEditor";
 import { getSessionUser } from "@/lib/auth";
 import { isTournamentLocked } from "@/lib/brackets/types";
+import { t, tf } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
 
 type Props = {
@@ -66,27 +72,41 @@ export default async function BracketPage({ params }: Props) {
     redirect(`/leagues/${league.slug}/t/${tournament.ref}`);
   }
 
-  const { data: seatRows } = await supabase
-    .from("draw_seats")
-    .select(
-      "position, player_ref, last_name, seed, country_code, is_bye"
-    )
-    .eq("draw_id", draw.id)
-    .order("position", { ascending: true });
+  const [{ data: seatRows }, { data: bracket }, { data: resultRows }] =
+    await Promise.all([
+      supabase
+        .from("draw_seats")
+        .select(
+          "position, player_ref, last_name, seed, country_code, is_bye"
+        )
+        .eq("draw_id", draw.id)
+        .order("position", { ascending: true }),
+      supabase
+        .from("brackets")
+        .select("picks, confidence, submitted_at")
+        .eq("league_id", league.id)
+        .eq("tournament_id", tournament.id)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("match_results")
+        .select("match_key, winner_ref, voided")
+        .eq("tournament_id", tournament.id),
+    ]);
 
   const seats = (seatRows ?? []) as DrawSeat[];
-
-  const { data: bracket } = await supabase
-    .from("brackets")
-    .select("picks, confidence, submitted_at")
-    .eq("league_id", league.id)
-    .eq("tournament_id", tournament.id)
-    .eq("user_id", user.id)
-    .maybeSingle();
-
   const picks = (bracket?.picks ?? {}) as BracketPicks;
   const confidence = (bracket?.confidence ?? {}) as BracketConfidence;
   const locked = isTournamentLocked(tournament);
+
+  const officialResults: OfficialResults = {};
+  for (const row of resultRows ?? []) {
+    officialResults[row.match_key] = {
+      winnerRef: row.winner_ref,
+      voided: row.voided,
+    };
+  }
+  const hasOfficial = Object.keys(officialResults).length > 0;
 
   return (
     <AppShell signedIn email={user.email}>
@@ -94,11 +114,15 @@ export default async function BracketPage({ params }: Props) {
         <header className="page-header page-header--split">
           <div className="page-header-copy">
             <p className="eyebrow">{league.name}</p>
-            <h1 className="t-page-title">{tournament.name} bracket</h1>
+            <h1 className="t-page-title">
+              {tf("bracket.page.title", { name: tournament.name })}
+            </h1>
             <p className="t-lead">
-              {locked
-                ? "Locked — picks are read-only."
-                : "Pick a winner in each match. Changes save automatically."}
+              {locked && hasOfficial
+                ? t("bracket.page.lockedLede")
+                : locked
+                  ? t("bracket.page.lockedReadOnly")
+                  : t("bracket.page.editLede")}
             </p>
           </div>
           <div className="page-actions">
@@ -106,28 +130,29 @@ export default async function BracketPage({ params }: Props) {
               href={`/leagues/${league.slug}/t/${tournament.ref}`}
               className="act act--standard act--standard-size"
             >
-              Tournament
+              {t("common.tournament")}
             </Link>
             <Link href={`/leagues/${league.slug}`} className="act act--quiet">
-              League home
+              {t("common.leagueHome")}
             </Link>
           </div>
         </header>
 
         <div className="focus-band">
-        <BracketEditor
-          leagueId={league.id}
-          leagueSlug={league.slug}
-          tournamentId={tournament.id}
-          tournamentRef={tournament.ref}
-          drawSize={tournament.draw_size}
-          seats={seats}
-          initialPicks={picks}
-          initialConfidence={confidence}
-          submittedAt={bracket?.submitted_at ?? null}
-          locked={locked}
-          isCommissioner={membership.role === "commissioner"}
-        />
+          <BracketEditor
+            leagueId={league.id}
+            leagueSlug={league.slug}
+            tournamentId={tournament.id}
+            tournamentRef={tournament.ref}
+            drawSize={tournament.draw_size}
+            seats={seats}
+            initialPicks={picks}
+            initialConfidence={confidence}
+            submittedAt={bracket?.submitted_at ?? null}
+            locked={locked}
+            isCommissioner={membership.role === "commissioner"}
+            officialResults={officialResults}
+          />
         </div>
       </div>
     </AppShell>

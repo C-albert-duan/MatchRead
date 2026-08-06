@@ -7,6 +7,7 @@ import {
   type BracketConfidence,
   type BracketPicks,
   type DrawSeat,
+  type OfficialResults,
   type SlotOccupant,
 } from "@matchread/core";
 import { PlayerChip } from "@/components/bracket/PlayerChip";
@@ -17,6 +18,8 @@ type Props = {
   picks: BracketPicks;
   confidence: BracketConfidence;
   locked: boolean;
+  /** When set, decided matches show pick vs official winner. */
+  official?: OfficialResults;
   onPick?: (matchKey: string, playerRef: string) => void;
   onConfidence?: (matchKey: string, level: number) => void;
 };
@@ -28,12 +31,43 @@ function bothKnown(a: SlotOccupant, b: SlotOccupant): boolean {
   );
 }
 
+function refOf(occupant: SlotOccupant): string | null {
+  return occupant.kind === "player" ? occupant.ref : null;
+}
+
+function seatName(seats: DrawSeat[], ref: string | null): string {
+  if (!ref) return "—";
+  const seat = seats.find((s) => s.player_ref === ref);
+  return seat?.last_name ?? ref;
+}
+
+type ChipGrade = "correct" | "incorrect" | "voided" | "official" | null;
+
+function chipGrade(input: {
+  playerRef: string | null;
+  pickRef: string | null;
+  officialWinner: string | null;
+  voided: boolean;
+  graded: boolean;
+}): ChipGrade {
+  const { playerRef, pickRef, officialWinner, voided, graded } = input;
+  if (!graded || !playerRef) return null;
+  if (voided) {
+    return pickRef === playerRef ? "voided" : null;
+  }
+  if (officialWinner === playerRef && pickRef === playerRef) return "correct";
+  if (pickRef === playerRef && officialWinner !== playerRef) return "incorrect";
+  if (officialWinner === playerRef && pickRef !== playerRef) return "official";
+  return null;
+}
+
 export function BracketGrid({
   drawSize,
   seats,
   picks,
   confidence,
   locked,
+  official = {},
   onPick,
   onConfidence,
 }: Props) {
@@ -70,38 +104,77 @@ export function BracketGrid({
                   match.indexInRound
                 );
                 const chosen = picks[match.key] ?? null;
+                const result = official[match.key];
+                const graded = Boolean(
+                  result && (result.voided || result.winnerRef)
+                );
+                const voided = Boolean(result?.voided);
+                const officialWinner = result?.winnerRef ?? null;
                 const pickable =
                   !locked &&
+                  !graded &&
                   bothKnown(a, b) &&
                   a.kind === "player" &&
                   b.kind === "player";
                 const groupName = `match-${match.key}`;
                 const unpicked = Boolean(pickable && !chosen);
                 const level = confidence[match.key] ?? null;
-                const showConfidence = Boolean(chosen);
+                const showConfidence = Boolean(chosen) && !graded;
+                const showGrade = graded;
+
+                let gradeLabel: string | null = null;
+                if (showGrade) {
+                  if (voided) gradeLabel = "Void";
+                  else if (!chosen) gradeLabel = `Won: ${seatName(seats, officialWinner)}`;
+                  else if (chosen === officialWinner) gradeLabel = "Correct";
+                  else
+                    gradeLabel = `Miss · Won: ${seatName(seats, officialWinner)}`;
+                }
+
+                const gradeA = chipGrade({
+                  playerRef: refOf(a),
+                  pickRef: chosen,
+                  officialWinner,
+                  voided,
+                  graded,
+                });
+                const gradeB = chipGrade({
+                  playerRef: refOf(b),
+                  pickRef: chosen,
+                  officialWinner,
+                  voided,
+                  graded,
+                });
 
                 return (
                   <div key={match.key} className="match-cell">
                     <div
                       className="slot"
                       role="radiogroup"
-                      aria-label={`${round.label.match} match ${match.indexInRound + 1}${unpicked ? ", unpicked" : ""}`}
+                      aria-label={`${round.label.match} match ${match.indexInRound + 1}${unpicked ? ", unpicked" : ""}${gradeLabel ? `, ${gradeLabel}` : ""}`}
                       data-unpicked={unpicked ? "true" : undefined}
                       data-confidence={showConfidence ? "true" : undefined}
+                      data-graded={
+                        showGrade
+                          ? voided
+                            ? "voided"
+                            : chosen && chosen === officialWinner
+                              ? "correct"
+                              : chosen
+                                ? "incorrect"
+                                : "result"
+                          : undefined
+                      }
                     >
                       {pickable ? (
                         <>
                           <PlayerChip
                             as="button"
                             occupant={a}
-                            chosen={
-                              chosen === (a.kind === "player" ? a.ref : "")
-                            }
+                            chosen={chosen === refOf(a)}
                             name={groupName}
-                            value={a.kind === "player" ? a.ref : ""}
-                            checked={
-                              chosen === (a.kind === "player" ? a.ref : "")
-                            }
+                            value={refOf(a) ?? ""}
+                            checked={chosen === refOf(a)}
                             onClick={() =>
                               a.kind === "player" &&
                               onPick?.(match.key, a.ref)
@@ -111,14 +184,10 @@ export function BracketGrid({
                           <PlayerChip
                             as="button"
                             occupant={b}
-                            chosen={
-                              chosen === (b.kind === "player" ? b.ref : "")
-                            }
+                            chosen={chosen === refOf(b)}
                             name={groupName}
-                            value={b.kind === "player" ? b.ref : ""}
-                            checked={
-                              chosen === (b.kind === "player" ? b.ref : "")
-                            }
+                            value={refOf(b) ?? ""}
+                            checked={chosen === refOf(b)}
                             onClick={() =>
                               b.kind === "player" &&
                               onPick?.(match.key, b.ref)
@@ -130,11 +199,13 @@ export function BracketGrid({
                           <PlayerChip
                             occupant={a}
                             chosen={a.kind === "player" && chosen === a.ref}
+                            grade={gradeA}
                           />
                           <div className="slot-divider" />
                           <PlayerChip
                             occupant={b}
                             chosen={b.kind === "player" && chosen === b.ref}
+                            grade={gradeB}
                           />
                         </>
                       )}
@@ -161,6 +232,11 @@ export function BracketGrid({
                               {n}
                             </button>
                           ))}
+                        </div>
+                      ) : null}
+                      {showGrade && gradeLabel ? (
+                        <div className="grade-row" aria-hidden="true">
+                          {gradeLabel}
                         </div>
                       ) : null}
                     </div>

@@ -28,12 +28,14 @@ Use **SQL Editor**. Run in order:
 5. `supabase/migrations/0005_daily_check.sql` — `daily_check_log` cache for Daily Check  
 6. `supabase/migrations/0006_engagement.sql` — `brackets.confidence` + `save_bracket_picks` optional `p_confidence`
 7. `supabase/migrations/0007_lock_season_commissioner.sql` — season commissioners can lock draws (fixes UI vs RPC mismatch)  
+8. `supabase/migrations/0008_commissioner_read_brackets.sql` — commissioners can read all league brackets (needed for settlement to grade invitees)
+9. `supabase/migrations/0009_display_names.sql` — league mates can read display names; `set_my_display_name` RPC
 
 Phase 7 (founder / void / i18n) needs **no new migration** — uses `pick_voids` + `match_results.voided` from 0004. Void writes still require commissioner RLS for that tournament.
 
 ### Already applied / re-pasting?
 
-All of `0001`–`0007` are **idempotent**. You may re-run them in order in the SQL Editor:
+All of `0001`–`0009` are **idempotent**. You may re-run them in order in the SQL Editor:
 
 - Policies use `drop policy if exists` then `create policy`
 - Tables/indexes use `if not exists`

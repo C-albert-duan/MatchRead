@@ -127,6 +127,11 @@ create policy brackets_select_own on public.brackets
     and public.is_league_member(league_id)
   );
 
+-- Commissioners need league-wide read to settle / grade all submitted entries.
+drop policy if exists brackets_select_commissioner on public.brackets;
+create policy brackets_select_commissioner on public.brackets
+  for select using (public.is_league_commissioner(league_id));
+
 drop policy if exists brackets_insert_own on public.brackets;
 create policy brackets_insert_own on public.brackets
   for insert with check (

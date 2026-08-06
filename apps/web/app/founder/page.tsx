@@ -65,7 +65,7 @@ export default async function FounderPage() {
     lastSnapRes.error;
 
   const fmt = (count: number | null | undefined, err: unknown) =>
-    err || count == null ? "â€”" : String(count);
+    err || count == null ? "—" : String(count);
 
   const stats: { label: string; value: string }[] = [
     {

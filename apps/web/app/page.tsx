@@ -26,10 +26,7 @@ export default async function HomePage() {
         <header className="page-header page-header--landing">
           <p className="eyebrow">{t("landing.eyebrow")}</p>
           <h1 className="t-hero">MatchRead</h1>
-          <p className="t-lead">
-            Your league. One bracket. The Daily Check every morning — what
-            happened today, and did you move?
-          </p>
+          <p className="t-lead">{t("landing.hero.lede")}</p>
           <div className="page-actions">
             {signedIn ? (
               <Link
@@ -56,10 +53,7 @@ export default async function HomePage() {
           <h2 id="calendar-heading" className="section-title">
             {t("landing.calendar.title")}
           </h2>
-          <p className="section-lede">
-            The events your league can gather around. Brackets open when the
-            draw is published.
-          </p>
+          <p className="section-lede">{t("landing.calendar.lede")}</p>
           <ul className="calendar">
             {CALENDAR.map((event) => (
               <li key={event.name}>
@@ -80,10 +74,7 @@ export default async function HomePage() {
           <h2 id="how-heading" className="section-title">
             {t("landing.how.title")}
           </h2>
-          <p className="section-lede">
-            Create a league, share a link, fill brackets together, return for
-            the Daily Check.
-          </p>
+          <p className="section-lede">{t("landing.how.lede")}</p>
           <ol className="steps">
             {HOW_STEPS.map((step, i) => (
               <li key={step[0]} className="stack gap-sm">

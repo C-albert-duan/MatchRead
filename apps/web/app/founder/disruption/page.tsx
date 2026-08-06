@@ -79,7 +79,7 @@ export default async function DisruptionPage() {
         <p className="hint">{t("founder.note.noServiceRole")}</p>
 
         <Link href="/founder" className="act act--standard act--standard-size">
-          â† {t("founder.title")}
+          ← {t("founder.title")}
         </Link>
       </div>
     </AppShell>

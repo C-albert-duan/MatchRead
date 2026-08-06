@@ -31,6 +31,41 @@ export type BracketGrade = {
   maxScore: number;
 };
 
+/** Per-match outcome for result breakdown UI. */
+export type MatchGradeOutcome =
+  | "correct"
+  | "incorrect"
+  | "voided"
+  | "pending"
+  | "unpicked";
+
+export type MatchGradeDetail = {
+  matchKey: string;
+  roundIndex: number;
+  roundColumn: string;
+  indexInRound: number;
+  weight: number;
+  pickRef: string | null;
+  winnerRef: string | null;
+  outcome: MatchGradeOutcome;
+  /** Points earned on this match (0 if miss / void / pending / unpicked). */
+  points: number;
+};
+
+export type ChampionBonusDetail = {
+  pickRef: string | null;
+  winnerRef: string | null;
+  weight: number;
+  outcome: "correct" | "incorrect" | "voided" | "pending" | "unpicked";
+  points: number;
+};
+
+export type BracketGradeDetail = {
+  matches: MatchGradeDetail[];
+  championBonus: ChampionBonusDetail;
+  throughRound: number;
+};
+
 export { maxBracketScore, roundWeight };
 
 /**
@@ -124,6 +159,110 @@ export function gradeBracket(input: {
     championRef: myChampion,
     championAlive: myChampion ? alive.has(myChampion) : null,
     maxScore,
+  };
+}
+
+/**
+ * Match-by-match breakdown of picks vs official results (for Your result UI).
+ * Includes undecided matches as `pending` so members can see what they picked.
+ */
+export function detailBracketGrade(input: {
+  drawSize: number;
+  picks: BracketPicks;
+  official: OfficialResults;
+  throughRound?: number;
+}): BracketGradeDetail {
+  const { drawSize, picks, official } = input;
+  const rounds = buildRoundStructure(drawSize);
+  const lastRound = rounds.length - 1;
+  const championBonusWeight = roundWeight(lastRound);
+
+  let furthest = -1;
+  for (const round of rounds) {
+    for (const match of round.matches) {
+      const o = official[match.key];
+      if (o && (o.voided || o.winnerRef)) {
+        furthest = Math.max(furthest, round.index);
+      }
+    }
+  }
+  const through =
+    input.throughRound !== undefined
+      ? Math.min(input.throughRound, lastRound)
+      : furthest;
+
+  const matches: MatchGradeDetail[] = [];
+  for (const round of rounds) {
+    const w = roundWeight(round.index);
+    for (const match of round.matches) {
+      const o = official[match.key];
+      const pickRef = picks[match.key] ?? null;
+      const winnerRef = o?.winnerRef ?? null;
+      const decided = Boolean(o && (o.voided || o.winnerRef));
+
+      let outcome: MatchGradeOutcome;
+      let points = 0;
+      if (!decided) {
+        outcome = pickRef ? "pending" : "unpicked";
+      } else if (o?.voided) {
+        outcome = pickRef ? "voided" : "unpicked";
+      } else if (!pickRef) {
+        outcome = "unpicked";
+      } else if (winnerRef === pickRef) {
+        outcome = "correct";
+        // Only score through furthest decided round (same as gradeBracket)
+        if (round.index <= through) points = w;
+      } else {
+        outcome = "incorrect";
+      }
+
+      matches.push({
+        matchKey: match.key,
+        roundIndex: round.index,
+        roundColumn: round.label.column,
+        indexInRound: match.indexInRound,
+        weight: w,
+        pickRef,
+        winnerRef,
+        outcome,
+        points,
+      });
+    }
+  }
+
+  const finalKey = matchKey(lastRound, 0);
+  const officialChampion = official[finalKey]?.winnerRef ?? null;
+  const myChampion = picks[finalKey] ?? null;
+  const finalVoided = Boolean(official[finalKey]?.voided);
+  const finalDecided = Boolean(
+    official[finalKey] && (finalVoided || officialChampion)
+  );
+
+  let champOutcome: ChampionBonusDetail["outcome"];
+  let champPoints = 0;
+  if (!finalDecided) {
+    champOutcome = myChampion ? "pending" : "unpicked";
+  } else if (finalVoided) {
+    champOutcome = myChampion ? "voided" : "unpicked";
+  } else if (!myChampion) {
+    champOutcome = "unpicked";
+  } else if (officialChampion === myChampion) {
+    champOutcome = "correct";
+    champPoints = championBonusWeight;
+  } else {
+    champOutcome = "incorrect";
+  }
+
+  return {
+    matches,
+    championBonus: {
+      pickRef: myChampion,
+      winnerRef: officialChampion,
+      weight: championBonusWeight,
+      outcome: champOutcome,
+      points: champPoints,
+    },
+    throughRound: through,
   };
 }
 

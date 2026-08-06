@@ -1,8 +1,11 @@
 import type { SlotOccupant } from "@matchread/core";
 
+type GradeTone = "correct" | "incorrect" | "voided" | "official" | null;
+
 type Props = {
   occupant: SlotOccupant;
   chosen?: boolean;
+  grade?: GradeTone;
   as?: "span" | "button";
   disabled?: boolean;
   onClick?: () => void;
@@ -42,6 +45,7 @@ function labelFor(occupant: SlotOccupant): {
 export function PlayerChip({
   occupant,
   chosen = false,
+  grade = null,
   as = "span",
   disabled,
   onClick,
@@ -53,7 +57,11 @@ export function PlayerChip({
   const className = [
     "name",
     meta.kindClass,
-    chosen ? "name--chosen" : "",
+    chosen && !grade ? "name--chosen" : "",
+    grade === "correct" ? "name--correct" : "",
+    grade === "incorrect" ? "name--incorrect" : "",
+    grade === "voided" ? "name--voided" : "",
+    grade === "official" ? "name--official" : "",
     occupant.kind !== "player" ? "name--placeholder" : "",
   ]
     .filter(Boolean)
@@ -61,7 +69,10 @@ export function PlayerChip({
 
   const inner = (
     <>
-      <span className="name-seed numeral" aria-hidden={meta.seed ? undefined : true}>
+      <span
+        className="name-seed numeral"
+        aria-hidden={meta.seed ? undefined : true}
+      >
         {meta.seed || "\u00a0"}
       </span>
       <span className="name-text">{meta.text}</span>
