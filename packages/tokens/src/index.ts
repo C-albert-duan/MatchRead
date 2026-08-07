@@ -1,26 +1,28 @@
-/** Design tokens — MatchRead live-court energy.
+/** Design tokens — MatchRead night-court editorial.
  * Primary CTA = hard-court blue (action). Green = verified data only.
+ * Canvas is scoreboard-adjacent navy; elevation via hairlines, not shadows.
  */
 
 export const color = {
-  canvas: "#E9F2FA",
-  raised: "#D7E8F6",
-  sunken: "#F4F9FD",
-  line: "#B7CEE3",
-  lineStrong: "#7FA8C9",
-  lineControl: "#3E6F94",
-  textPrimary: "#0B1F33",
-  textSecondary: "#2A4660",
-  textMuted: "#5A7690",
-  inverse: "#0B1F33",
-  inverseText: "#FFFFFF",
-  read: "#0B1F33",
-  readStrong: "#2A4660",
+  canvas: "#07141F",
+  raised: "#0E2436",
+  sunken: "#0A1A28",
+  input: "#0C1E2E",
+  line: "#243B50",
+  lineStrong: "#3A5A75",
+  lineControl: "#5A8AB0",
+  textPrimary: "#F0F6FA",
+  textSecondary: "#B4C8D8",
+  textMuted: "#7A94A8",
+  inverse: "#F0F6FA",
+  inverseText: "#07141F",
+  read: "#F0F6FA",
+  readStrong: "#B4C8D8",
   /** Action / live energy — not a verified result */
   accent: "#0B7AD1",
-  accentStrong: "#085A9C",
-  data: "#0A8F55",
-  dataStrong: "#056B3E",
+  accentStrong: "#3D9FE8",
+  data: "#2DCF7A",
+  dataStrong: "#1FAA5C",
   wta: "#C6A2FF",
   miss: "#E0453A",
   missStrong: "#B8322A",
@@ -28,8 +30,8 @@ export const color = {
   courtGrass: "#4FA03A",
   courtHard: "#0B7AD1",
   courtIndoor: "#1A3554",
-  scoreboard: "#071826",
-  scoreboardRaised: "#0E2A42",
+  scoreboard: "#050E16",
+  scoreboardRaised: "#0C2030",
 } as const;
 
 export const font = {
@@ -56,6 +58,7 @@ export function cssVariables(): string {
     `--mr-canvas: ${color.canvas}`,
     `--mr-raised: ${color.raised}`,
     `--mr-sunken: ${color.sunken}`,
+    `--mr-input: ${color.input}`,
     `--mr-line: ${color.line}`,
     `--mr-line-strong: ${color.lineStrong}`,
     `--mr-line-control: ${color.lineControl}`,

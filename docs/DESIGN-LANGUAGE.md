@@ -1,17 +1,18 @@
 # Design Language
 
-Tokens for implementation live in `packages/tokens`. Seeded from `Wireframe/MatchRead-main/matchread-spec/css/tokens.css`.
+Tokens for implementation live in `packages/tokens`. Production look: **night-court editorial** — scoreboard-adjacent navy canvas, full-bleed court photography, hairline elevation (no decorative shadows).
 
 ## Meaning colours
 
 | Token | Hex | Meaning |
 |---|---|---|
-| `--mr-read` | `#15181B` | User commitment (pick / ink) |
-| `--mr-data` | `#0A6B42` | Verified tournament fact |
-| `--mr-miss` | `#C93F36` | Incorrect / miss |
+| `--mr-read` | `#F0F6FA` | User commitment (pick / ink) on night canvas |
+| `--mr-accent` | `#0B7AD1` | Action / CTA (hard-court blue) — not a verified result |
+| `--mr-data` | `#2DCF7A` | Verified tournament fact |
+| `--mr-miss` | `#E0453A` | Incorrect / miss |
 | Court clay/grass/hard | … | Surface context only |
 
-Primary button is **charcoal**, not green — green would imply a verified result.
+Primary button is **hard-court blue**, not green — green would imply a verified result.
 
 ## Type
 
@@ -25,12 +26,13 @@ Production may self-host licensed fonts later; system fallbacks are acceptable e
 
 ## Rules
 
-- No shadows anywhere. Elevation: canvas / raised / sunken.
+- No decorative shadows. Elevation: canvas / raised / sunken + hairlines.
 - Hairlines over boxes; eyebrow separates sections.
 - 4pt spacing scale (`--s-xs` … `--s-5xl`).
 - 44px minimum touch (`--touch`).
-- Motion 120 / 220 / 340ms; neutralize under `prefers-reduced-motion`.
+- Motion 120 / 220 / 420ms; neutralize under `prefers-reduced-motion`.
 - No state by colour alone — words for screen readers.
+- Landing first viewport: brand + one headline + one lede + CTAs on full-bleed court atmosphere.
 
 ## Components to extract early
 

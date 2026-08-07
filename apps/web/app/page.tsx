@@ -22,10 +22,10 @@ export default async function HomePage() {
 
   return (
     <AppShell signedIn={signedIn} email={user?.email} arena>
-      <div className="page">
-        <header className="page-header page-header--landing">
-          <p className="eyebrow">{t("landing.eyebrow")}</p>
+      <div className="page page--landing">
+        <header className="landing-hero">
           <h1 className="t-hero">MatchRead</h1>
+          <p className="landing-hero-headline">{t("landing.title")}</p>
           <p className="t-lead">{t("landing.hero.lede")}</p>
           <div className="page-actions">
             {signedIn ? (
