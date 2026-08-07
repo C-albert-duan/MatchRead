@@ -74,6 +74,12 @@ export default async function TournamentInLeaguePage({ params }: Props) {
 
   const isCommissioner = membership.role === "commissioner";
   const isFounder = isFounderEmail(user.email ?? undefined);
+  const liveFeed = Boolean(
+    (tournament as { provider_tournament_id?: string | null })
+      .provider_tournament_id
+  );
+  // Manual Official Results UI only for fixture tournaments without a provider.
+  const showManualResults = isCommissioner && !liveFeed;
 
   const [bracketRes, snapshotsRes, seatsRes, resultsRes] = await Promise.all([
     supabase
@@ -91,7 +97,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
       .eq("league_id", league.id)
       .eq("tournament_id", tournament.id)
       .order("position", { ascending: true }),
-    isCommissioner && draw
+    showManualResults && draw
       ? supabase
           .from("draw_seats")
           .select(
@@ -107,7 +113,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
           country_code: string;
           is_bye: boolean;
         }> }),
-    isCommissioner
+    showManualResults
       ? supabase
           .from("match_results")
           .select("match_key, winner_ref, voided")
@@ -238,21 +244,22 @@ export default async function TournamentInLeaguePage({ params }: Props) {
                 </Link>
               </div>
             ) : null}
-            {/* Ops controls: commissioner only — never invitees/members.
-                (When FOUNDER_EMAILS is unset, every user is "founder"; do not
-                use that flag to show this panel.) */}
+            {/* Ops: commissioner only. Live-feed tournaments ingest winners
+                via RapidAPI — no manual Official Results panel. */}
             {isCommissioner ? (
               <>
-                <OfficialResultsPanel
-                  leagueId={league.id}
-                  leagueSlug={league.slug}
-                  tournamentId={tournament.id}
-                  tournamentRef={tournament.ref}
-                  drawSize={tournament.draw_size}
-                  seats={seats}
-                  initialResults={initialResults}
-                  isFounder={isFounder}
-                />
+                {showManualResults ? (
+                  <OfficialResultsPanel
+                    leagueId={league.id}
+                    leagueSlug={league.slug}
+                    tournamentId={tournament.id}
+                    tournamentRef={tournament.ref}
+                    drawSize={tournament.draw_size}
+                    seats={seats}
+                    initialResults={initialResults}
+                    isFounder={isFounder}
+                  />
+                ) : null}
                 <SettleButton
                   leagueId={league.id}
                   leagueSlug={league.slug}
