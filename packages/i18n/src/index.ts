@@ -421,6 +421,7 @@ const en = {
   "calendar.drawOpen": "draw open",
   "calendar.drawPending": "draw pending",
   "calendar.open": "Open",
+  "calendar.empty": "No tournaments in the database yet.",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -842,6 +843,7 @@ const es: Record<MessageKey, string> = {
   "calendar.drawOpen": "sorteo abierto",
   "calendar.drawPending": "sorteo pendiente",
   "calendar.open": "Abrir",
+  "calendar.empty": "Aún no hay torneos en la base de datos.",
 };
 
 const ja: Record<MessageKey, string> = {
@@ -1247,6 +1249,7 @@ const ja: Record<MessageKey, string> = {
   "calendar.drawOpen": "ドロー公開中",
   "calendar.drawPending": "ドロー待ち",
   "calendar.open": "開く",
+  "calendar.empty": "データベースに大会がまだありません。",
 };
 
 const catalogues: Record<Locale, Record<MessageKey, string>> = {

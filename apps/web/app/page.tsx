@@ -2,12 +2,11 @@
 import { AppShell } from "@/components/shell/AppShell";
 import { getSessionUser } from "@/lib/auth";
 import { t } from "@/lib/i18n";
-
-const CALENDAR = [
-  { name: "Roland Garros", surface: "clay" as const, when: "May 2026" },
-  { name: "Wimbledon", surface: "grass" as const, when: "Jun 2026" },
-  { name: "US Open", surface: "hard" as const, when: "Aug 2026 · draw pending" },
-];
+import {
+  formatTournamentWhen,
+  listCalendarTournaments,
+  surfaceClass,
+} from "@/lib/tournaments/calendar";
 
 const HOW_STEPS = [
   ["landing.how.1.title", "landing.how.1.body"],
@@ -19,6 +18,7 @@ const HOW_STEPS = [
 export default async function HomePage() {
   const user = await getSessionUser();
   const signedIn = Boolean(user);
+  const calendar = await listCalendarTournaments();
 
   return (
     <AppShell signedIn={signedIn} email={user?.email} arena>
@@ -54,20 +54,29 @@ export default async function HomePage() {
             {t("landing.calendar.title")}
           </h2>
           <p className="section-lede">{t("landing.calendar.lede")}</p>
-          <ul className="calendar">
-            {CALENDAR.map((event) => (
-              <li key={event.name}>
-                <Link href="/tournaments" className="trow">
-                  <span
-                    className={`court-hairline court-${event.surface}`}
-                    aria-hidden
-                  />
-                  <span className="trow-name">{event.name}</span>
-                  <span className="trow-meta">{event.when}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {calendar.length === 0 ? (
+            <p className="stub-note">{t("calendar.empty")}</p>
+          ) : (
+            <ul className="calendar">
+              {calendar.map((event) => (
+                <li key={event.ref}>
+                  <Link href="/tournaments" className="trow">
+                    <span
+                      className={`court-hairline court-${surfaceClass(event.surface)}`}
+                      aria-hidden
+                    />
+                    <span className="trow-name">{event.name}</span>
+                    <span className="trow-meta">
+                      {formatTournamentWhen(event, {
+                        drawOpen: t("calendar.drawOpen"),
+                        drawPending: t("calendar.drawPending"),
+                      })}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
 
         <section className="section" aria-labelledby="how-heading">

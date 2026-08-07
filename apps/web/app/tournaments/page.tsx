@@ -3,13 +3,11 @@ import { AppShell } from "@/components/shell/AppShell";
 import { getSessionUser } from "@/lib/auth";
 import { t } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
-
-function surfaceClass(surface: string | null | undefined) {
-  const s = (surface ?? "").toLowerCase();
-  if (s.includes("clay")) return "clay";
-  if (s.includes("grass")) return "grass";
-  return "hard";
-}
+import {
+  formatTournamentWhen,
+  listCalendarTournaments,
+  surfaceClass,
+} from "@/lib/tournaments/calendar";
 
 type LeagueRow = {
   slug: string;
@@ -39,21 +37,13 @@ function hrefForTournament(
     return `/leagues/${season.slug}/t/${tournamentRef}`;
   }
 
-  // Signed in but no league that can open this event yet.
   return "/leagues/new";
 }
 
 export default async function TournamentsPage() {
   const user = await getSessionUser();
   const supabase = createClient();
-
-  const { data: tournaments } = await supabase
-    .from("tournaments")
-    .select("id, ref, name, surface, starts_on, draw_size")
-    .order("starts_on", { ascending: true });
-
-  const { data: draws } = await supabase.from("draws").select("tournament_id");
-  const publishedIds = new Set((draws ?? []).map((d) => d.tournament_id));
+  const tournaments = await listCalendarTournaments();
 
   const leagues: LeagueRow[] = [];
   if (user) {
@@ -104,21 +94,17 @@ export default async function TournamentsPage() {
           </div>
         </header>
 
-        {(tournaments ?? []).length === 0 ? (
-          <p className="stub-note">
-            No tournaments yet. Apply{" "}
-            <code>supabase/migrations/0003_brackets.sql</code>.
-          </p>
+        {tournaments.length === 0 ? (
+          <p className="stub-note">{t("calendar.empty")}</p>
         ) : (
           <ul className="calendar focus-band">
-            {(tournaments ?? []).map((row) => {
+            {tournaments.map((row) => {
               const href = hrefForTournament(
                 row.name,
                 row.ref,
                 Boolean(user),
                 leagues
               );
-              const hasDraw = publishedIds.has(row.id);
               return (
                 <li key={row.ref}>
                   <Link href={href} className="trow">
@@ -128,12 +114,10 @@ export default async function TournamentsPage() {
                     />
                     <span className="trow-name">{row.name}</span>
                     <span className="trow-meta">
-                      {row.surface}
-                      {row.starts_on ? ` · ${row.starts_on}` : ""}
-                      {" · "}
-                      {hasDraw
-                        ? t("calendar.drawOpen")
-                        : t("calendar.drawPending")}
+                      {formatTournamentWhen(row, {
+                        drawOpen: t("calendar.drawOpen"),
+                        drawPending: t("calendar.drawPending"),
+                      })}
                     </span>
                     <span className="league-card-status">
                       {t("calendar.open")}

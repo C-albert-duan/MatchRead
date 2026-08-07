@@ -4,19 +4,13 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { createLeague } from "@/app/actions/leagues";
 import { useT } from "@/components/shell/LocaleProvider";
-import { TOURNAMENT_OPTIONS } from "@/lib/leagues/types";
-import type { MessageKey } from "@matchread/i18n";
+import type { TournamentOption } from "@/lib/leagues/types";
 
-const OPTION_LABEL_KEY: Record<
-  (typeof TOURNAMENT_OPTIONS)[number]["ref"],
-  MessageKey
-> = {
-  "uso-2026": "create.opt.uso",
-  "wim-2026": "create.opt.wim",
-  "rg-2026": "create.opt.rg",
-};
-
-export function CreateLeagueForm() {
+export function CreateLeagueForm({
+  tournaments,
+}: {
+  tournaments: TournamentOption[];
+}) {
   const t = useT();
   const [format, setFormat] = useState<"single" | "season">("single");
   const [visibility, setVisibility] = useState<"private" | "public">("private");
@@ -140,19 +134,26 @@ export function CreateLeagueForm() {
           <label htmlFor="tournament_label" className="field-label">
             {t("create.tournament")}
           </label>
-          <select
-            id="tournament_label"
-            name="tournament_label"
-            className="field"
-            disabled={pending}
-            defaultValue={TOURNAMENT_OPTIONS[0].value}
-          >
-            {TOURNAMENT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {t(OPTION_LABEL_KEY[opt.ref])}
-              </option>
-            ))}
-          </select>
+          {tournaments.length === 0 ? (
+            <p className="form-error" role="alert">
+              {t("calendar.empty")}
+            </p>
+          ) : (
+            <select
+              id="tournament_label"
+              name="tournament_label"
+              className="field"
+              disabled={pending}
+              defaultValue={tournaments[0]?.value}
+              required
+            >
+              {tournaments.map((opt) => (
+                <option key={opt.ref} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          )}
           <p className="hint">
             {t("create.tournament.hint.before")}{" "}
             <strong>{t("create.tournament.hint.new")}</strong>{" "}

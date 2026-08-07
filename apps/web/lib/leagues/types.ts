@@ -30,21 +30,9 @@ export type InvitePreview = {
   revoked: boolean;
 };
 
-/** Labels must match `tournaments.name` from migration 0003. */
-export const TOURNAMENT_OPTIONS = [
-  {
-    value: "US Open 2026",
-    label: "US Open 2026 — fixture 16-draw (entry open)",
-    ref: "uso-2026",
-  },
-  {
-    value: "Wimbledon 2026",
-    label: "Wimbledon 2026 — draw pending",
-    ref: "wim-2026",
-  },
-  {
-    value: "Roland Garros 2026",
-    label: "Roland Garros 2026 — draw pending",
-    ref: "rg-2026",
-  },
-] as const;
+/** Option for create-league select — loaded from `tournaments` at request time. */
+export type TournamentOption = {
+  value: string;
+  label: string;
+  ref: string;
+};
