@@ -1,7 +1,8 @@
 ﻿"use client";
 
-import type { CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
 import {
+  applyByeAdvances,
   buildRoundStructure,
   resolveMatchEntrants,
   type BracketConfidence,
@@ -41,6 +42,10 @@ function seatName(seats: DrawSeat[], ref: string | null): string {
   return seat?.last_name ?? ref;
 }
 
+function hasBye(a: SlotOccupant, b: SlotOccupant): boolean {
+  return a.kind === "bye" || b.kind === "bye";
+}
+
 type ChipGrade = "correct" | "incorrect" | "voided" | "official" | null;
 
 function chipGrade(input: {
@@ -77,6 +82,18 @@ export function BracketGrid({
     ["--r0-slots"]: String(r0Slots),
   } as CSSProperties;
 
+  // Later rounds must show official winners (and bye advances), not only
+  // the member's picks — otherwise decided matches look empty with "Won: …".
+  const displayPicks = useMemo(() => {
+    const merged: BracketPicks = { ...picks };
+    for (const [key, result] of Object.entries(official)) {
+      if (result?.winnerRef && !result.voided) {
+        merged[key] = result.winnerRef;
+      }
+    }
+    return applyByeAdvances(seats, merged, drawSize);
+  }, [picks, official, seats, drawSize]);
+
   return (
     <div
       className="bracket-region"
@@ -99,7 +116,7 @@ export function BracketGrid({
               {round.matches.map((match) => {
                 const [a, b] = resolveMatchEntrants(
                   seats,
-                  picks,
+                  displayPicks,
                   match.round,
                   match.indexInRound
                 );
@@ -121,11 +138,15 @@ export function BracketGrid({
                 const level = confidence[match.key] ?? null;
                 const showConfidence = Boolean(chosen) && !graded;
                 const showGrade = graded;
+                const byeMatch = hasBye(a, b);
 
                 let gradeLabel: string | null = null;
                 if (showGrade) {
                   if (voided) gradeLabel = "Void";
-                  else if (!chosen) gradeLabel = `Won: ${seatName(seats, officialWinner)}`;
+                  else if (byeMatch)
+                    gradeLabel = `Won: ${seatName(seats, officialWinner)}`;
+                  else if (!chosen)
+                    gradeLabel = `Won: ${seatName(seats, officialWinner)}`;
                   else if (chosen === officialWinner) gradeLabel = "Correct";
                   else
                     gradeLabel = `Miss · Won: ${seatName(seats, officialWinner)}`;
@@ -158,11 +179,13 @@ export function BracketGrid({
                         showGrade
                           ? voided
                             ? "voided"
-                            : chosen && chosen === officialWinner
-                              ? "correct"
-                              : chosen
-                                ? "incorrect"
-                                : "result"
+                            : byeMatch
+                              ? "result"
+                              : chosen && chosen === officialWinner
+                                ? "correct"
+                                : chosen
+                                  ? "incorrect"
+                                  : "result"
                           : undefined
                       }
                     >
@@ -199,13 +222,13 @@ export function BracketGrid({
                           <PlayerChip
                             occupant={a}
                             chosen={a.kind === "player" && chosen === a.ref}
-                            grade={gradeA}
+                            grade={byeMatch ? null : gradeA}
                           />
                           <div className="slot-divider" />
                           <PlayerChip
                             occupant={b}
                             chosen={b.kind === "player" && chosen === b.ref}
-                            grade={gradeB}
+                            grade={byeMatch ? null : gradeB}
                           />
                         </>
                       )}
