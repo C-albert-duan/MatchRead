@@ -36,10 +36,12 @@ RapidAPI knows who won → your reconcile job maps that to MatchRead’s bracket
 | RapidAPI match id | `1244910` | key in `matches` |
 | RapidAPI player id (winner) | `28170` (Rinderknech) | key in `players` |
 | MatchRead tournament UUID | from Supabase `tournaments.id` | `tournament_id` in the map |
-| MatchRead seat | `p-0` | value in `players` |
-| MatchRead bracket slot | `r0-m0` | value in `matches` |
+| MatchRead seat | `atp-28170` | value in `players` (`atp-{providerPlayerId}`) |
+| MatchRead bracket slot | `r0-m0` … `r5-m0` | value in `matches` (64-draw: R64→Final) |
 
-If any link is missing, reconcile **skips** that match (fail closed). Fictional fixture `uso-2026` (Aldecoa, Brennig, …) will **not** grade real ATP names until you map real seats or create a pilot tournament with real players.
+If any link is missing, reconcile **skips** that match (fail closed).
+
+**Live event:** National Bank Open Montreal 2026 is a **64-draw** on tournament ref `uso-2026` (stable URL), `provider_tournament_id=21346`. Rebuild seats + map with `node scripts/import-montreal-draw.mjs` (writes via Edge Function `rebuild-draw`). RG/Wim fixtures were removed.
 
 ---
 

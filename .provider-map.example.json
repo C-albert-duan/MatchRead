@@ -2,12 +2,12 @@
   "tournament_id": "REPLACE-WITH-MATCHREAD-TOURNAMENT-UUID",
   "provider_tournament_id": "21346",
   "tour": "atp",
-  "comment": "Example: Montreal 2026 Masters (National Bank Open). Fill tournament_id from Supabase. Map only matches/players you have seats for. Copy to .provider-map.json (gitignored).",
+  "comment": "Montreal Masters 2026 (National Bank Open) — MatchRead models a 64-draw (R64→Final). Copy to .provider-map.json after scripts/import-montreal-draw.mjs, or build players/matches from RapidAPI results. player_ref values look like atp-{providerPlayerId}.",
   "players": {
-    "28170": "p-0",
-    "29939": "p-1"
+    "28170": "atp-28170",
+    "29939": "atp-29939"
   },
   "matches": {
-    "1244910": "r0-m0"
+    "1244910": "r2-m0"
   }
 }
