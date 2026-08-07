@@ -67,6 +67,8 @@ Magic-link `emailRedirectTo` is built from the **browser origin** on `/sign-in`,
 6. Confirm callback → session → `/leagues` (or `next`) on the **same** Preview host.
 7. Production: add domain, set `NEXT_PUBLIC_SITE_URL`, extend Auth allow-list, redeploy.
 
+**Full domain + RapidAPI path:** [GO-LIVE-MATCHREADTENNIS.md](./GO-LIVE-MATCHREADTENNIS.md) (`matchreadtennis.com` / Porkbun).
+
 ## Failure modes
 
 | Symptom | Likely cause |

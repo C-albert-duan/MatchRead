@@ -7,7 +7,12 @@ node_modules
 .env.*
 !.env.example
 !.env.docker.example
+!.env.provider.example
+!.provider-map.example.json
 apps/web/.env*.local
+
+# Provider reconcile map with real ids (example file is tracked above)
+.provider-map.json
 
 # Next.js / Vercel
 apps/web/.next

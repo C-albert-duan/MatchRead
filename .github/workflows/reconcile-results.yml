@@ -1,0 +1,81 @@
+# Pull finished matches from RapidAPI → Supabase ingest-events.
+# Secrets stay in GitHub — never on Vercel.
+#
+# Required repo secrets:
+#   RAPIDAPI_KEY
+#   MATCHREAD_INGEST_URL   e.g. https://opugihofwvunwkpcmboq.supabase.co/functions/v1/ingest-events
+#   INGEST_SECRET
+#   PROVIDER_MAP_JSON      full contents of .provider-map.json
+#
+# Optional:
+#   RAPIDAPI_HOST          default tennis-api-atp-wta-itf.p.rapidapi.com
+#
+# Docs: docs/runbooks/RECONCILE-RESULTS.md
+
+name: Reconcile RapidAPI results
+
+on:
+  schedule:
+    # 4×/day — safe for Basic (50 req/day). Tighten after upgrading to Pro.
+    - cron: "15 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry-run only (fetch + map, no ingest POST)"
+        type: boolean
+        default: true
+
+concurrency:
+  group: reconcile-results
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: reconcile → ingest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Write provider map from secret
+        env:
+          PROVIDER_MAP_JSON: ${{ secrets.PROVIDER_MAP_JSON }}
+        run: |
+          if [ -z "$PROVIDER_MAP_JSON" ]; then
+            echo "Missing secret PROVIDER_MAP_JSON (paste your .provider-map.json contents)."
+            exit 1
+          fi
+          printf '%s\n' "$PROVIDER_MAP_JSON" > .provider-map.json
+          node -e "JSON.parse(require('fs').readFileSync('.provider-map.json','utf8')); console.log('map JSON ok')"
+
+      - name: Reconcile (dry-run)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        env:
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          RAPIDAPI_HOST: ${{ secrets.RAPIDAPI_HOST || 'tennis-api-atp-wta-itf.p.rapidapi.com' }}
+        run: npm run reconcile:results -- --dry-run --map .provider-map.json
+
+      - name: Reconcile (live ingest)
+        if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run) }}
+        env:
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
+          RAPIDAPI_HOST: ${{ secrets.RAPIDAPI_HOST || 'tennis-api-atp-wta-itf.p.rapidapi.com' }}
+          MATCHREAD_INGEST_URL: ${{ secrets.MATCHREAD_INGEST_URL }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+        run: |
+          if [ -z "$RAPIDAPI_KEY" ] || [ -z "$MATCHREAD_INGEST_URL" ] || [ -z "$INGEST_SECRET" ]; then
+            echo "Missing RAPIDAPI_KEY, MATCHREAD_INGEST_URL, or INGEST_SECRET."
+            exit 1
+          fi
+          npm run reconcile:results -- --map .provider-map.json

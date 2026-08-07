@@ -14,6 +14,9 @@
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "verify:settlement": "node scripts/verify-settlement-math.mjs"
+    "verify:settlement": "node scripts/verify-settlement-math.mjs",
+    "probe:rapidapi": "node scripts/probe-rapidapi.mjs",
+    "reconcile:results": "node scripts/reconcile-results.mjs",
+    "test:provider": "npm run test -w @matchread/provider-rapidapi"
   }
 }

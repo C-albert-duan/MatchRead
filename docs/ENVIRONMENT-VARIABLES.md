@@ -41,12 +41,30 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3001
 ```
 
 Do not use host `npm install` / `apps/web/.env.local` for day-to-day work — Compose does not load `.env.local`.
+
+## Local provider `.env.provider` (gitignored)
+
+Copy `.env.provider.example` → `.env.provider`. Used by RapidAPI probe/reconcile scripts only — **not** loaded by the web Docker service.
+
+```
+RAPIDAPI_KEY=...
+RAPIDAPI_HOST=tennis-api-atp-wta-itf.p.rapidapi.com
+# MATCHREAD_INGEST_URL=https://<ref>.supabase.co/functions/v1/ingest-events
+# INGEST_SECRET=...
+```
+
+Mapping for reconcile: copy `.provider-map.example.json` → `.provider-map.json` (gitignored). See [RECONCILE-RESULTS.md](./runbooks/RECONCILE-RESULTS.md).
+
 ## Edge functions / listener (later)
 
 | Variable | Where |
 |---|---|
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Injected in Edge Functions |
-| `RAPIDAPI_KEY` / provider host | Listener only |
+| `RAPIDAPI_KEY` | Provider worker / local probe scripts only — never Vercel |
+| `RAPIDAPI_HOST` | `tennis-api-atp-wta-itf.p.rapidapi.com` (same places as key) |
+| `MATCHREAD_INGEST_URL` / `INGEST_SECRET` | Worker → `ingest-events` |
+
+Plan: [plans/15-rapidapi-tennis-provider.md](./plans/15-rapidapi-tennis-provider.md).
 
 ## Deferred: PostHog / Sentry
 

@@ -29,6 +29,9 @@ Phased build for this repository. Wireframe stays read-only reference.
 | **12** | [12-private-beta-checklist](./plans/12-private-beta-checklist.md) | Invite wave / LAUNCH-CHECKLIST | **Active — owner** |
 | **13** | [13-public-window-checklist](./plans/13-public-window-checklist.md) | Cron, ingest, live path, 128 smoke | **Assist shipped — owner** |
 | **14** | [14-ceo-tier2-tier3-checklist](./plans/14-ceo-tier2-tier3-checklist.md) | Tier 2–3 engagement | **Deferred** |
+| **15** | [15-rapidapi-tennis-provider](./plans/15-rapidapi-tennis-provider.md) | RapidAPI REST → ingest (no key on Vercel) | **In progress** (probe OK) |
+| **16** | [16-rapidapi-reconcile](./plans/16-rapidapi-reconcile.md) | Real results: reconcile → ingest → Vercel UI | **In progress** (script + migration) |
+| **17** | [17-provider-backend](./plans/17-provider-backend.md) | Automated worker: key off-Vercel, no manual upload | **Planned** |
 
 ## Checkpoint
 

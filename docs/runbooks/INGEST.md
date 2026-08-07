@@ -13,6 +13,14 @@ How official match winners enter `match_results` before settlement.
 
 Settlement is **always** a separate step (grades brackets → snapshots). Ingest alone does not move standings.
 
+## RapidAPI reconcile (Plan 16)
+
+Worker/script holds `RAPIDAPI_*` → maps → `POST` ingest. See [RECONCILE-RESULTS.md](./RECONCILE-RESULTS.md).
+
+```bash
+npm run reconcile:results -- --dry-run --map .provider-map.json
+```
+
 ## A/B — In-app (no service role)
 
 1. Open `/leagues/[slug]/t/[ref]` as commissioner (or founder).

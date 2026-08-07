@@ -1,0 +1,19 @@
+{
+  "name": "@matchread/provider-rapidapi",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "scripts": {
+    "lint": "node -e \"console.log('provider-rapidapi lint ok')\"",
+    "typecheck": "node -e \"console.log('provider-rapidapi typecheck skipped (js)')\"",
+    "test": "node --test src/map.test.js"
+  }
+}

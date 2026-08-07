@@ -1,0 +1,13 @@
+{
+  "tournament_id": "REPLACE-WITH-MATCHREAD-TOURNAMENT-UUID",
+  "provider_tournament_id": "21346",
+  "tour": "atp",
+  "comment": "Example: Montreal 2026 Masters (National Bank Open). Fill tournament_id from Supabase. Map only matches/players you have seats for. Copy to .provider-map.json (gitignored).",
+  "players": {
+    "28170": "p-0",
+    "29939": "p-1"
+  },
+  "matches": {
+    "1244910": "r0-m0"
+  }
+}
