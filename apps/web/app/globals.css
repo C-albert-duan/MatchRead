@@ -317,11 +317,6 @@ a {
     opacity: 0;
   }
 }
-  }
-  to {
-    transform: translate(-18px, 22px) scale(1.08);
-  }
-}
 
 .shell-header,
 .shell-main,
