@@ -7,7 +7,7 @@ Tokens for implementation live in `packages/tokens`. Production look: **night-co
 | Token | Hex | Meaning |
 |---|---|---|
 | `--mr-read` | `#F0F6FA` | User commitment (pick / ink) on night canvas |
-| `--mr-accent` | `#0B7AD1` | Action / CTA (hard-court blue) — not a verified result |
+| `--mr-accent` | `#00A6EF` | Action / CTA (live hard-court cyan) — not a verified result |
 | `--mr-data` | `#2DCF7A` | Verified tournament fact |
 | `--mr-miss` | `#E0453A` | Incorrect / miss |
 | Court clay/grass/hard | … | Surface context only |
