@@ -102,6 +102,11 @@ export function BracketGrid({
       aria-label="Tournament bracket"
       style={regionStyle}
     >
+      <div className="bracket-court" aria-hidden>
+        <span className="bracket-court-baseline" />
+        <span className="bracket-court-service" />
+        <span className="bracket-court-net" />
+      </div>
       <div className="bracket-grid">
         {rounds.map((round) => (
           <div
@@ -127,6 +132,13 @@ export function BracketGrid({
                 );
                 const voided = Boolean(result?.voided);
                 const officialWinner = result?.winnerRef ?? null;
+                const byeMatch = hasBye(a, b);
+                const advancer =
+                  byeMatch && a.kind === "player"
+                    ? a
+                    : byeMatch && b.kind === "player"
+                      ? b
+                      : null;
                 const pickable =
                   !locked &&
                   !graded &&
@@ -137,14 +149,11 @@ export function BracketGrid({
                 const unpicked = Boolean(pickable && !chosen);
                 const level = confidence[match.key] ?? null;
                 const showConfidence = Boolean(chosen) && !graded;
-                const showGrade = graded;
-                const byeMatch = hasBye(a, b);
+                const showGrade = graded && !byeMatch;
 
                 let gradeLabel: string | null = null;
                 if (showGrade) {
                   if (voided) gradeLabel = "Void";
-                  else if (byeMatch)
-                    gradeLabel = `Won: ${seatName(seats, officialWinner)}`;
                   else if (!chosen)
                     gradeLabel = `Won: ${seatName(seats, officialWinner)}`;
                   else if (chosen === officialWinner) gradeLabel = "Correct";
@@ -167,6 +176,24 @@ export function BracketGrid({
                   graded,
                 });
 
+                if (byeMatch && advancer) {
+                  return (
+                    <div
+                      key={match.key}
+                      className="match-cell match-cell--bye"
+                    >
+                      <div
+                        className="slot slot--bye"
+                        role="group"
+                        aria-label={`${advancer.lastName} advances (bye)`}
+                      >
+                        <PlayerChip occupant={advancer} grade="official" />
+                        <span className="bye-tag">Bye · advances</span>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <div key={match.key} className="match-cell">
                     <div
@@ -179,13 +206,11 @@ export function BracketGrid({
                         showGrade
                           ? voided
                             ? "voided"
-                            : byeMatch
-                              ? "result"
-                              : chosen && chosen === officialWinner
-                                ? "correct"
-                                : chosen
-                                  ? "incorrect"
-                                  : "result"
+                            : chosen && chosen === officialWinner
+                              ? "correct"
+                              : chosen
+                                ? "incorrect"
+                                : "result"
                           : undefined
                       }
                     >
@@ -222,13 +247,13 @@ export function BracketGrid({
                           <PlayerChip
                             occupant={a}
                             chosen={a.kind === "player" && chosen === a.ref}
-                            grade={byeMatch ? null : gradeA}
+                            grade={gradeA}
                           />
                           <div className="slot-divider" />
                           <PlayerChip
                             occupant={b}
                             chosen={b.kind === "player" && chosen === b.ref}
-                            grade={byeMatch ? null : gradeB}
+                            grade={gradeB}
                           />
                         </>
                       )}

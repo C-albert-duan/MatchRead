@@ -272,6 +272,11 @@ a {
   padding: var(--s-4xl) var(--s-lg) var(--s-5xl);
 }
 
+.shell-main:has(.page--court) {
+  max-width: min(1400px, 100%);
+  padding-top: var(--s-2xl);
+}
+
 .shell-footer {
   max-width: var(--max-content);
   margin: 0 auto;
@@ -325,6 +330,96 @@ a {
   display: flex;
   flex-direction: column;
   gap: var(--s-4xl);
+}
+
+.page--court {
+  gap: var(--s-2xl);
+  max-width: none;
+  width: 100%;
+}
+
+.page-header--court {
+  max-width: none;
+  padding: var(--s-3xl) var(--s-2xl);
+  border-radius: calc(var(--r-md) + 2px);
+  color: #fff;
+  border: 1px solid color-mix(in srgb, #fff 22%, transparent);
+  background:
+    linear-gradient(
+      120deg,
+      color-mix(in srgb, var(--mr-scoreboard) 88%, transparent),
+      color-mix(in srgb, var(--mr-scoreboard-raised) 70%, transparent)
+    ),
+    linear-gradient(160deg, var(--mr-court-hard), #0a5a9c 55%, #073d6b);
+  position: relative;
+  overflow: hidden;
+}
+
+.page--court-clay .page-header--court {
+  background:
+    linear-gradient(
+      120deg,
+      color-mix(in srgb, var(--mr-scoreboard) 75%, transparent),
+      transparent
+    ),
+    linear-gradient(160deg, #c45a2e, #a04420 60%, #6e2c12);
+}
+
+.page--court-grass .page-header--court {
+  background:
+    linear-gradient(
+      120deg,
+      color-mix(in srgb, var(--mr-scoreboard) 75%, transparent),
+      transparent
+    ),
+    linear-gradient(160deg, #3f8a32, #2d6b24 60%, #1b4518);
+}
+
+.page-header--court::after {
+  content: "";
+  position: absolute;
+  inset: 12% -5% auto auto;
+  width: min(42vw, 420px);
+  aspect-ratio: 1.4;
+  border: 2px solid color-mix(in srgb, #fff 28%, transparent);
+  border-radius: 4px;
+  transform: rotate(-18deg);
+  pointer-events: none;
+}
+
+.page-header--court .eyebrow,
+.page-header--court .t-lead {
+  color: color-mix(in srgb, #fff 78%, transparent);
+}
+
+.page-header--court .t-page-title {
+  color: #fff;
+  font-family: var(--mr-font-display);
+  letter-spacing: -0.02em;
+}
+
+.bracket-stage {
+  margin-inline: calc(var(--s-lg) * -1);
+  padding: var(--s-lg);
+  border-radius: calc(var(--r-md) + 4px);
+  border: 1px solid color-mix(in srgb, #fff 18%, transparent);
+  background:
+    radial-gradient(80% 60% at 70% 0%, color-mix(in srgb, #fff 16%, transparent), transparent 55%),
+    linear-gradient(165deg, #1a6fb8 0%, #0d5a9a 38%, #0a4a82 100%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 22%, transparent);
+  overflow: hidden;
+}
+
+.page--court-clay .bracket-stage {
+  background:
+    radial-gradient(80% 60% at 70% 0%, color-mix(in srgb, #fff 12%, transparent), transparent 55%),
+    linear-gradient(165deg, #d96b3c 0%, #b85528 40%, #8f3f1a 100%);
+}
+
+.page--court-grass .bracket-stage {
+  background:
+    radial-gradient(80% 60% at 70% 0%, color-mix(in srgb, #fff 12%, transparent), transparent 55%),
+    linear-gradient(165deg, #4fa03a 0%, #3a7d2c 40%, #28571e 100%);
 }
 
 .page-header {
@@ -708,23 +803,6 @@ a {
   gap: 0;
 }
 
-.calendar {
-  border-top: 1px solid var(--mr-line);
-}
-
-.calendar > li + li .trow,
-.league-list > li + li .league-card {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-}
-
-.calendar > li:not(:last-child) .trow,
-.league-list > li:not(:last-child) .league-card {
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
-  border-bottom-color: transparent;
-}
-
 .trow,
 .league-card {
   position: relative;
@@ -734,20 +812,42 @@ a {
   min-height: calc(var(--touch) + 8px);
   padding: var(--s-lg) var(--s-xl) var(--s-lg) calc(var(--s-xl) + 8px);
   text-decoration: none;
-  border: 1px solid color-mix(in srgb, var(--mr-accent) 20%, var(--mr-line));
-  border-radius: var(--r-md);
-  background: color-mix(in srgb, #fff 85%, var(--mr-raised));
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--mr-accent) 16%, var(--mr-line));
+  border-radius: 0;
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--mr-accent) 8%, transparent),
+      transparent 28%
+    ),
+    color-mix(in srgb, #fff 55%, transparent);
   transition:
-    border-color var(--mr-duration-instant) var(--mr-ease-standard),
-    background-color var(--mr-duration-instant) var(--mr-ease-standard),
-    transform var(--mr-duration-instant) var(--mr-ease-standard);
+    background-color var(--mr-duration-instant) var(--mr-ease-standard);
 }
 
 .trow:hover,
 .league-card:hover {
-  border-color: var(--mr-accent);
-  background: #fff;
-  transform: translateY(-1px);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--mr-accent) 14%, transparent),
+      transparent 40%
+    ),
+    color-mix(in srgb, #fff 78%, transparent);
+}
+
+.calendar,
+.league-list {
+  border: 1px solid color-mix(in srgb, var(--mr-accent) 18%, var(--mr-line));
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: color-mix(in srgb, #fff 40%, transparent);
+}
+
+.calendar > li:last-child .trow,
+.league-list > li:last-child .league-card {
+  border-bottom: 0;
 }
 
 .court-hairline {
@@ -756,7 +856,7 @@ a {
   top: 0;
   bottom: 0;
   width: 5px;
-  border-radius: var(--r-md) 0 0 var(--r-md);
+  border-radius: 0;
 }
 
 .court-hard {
@@ -1148,7 +1248,7 @@ a {
   border: 0;
 }
 
-/* ?? bracket ?? */
+/* ?? bracket — court scoreboard ?? */
 .bracket-region {
   --slot-h: calc(var(--touch) * 2 + 1px);
   --slot-gap: var(--s-md);
@@ -1156,22 +1256,67 @@ a {
   --bracket-body-h: calc(
     var(--r0-slots) * var(--slot-h) + (var(--r0-slots) - 1) * var(--slot-gap)
   );
-  margin: 0 calc(var(--s-lg) * -1);
+  position: relative;
+  margin: 0;
   overflow-x: auto;
-  padding: 0 var(--s-lg) var(--s-lg);
+  padding: var(--s-xl) var(--s-lg) var(--s-2xl);
+  border-radius: var(--r-md);
+  isolation: isolate;
+}
+
+.bracket-court {
+  position: absolute;
+  inset: 8% 4%;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.35;
+}
+
+.bracket-court-baseline,
+.bracket-court-service,
+.bracket-court-net {
+  position: absolute;
+  border: 2px solid color-mix(in srgb, #fff 70%, transparent);
+}
+
+.bracket-court-baseline {
+  inset: 0;
+  border-radius: 4px;
+}
+
+.bracket-court-service {
+  top: 18%;
+  bottom: 18%;
+  left: 12%;
+  right: 12%;
+  border-radius: 2px;
+}
+
+.bracket-court-net {
+  top: 8%;
+  bottom: 8%;
+  left: 50%;
+  width: 0;
+  border-left-width: 3px;
+  border-right: 0;
+  border-top: 0;
+  border-bottom: 0;
+  transform: translateX(-50%);
 }
 
 .bracket-grid {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: flex-start;
   min-width: max-content;
-  gap: var(--s-2xl);
+  gap: var(--s-3xl);
 }
 
 .bracket-col {
   display: flex;
   flex-direction: column;
-  width: 216px;
+  width: 228px;
   flex-shrink: 0;
 }
 
@@ -1179,10 +1324,14 @@ a {
   flex: 0 0 var(--bracket-head-h);
   height: var(--bracket-head-h);
   margin: 0 0 var(--s-sm);
-  font-weight: 500;
+  font-family: var(--mr-font-display);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   line-height: var(--bracket-head-h);
-  color: var(--mr-text-muted);
+  color: color-mix(in srgb, #fff 88%, transparent);
   white-space: nowrap;
+  text-shadow: 0 1px 2px color-mix(in srgb, #000 35%, transparent);
 }
 
 .bracket-col-body {
@@ -1216,21 +1365,167 @@ a {
   flex-direction: column;
   height: var(--slot-h);
   box-sizing: border-box;
-  border: 1px solid var(--mr-line);
-  border-radius: var(--r-md);
-  background: var(--mr-canvas);
+  border: 1px solid color-mix(in srgb, #fff 28%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--mr-scoreboard) 72%, transparent);
+  backdrop-filter: blur(8px);
+  color: #fff;
   overflow: hidden;
+  box-shadow:
+    0 8px 24px color-mix(in srgb, #000 18%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 14%, transparent);
+}
+
+.slot--bye {
+  height: calc(var(--touch) + 4px);
+  flex-direction: row;
+  align-items: center;
+  padding-right: var(--s-sm);
+  background: color-mix(in srgb, #000 28%, transparent);
+  border-style: dashed;
+}
+
+.match-cell--bye {
+  justify-content: center;
+}
+
+.bracket-col[data-round="0"] .match-cell--bye {
+  justify-content: flex-start;
+  padding-top: calc((var(--slot-h) - (var(--touch) + 4px)) / 2);
+}
+
+.bye-tag {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: var(--mr-font-numeral);
+  font-size: 0.6875rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, #fff 78%, transparent);
+  background: color-mix(in srgb, #fff 12%, transparent);
+  white-space: nowrap;
 }
 
 .slot[data-unpicked="true"] {
   border-style: dashed;
-  border-color: var(--mr-line-strong);
+  border-color: color-mix(in srgb, #fff 45%, transparent);
 }
 
 .slot-divider {
   height: 1px;
   flex-shrink: 0;
-  background: var(--mr-line);
+  background: color-mix(in srgb, #fff 18%, transparent);
+}
+
+.bracket-stage .name {
+  color: #fff;
+  border-left-color: transparent;
+}
+
+.bracket-stage .name-text {
+  color: color-mix(in srgb, #fff 92%, transparent);
+}
+
+.bracket-stage .name-seed,
+.bracket-stage .name-country,
+.bracket-stage .name--empty .name-text,
+.bracket-stage .name--bye .name-text {
+  color: color-mix(in srgb, #fff 55%, transparent);
+}
+
+.bracket-stage .name--chosen {
+  border-left-color: #7fd0ff;
+  background: color-mix(in srgb, #7fd0ff 12%, transparent);
+}
+
+.bracket-stage .name--chosen .name-text {
+  color: #fff;
+}
+
+.bracket-stage .name--correct {
+  border-left-color: #5dffa0;
+}
+
+.bracket-stage .name--correct .name-text {
+  color: #5dffa0;
+}
+
+.bracket-stage .name--incorrect {
+  border-left-color: #ff8a7a;
+}
+
+.bracket-stage .name--incorrect .name-text {
+  color: #ff8a7a;
+}
+
+.bracket-stage .name--official {
+  border-left-color: #5dffa0;
+  background: color-mix(in srgb, #5dffa0 12%, transparent);
+}
+
+.bracket-stage .name--official .name-text {
+  color: #fff;
+}
+
+.bracket-stage .confidence-row,
+.bracket-stage .grade-row {
+  border-top-color: color-mix(in srgb, #fff 16%, transparent);
+  background: color-mix(in srgb, #000 28%, transparent);
+  color: color-mix(in srgb, #fff 75%, transparent);
+}
+
+.bracket-stage .slot[data-graded="correct"] {
+  border-color: color-mix(in srgb, #5dffa0 55%, transparent);
+}
+
+.bracket-stage .slot[data-graded="correct"] .grade-row {
+  color: #5dffa0;
+  background: color-mix(in srgb, #5dffa0 12%, transparent);
+}
+
+.bracket-stage .slot[data-graded="incorrect"] {
+  border-color: color-mix(in srgb, #ff8a7a 50%, transparent);
+}
+
+.bracket-stage .slot[data-graded="incorrect"] .grade-row {
+  color: #ff8a7a;
+  background: color-mix(in srgb, #ff8a7a 12%, transparent);
+}
+
+.bracket-stage .confidence-btn {
+  border-color: color-mix(in srgb, #fff 22%, transparent);
+  background: color-mix(in srgb, #000 25%, transparent);
+  color: color-mix(in srgb, #fff 70%, transparent);
+}
+
+.bracket-stage .confidence-btn[data-active="true"] {
+  background: color-mix(in srgb, #7fd0ff 35%, transparent);
+  color: #fff;
+  border-color: #7fd0ff;
+}
+
+.bracket-stage .hint {
+  color: color-mix(in srgb, #fff 82%, transparent);
+}
+
+.bracket-stage .t-lead,
+.bracket-stage .numeral {
+  color: color-mix(in srgb, #fff 90%, transparent);
+}
+
+.bracket-stage .act--standard {
+  border-color: color-mix(in srgb, #fff 35%, transparent);
+  color: #fff;
+  background: color-mix(in srgb, #000 22%, transparent);
+}
+
+.bracket-stage .act--quiet {
+  color: color-mix(in srgb, #fff 85%, transparent);
+}
+
+.bracket-stage .act--prominent {
+  box-shadow: 0 6px 18px color-mix(in srgb, #000 25%, transparent);
 }
 
 .name {

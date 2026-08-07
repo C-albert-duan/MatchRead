@@ -108,10 +108,17 @@ export default async function BracketPage({ params }: Props) {
   }
   const hasOfficial = Object.keys(officialResults).length > 0;
 
+  const surface = String(tournament.surface ?? "hard").toLowerCase();
+  const courtTone = surface.includes("clay")
+    ? "clay"
+    : surface.includes("grass")
+      ? "grass"
+      : "hard";
+
   return (
-    <AppShell signedIn email={user.email}>
-      <div className="page">
-        <header className="page-header page-header--split">
+    <AppShell signedIn email={user.email} arena>
+      <div className={`page page--court page--court-${courtTone}`}>
+        <header className="page-header page-header--split page-header--court">
           <div className="page-header-copy">
             <p className="eyebrow">{league.name}</p>
             <h1 className="t-page-title">
@@ -138,7 +145,7 @@ export default async function BracketPage({ params }: Props) {
           </div>
         </header>
 
-        <div className="focus-band">
+        <div className="bracket-stage">
           <BracketEditor
             leagueId={league.id}
             leagueSlug={league.slug}
