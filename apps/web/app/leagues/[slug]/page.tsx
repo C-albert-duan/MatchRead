@@ -5,10 +5,13 @@ import { DailyCheckPanel } from "@/components/league/DailyCheckPanel";
 import { EngagementStrip } from "@/components/league/EngagementStrip";
 import { InvitePanel } from "@/components/league/InvitePanel";
 import { LeagueHighlights } from "@/components/league/LeagueHighlights";
+import { LeagueMembersPanel } from "@/components/league/LeagueMembersPanel";
+import { LeagueSettingsPanel } from "@/components/league/LeagueSettingsPanel";
 import { getSessionUser } from "@/lib/auth";
 import { getServerSiteUrl } from "@/lib/env";
 import { t, tf } from "@/lib/i18n";
 import { loadDailyCheck } from "@/lib/leagues/daily-check";
+import type { LeagueVisibility } from "@/lib/leagues/types";
 import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
 import { redirectIfMissingDisplayName } from "@/lib/profiles/require-name";
 import { createClient } from "@/lib/supabase/server";
@@ -299,24 +302,29 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
           )}
         </section>
 
-        <section className="section" aria-labelledby="members-heading">
-          <h2 id="members-heading" className="section-title">
-            {t("league.members")}
-          </h2>
-          <ul className="member-list">
-            {members.map((m) => (
-              <li key={m.user_id} className="member-row">
-                <span className="numeral">
-                  {memberLabel(m.user_id, user.id, memberNames)}
-                </span>
-                <span className="t-caption">
-                  {m.role === "commissioner"
-                    ? t("league.role.commissioner")
-                    : t("league.role.member")}
-                </span>
-              </li>
-            ))}
-          </ul>
+        {isCommissioner ? (
+          <section className="section" aria-label={t("league.settings.title")}>
+            <LeagueSettingsPanel
+              leagueId={league.id}
+              slug={league.slug}
+              initialName={league.name}
+              initialVisibility={league.visibility as LeagueVisibility}
+            />
+          </section>
+        ) : null}
+
+        <section className="section">
+          <LeagueMembersPanel
+            leagueId={league.id}
+            slug={league.slug}
+            currentUserId={user.id}
+            isCommissioner={isCommissioner}
+            members={members.map((m) => ({
+              user_id: m.user_id,
+              role: m.role,
+              label: memberLabel(m.user_id, user.id, memberNames),
+            }))}
+          />
         </section>
       </div>
     </AppShell>

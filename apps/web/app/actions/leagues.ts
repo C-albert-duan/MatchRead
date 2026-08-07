@@ -151,3 +151,126 @@ export async function revokeAndReissueInvite(
   revalidatePath(`/leagues/${slug}`);
   return { ok: true };
 }
+
+function mapLeagueRpcError(msg: string, fallback: string): string {
+  if (/not authenticated/i.test(msg)) return "Sign in required.";
+  if (/not commissioner/i.test(msg)) return "Only the commissioner can do that.";
+  if (/invalid name/i.test(msg)) return "Give your league a name.";
+  if (/invalid visibility/i.test(msg)) return "Choose who can see it.";
+  if (/league not found/i.test(msg)) return "League not found.";
+  if (/cannot kick self/i.test(msg)) return "You cannot remove yourself.";
+  if (/cannot kick commissioner/i.test(msg))
+    return "You cannot remove the commissioner.";
+  if (/member not found/i.test(msg)) return "That member is not in this league.";
+  if (/not a member/i.test(msg)) return "You are not in this league.";
+  if (/commissioner cannot leave/i.test(msg))
+    return "Commissioners must delete the league instead of leaving.";
+  return msg || fallback;
+}
+
+export async function updateLeague(input: {
+  leagueId: string;
+  slug: string;
+  name: string;
+  visibility: LeagueVisibility;
+}): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) {
+    return { ok: false, error: "Sign in required." };
+  }
+
+  const name = input.name.trim();
+  if (!name) {
+    return { ok: false, error: "Give your league a name." };
+  }
+  if (input.visibility !== "private" && input.visibility !== "public") {
+    return { ok: false, error: "Choose who can see it." };
+  }
+
+  const { error } = await supabase.rpc("update_league", {
+    p_league_id: input.leagueId,
+    p_name: name,
+    p_visibility: input.visibility,
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      error: mapLeagueRpcError(error.message, "Could not update league."),
+    };
+  }
+
+  revalidatePath(`/leagues/${input.slug}`);
+  revalidatePath("/leagues");
+  return { ok: true };
+}
+
+export async function deleteLeague(
+  leagueId: string
+): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) {
+    return { ok: false, error: "Sign in required." };
+  }
+
+  const { error } = await supabase.rpc("delete_league", {
+    p_league_id: leagueId,
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      error: mapLeagueRpcError(error.message, "Could not delete league."),
+    };
+  }
+
+  revalidatePath("/leagues");
+  redirect("/leagues");
+}
+
+export async function kickMember(input: {
+  leagueId: string;
+  slug: string;
+  userId: string;
+}): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) {
+    return { ok: false, error: "Sign in required." };
+  }
+
+  const { error } = await supabase.rpc("kick_league_member", {
+    p_league_id: input.leagueId,
+    p_user_id: input.userId,
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      error: mapLeagueRpcError(error.message, "Could not remove member."),
+    };
+  }
+
+  revalidatePath(`/leagues/${input.slug}`);
+  return { ok: true };
+}
+
+export async function leaveLeague(leagueId: string): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) {
+    return { ok: false, error: "Sign in required." };
+  }
+
+  const { error } = await supabase.rpc("leave_league", {
+    p_league_id: leagueId,
+  });
+
+  if (error) {
+    return {
+      ok: false,
+      error: mapLeagueRpcError(error.message, "Could not leave league."),
+    };
+  }
+
+  revalidatePath("/leagues");
+  redirect("/leagues");
+}

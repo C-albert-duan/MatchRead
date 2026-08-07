@@ -173,6 +173,20 @@ const en = {
   "league.format.season": "Season league",
   "league.home": "League home",
   "league.noTournaments": "No tournaments in the calendar yet.",
+  "league.settings.title": "League settings",
+  "league.settings.lede":
+    "Change the display name or who can see the league. Format and tournament stay fixed.",
+  "league.settings.save": "Save changes",
+  "league.settings.saving": "Saving…",
+  "league.settings.saved": "Saved.",
+  "league.settings.danger": "Deleting removes the league, members, and brackets.",
+  "league.settings.delete": "Delete league",
+  "league.settings.deleteConfirm":
+    "Delete this league permanently? Members and brackets will be removed.",
+  "league.members.kick": "Remove",
+  "league.members.kickConfirm": "Remove this member from the league?",
+  "league.members.leave": "Leave league",
+  "league.members.leaveConfirm": "Leave this league? You will need a new invite to rejoin.",
 
   "leagues.my.title": "My leagues",
   "leagues.my.lede":
@@ -595,6 +609,22 @@ const es: Record<MessageKey, string> = {
   "league.format.season": "Liga de temporada",
   "league.home": "Inicio de liga",
   "league.noTournaments": "Aún no hay torneos en el calendario.",
+  "league.settings.title": "Ajustes de la liga",
+  "league.settings.lede":
+    "Cambia el nombre o quién puede ver la liga. El formato y el torneo no se pueden cambiar.",
+  "league.settings.save": "Guardar cambios",
+  "league.settings.saving": "Guardando…",
+  "league.settings.saved": "Guardado.",
+  "league.settings.danger":
+    "Borrar elimina la liga, los miembros y los brackets.",
+  "league.settings.delete": "Eliminar liga",
+  "league.settings.deleteConfirm":
+    "¿Eliminar esta liga de forma permanente? Se quitarán miembros y brackets.",
+  "league.members.kick": "Quitar",
+  "league.members.kickConfirm": "¿Quitar a este miembro de la liga?",
+  "league.members.leave": "Salir de la liga",
+  "league.members.leaveConfirm":
+    "¿Salir de esta liga? Necesitarás una nueva invitación para volver.",
 
   "leagues.my.title": "Mis ligas",
   "leagues.my.lede":
@@ -1013,6 +1043,22 @@ const ja: Record<MessageKey, string> = {
   "league.format.season": "シーズンリーグ",
   "league.home": "リーグホーム",
   "league.noTournaments": "カレンダーにまだ大会がありません。",
+  "league.settings.title": "リーグ設定",
+  "league.settings.lede":
+    "表示名や公開範囲を変更できます。形式と大会は変更できません。",
+  "league.settings.save": "変更を保存",
+  "league.settings.saving": "保存中…",
+  "league.settings.saved": "保存しました。",
+  "league.settings.danger":
+    "削除するとリーグ、メンバー、ブラケットがすべて消えます。",
+  "league.settings.delete": "リーグを削除",
+  "league.settings.deleteConfirm":
+    "このリーグを完全に削除しますか？メンバーとブラケットも削除されます。",
+  "league.members.kick": "削除",
+  "league.members.kickConfirm": "このメンバーをリーグから外しますか？",
+  "league.members.leave": "リーグを退出",
+  "league.members.leaveConfirm":
+    "このリーグを退出しますか？再参加には新しい招待が必要です。",
 
   "leagues.my.title": "マイリーグ",
   "leagues.my.lede": "あなたのグループ。動きがあるものを開くか、次のリーグを始めましょう。",
