@@ -80,6 +80,7 @@ export function BracketGrid({
   const r0Slots = drawSize / 2;
   const regionStyle = {
     ["--r0-slots"]: String(r0Slots),
+    ["--round-count"]: String(rounds.length),
   } as CSSProperties;
 
   // Later rounds must show official winners (and bye advances), not only
