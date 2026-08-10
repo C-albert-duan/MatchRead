@@ -16,25 +16,36 @@ const en = {
   "landing.hero.lede":
     "Your league. One bracket. The Daily Check every morning — what happened today, and did you move?",
   "landing.cta.leagues": "Go to my leagues",
+  "landing.cta.bracket": "Fill a bracket",
   "landing.cta.start": "Start a league",
   "landing.cta.showcase": "See what it looks like",
   "landing.calendar.title": "On the calendar",
   "landing.calendar.lede":
-    "The events your league can gather around. Brackets open when the draw is published.",
+    "Pick an event and fill a bracket — no league needed to start. Invite friends when you want company.",
+  "landing.calendar.openNow": "Open now",
+  "landing.calendar.openNow.empty":
+    "No draws open right now — brackets unlock when the next draw lands.",
+  "landing.calendar.upcoming": "Upcoming",
+  "landing.calendar.upcoming.empty.next":
+    "Between events. Next up for {tour}: {name}.",
+  "landing.calendar.upcoming.empty.both":
+    "Between events. Next: {atp} (ATP) · {wta} (WTA).",
+  "landing.calendar.upcoming.empty.none":
+    "Between events — the next tournament lands when the season calendar is confirmed.",
   "landing.how.title": "How it works",
   "landing.how.lede":
-    "Create a league, share a link, fill brackets together, return for the Daily Check.",
-  "landing.how.1.title": "Start a league",
+    "Fill a bracket first. Invite friends later. Come back for the Daily Check.",
+  "landing.how.1.title": "Fill in the draw",
   "landing.how.1.body":
-    "Name it, pick a tournament or a whole season, and you are the commissioner.",
-  "landing.how.2.title": "Share one link",
-  "landing.how.2.body": "Drop it in the group chat. People join in two taps.",
-  "landing.how.3.title": "Fill in a bracket",
+    "Pick a winner for every match, all the way to the champion. No league required.",
+  "landing.how.2.title": "Invite friends",
+  "landing.how.2.body":
+    "Share one link when you want company. The same bracket becomes the league field.",
+  "landing.how.3.title": "Lock and settle",
   "landing.how.3.body":
-    "When the draw lands, everyone picks. Nobody sees anyone else’s until it locks.",
+    "Edits stop at lock. As matches finish, your score updates — and standings if you have a league.",
   "landing.how.4.title": "Check it tomorrow",
-  "landing.how.4.body":
-    "Standings move as matches finish. That is the part people come back for.",
+  "landing.how.4.body": "Standings move as matches finish.",
 
   "nav.leagues": "Leagues",
   "nav.calendar": "Calendar",
@@ -43,11 +54,26 @@ const en = {
   "nav.back": "Back",
   "nav.loading": "Loading…",
   "cta.startLeague": "Start a league",
+  "cta.fillBracket": "Fill a bracket",
   "nav.signedInAs": "Signed in as",
 
-  "leagues.empty.title": "No leagues yet",
+  "leagues.empty.title": "No brackets yet",
   "leagues.empty.body":
-    "Start one in under a minute, then drop the invite link in the group chat.",
+    "Fill a tournament bracket on your own, or start a league and invite your group.",
+  "leagues.solo.badge": "Solo bracket",
+  "leagues.solo.caption": "Just you — invite friends anytime before lock",
+  "league.solo.eyebrow": "Your bracket",
+  "league.grow.solo.title": "Compare it with someone",
+  "league.grow.solo.lede":
+    "A bracket alone is a complete entry. Invite friends and the same picks count in the league.",
+  "bracket.solo.invite.title": "Compare it with someone",
+  "bracket.solo.invite.body":
+    "Invite friends into this bracket. They fill their own — yours stays put.",
+  "bracket.solo.invite.cta": "Invite friends",
+  "result.solo.scoreEyebrow": "Your score",
+  "tournament.solo.scoreTitle": "Your score",
+  "tournament.solo.noStandings":
+    "Standings appear when someone joins your league. Until then, this is your score alone.",
 
   "daily.frame.today": "Today",
   "daily.frame.morning": "This morning",
@@ -431,11 +457,17 @@ const en = {
   "calendar.eyebrow": "Calendar",
   "calendar.title": "Tournament calendar",
   "calendar.lede":
-    "Events your league can gather around. Open one to jump into a matching league tournament.",
+    "Open an event to fill a bracket — alone first, or into a league you already have.",
   "calendar.drawOpen": "draw open",
   "calendar.drawPending": "draw pending",
+  "calendar.entryLocks": "entry locks",
+  "calendar.starts": "starts",
+  "calendar.today": "Today",
+  "calendar.tomorrow": "Tomorrow",
   "calendar.open": "Open",
   "calendar.empty": "No tournaments in the database yet.",
+  "tour.atp": "ATP",
+  "tour.wta": "WTA",
 } as const;
 
 export type MessageKey = keyof typeof en;
@@ -448,26 +480,37 @@ const es: Record<MessageKey, string> = {
   "landing.hero.lede":
     "Tu liga. Un cuadro. El Daily Check cada mañana — qué pasó hoy, y si te moviste.",
   "landing.cta.leagues": "Ir a mis ligas",
+  "landing.cta.bracket": "Rellenar un cuadro",
   "landing.cta.start": "Crear una liga",
   "landing.cta.showcase": "Ver cómo se ve",
   "landing.calendar.title": "En el calendario",
   "landing.calendar.lede":
-    "Los eventos en torno a los que tu liga puede reunirse. Los cuadros abren cuando se publica el sorteo.",
+    "Elige un evento y rellena un cuadro — no hace falta una liga para empezar. Invita amigos cuando quieras compañía.",
+  "landing.calendar.openNow": "Abiertos ahora",
+  "landing.calendar.openNow.empty":
+    "No hay sorteos abiertos ahora — los cuadros se abren cuando llegue el próximo sorteo.",
+  "landing.calendar.upcoming": "Próximos",
+  "landing.calendar.upcoming.empty.next":
+    "Entre eventos. Siguiente en {tour}: {name}.",
+  "landing.calendar.upcoming.empty.both":
+    "Entre eventos. Siguiente: {atp} (ATP) · {wta} (WTA).",
+  "landing.calendar.upcoming.empty.none":
+    "Entre eventos — el próximo torneo llega cuando se confirme el calendario de la temporada.",
   "landing.how.title": "Cómo funciona",
   "landing.how.lede":
-    "Crea una liga, comparte un enlace, rellenad cuadros juntos, vuelve por el Daily Check.",
-  "landing.how.1.title": "Crea una liga",
+    "Primero el cuadro. Invita después. Vuelve por el Daily Check.",
+  "landing.how.1.title": "Rellena el cuadro",
   "landing.how.1.body":
-    "Ponle nombre, elige un torneo o toda la temporada, y eres el comisionado.",
-  "landing.how.2.title": "Comparte un enlace",
+    "Elige un ganador en cada partido hasta el campeón. No hace falta una liga.",
+  "landing.how.2.title": "Invita amigos",
   "landing.how.2.body":
-    "Pégalo en el chat del grupo. La gente entra en dos toques.",
-  "landing.how.3.title": "Rellena el cuadro",
+    "Comparte un enlace cuando quieras compañía. El mismo cuadro pasa a ser el campo de la liga.",
+  "landing.how.3.title": "Cierre y liquidación",
   "landing.how.3.body":
-    "Cuando sale el sorteo, todos eligen. Nadie ve las picks de los demás hasta el cierre.",
+    "Las ediciones paran al cierre. Al acabar partidos, sube tu puntuación — y la clasificación si hay liga.",
   "landing.how.4.title": "Míralo mañana",
   "landing.how.4.body":
-    "La clasificación se mueve al terminar los partidos. Por eso vuelve la gente.",
+    "La clasificación se mueve al terminar los partidos.",
 
   "nav.leagues": "Ligas",
   "nav.calendar": "Calendario",
@@ -476,11 +519,26 @@ const es: Record<MessageKey, string> = {
   "nav.back": "Atrás",
   "nav.loading": "Cargando…",
   "cta.startLeague": "Crear una liga",
+  "cta.fillBracket": "Rellenar un cuadro",
   "nav.signedInAs": "Sesión de",
 
-  "leagues.empty.title": "Aún no hay ligas",
+  "leagues.empty.title": "Aún no hay cuadros",
   "leagues.empty.body":
-    "Crea una en menos de un minuto y suelta el enlace de invitación en el chat.",
+    "Rellena un cuadro tú solo, o crea una liga e invita a tu grupo.",
+  "leagues.solo.badge": "Cuadro en solitario",
+  "leagues.solo.caption": "Solo tú — invita antes del cierre",
+  "league.solo.eyebrow": "Tu cuadro",
+  "league.grow.solo.title": "Compáralo con alguien",
+  "league.grow.solo.lede":
+    "Un cuadro solo es una entrada válida. Invita amigos y los mismos picks cuentan en la liga.",
+  "bracket.solo.invite.title": "Compáralo con alguien",
+  "bracket.solo.invite.body":
+    "Invita amigos a este cuadro. Ellos rellenan el suyo — el tuyo no se mueve.",
+  "bracket.solo.invite.cta": "Invitar amigos",
+  "result.solo.scoreEyebrow": "Tu puntuación",
+  "tournament.solo.scoreTitle": "Tu puntuación",
+  "tournament.solo.noStandings":
+    "La clasificación aparece cuando alguien se une. Hasta entonces, esto es solo tu puntuación.",
 
   "daily.frame.today": "Hoy",
   "daily.frame.morning": "Esta mañana",
@@ -869,11 +927,17 @@ const es: Record<MessageKey, string> = {
   "calendar.eyebrow": "Calendario",
   "calendar.title": "Calendario de torneos",
   "calendar.lede":
-    "Eventos en torno a los que tu liga puede reunirse. Abre uno para saltar al torneo de una liga compatible.",
+    "Abre un evento para rellenar un cuadro — solo primero, o en una liga que ya tengas.",
   "calendar.drawOpen": "sorteo abierto",
   "calendar.drawPending": "sorteo pendiente",
+  "calendar.entryLocks": "cierre de inscripción",
+  "calendar.starts": "empieza",
+  "calendar.today": "Hoy",
+  "calendar.tomorrow": "Mañana",
   "calendar.open": "Abrir",
   "calendar.empty": "Aún no hay torneos en la base de datos.",
+  "tour.atp": "ATP",
+  "tour.wta": "WTA",
 };
 
 const ja: Record<MessageKey, string> = {
@@ -884,25 +948,36 @@ const ja: Record<MessageKey, string> = {
   "landing.hero.lede":
     "あなたのリーグ。一つのブラケット。毎朝のDaily Check——今日何が起きたか、そしてあなたは動いたか。",
   "landing.cta.leagues": "マイリーグへ",
+  "landing.cta.bracket": "ブラケットを埋める",
   "landing.cta.start": "リーグを始める",
   "landing.cta.showcase": "見た目を見る",
   "landing.calendar.title": "カレンダー",
   "landing.calendar.lede":
-    "リーグが集まれる大会。ドローが公開されるとブラケットが開きます。",
+    "大会を選んでブラケットを埋める——リーグはあとで。友だちを誘うのはいつでも。",
+  "landing.calendar.openNow": "受付中",
+  "landing.calendar.openNow.empty":
+    "いま公開中のドローはない——次のドローが出るとブラケットが開く。",
+  "landing.calendar.upcoming": "今後の大会",
+  "landing.calendar.upcoming.empty.next":
+    "大会のあいだ。{tour}の次は {name}。",
+  "landing.calendar.upcoming.empty.both":
+    "大会のあいだ。次は {atp}（ATP）· {wta}（WTA）。",
+  "landing.calendar.upcoming.empty.none":
+    "大会のあいだ——次の大会はシーズン日程が確定してから。",
   "landing.how.title": "使い方",
   "landing.how.lede":
-    "リーグを作り、リンクを共有し、一緒にブラケットを埋め、Daily Checkに戻ってくる。",
-  "landing.how.1.title": "リーグを始める",
+    "まずブラケット。あとから招待。Daily Checkに戻ってくる。",
+  "landing.how.1.title": "ドローを埋める",
   "landing.how.1.body":
-    "名前を付け、大会かシーズンを選ぶ。あなたがコミッショナーになる。",
-  "landing.how.2.title": "リンクを一つ共有",
-  "landing.how.2.body": "グループチャットに貼る。二タップで参加できる。",
-  "landing.how.3.title": "ブラケットを埋める",
+    "優勝まで全試合の勝者を選ぶ。リーグは不要。",
+  "landing.how.2.title": "友達を招待",
+  "landing.how.2.body":
+    "仲間が欲しくなったらリンクを一つ。同じブラケットがリーグの土台になる。",
+  "landing.how.3.title": "ロックと精算",
   "landing.how.3.body":
-    "ドローが出たらみんなで選ぶ。ロックまで他人のピックは見えない。",
+    "ロック後は編集不可。試合が進むとスコアが更新され、リーグなら順位も動く。",
   "landing.how.4.title": "翌日チェック",
-  "landing.how.4.body":
-    "試合が進むと順位が動く。だからまた開きたくなる。",
+  "landing.how.4.body": "試合が進むと順位が動く。",
 
   "nav.leagues": "リーグ",
   "nav.calendar": "カレンダー",
@@ -911,11 +986,26 @@ const ja: Record<MessageKey, string> = {
   "nav.back": "戻る",
   "nav.loading": "読み込み中…",
   "cta.startLeague": "リーグを始める",
+  "cta.fillBracket": "ブラケットを埋める",
   "nav.signedInAs": "サインイン中",
 
-  "leagues.empty.title": "まだリーグがありません",
+  "leagues.empty.title": "まだブラケットがありません",
   "leagues.empty.body":
-    "一分以内に作れます。招待リンクをグループチャットに貼ってください。",
+    "一人で大会ブラケットを埋めるか、リーグを作ってグループを招待してください。",
+  "leagues.solo.badge": "ソロブラケット",
+  "leagues.solo.caption": "あなただけ——ロック前ならいつでも招待可",
+  "league.solo.eyebrow": "あなたのブラケット",
+  "league.grow.solo.title": "誰かと比べる",
+  "league.grow.solo.lede":
+    "ソロのブラケットも正式なエントリー。友だちを招待すれば同じピックがリーグに入る。",
+  "bracket.solo.invite.title": "誰かと比べる",
+  "bracket.solo.invite.body":
+    "このブラケットに友だちを招待。相手は自分の枠を埋める——あなたのはそのまま。",
+  "bracket.solo.invite.cta": "友達を招待",
+  "result.solo.scoreEyebrow": "あなたのスコア",
+  "tournament.solo.scoreTitle": "あなたのスコア",
+  "tournament.solo.noStandings":
+    "誰かが参加すると順位表が出ます。それまではスコアだけです。",
 
   "daily.frame.today": "今日",
   "daily.frame.morning": "今朝",
@@ -1291,11 +1381,17 @@ const ja: Record<MessageKey, string> = {
   "calendar.eyebrow": "カレンダー",
   "calendar.title": "大会カレンダー",
   "calendar.lede":
-    "リーグが集まれる大会。開くと対応するリーグの大会へ飛びます。",
+    "大会を開いてブラケットを埋める——まず一人で、または既存のリーグへ。",
   "calendar.drawOpen": "ドロー公開中",
   "calendar.drawPending": "ドロー待ち",
+  "calendar.entryLocks": "エントリー締切",
+  "calendar.starts": "開始",
+  "calendar.today": "今日",
+  "calendar.tomorrow": "明日",
   "calendar.open": "開く",
   "calendar.empty": "データベースに大会がまだありません。",
+  "tour.atp": "ATP",
+  "tour.wta": "WTA",
 };
 
 const catalogues: Record<Locale, Record<MessageKey, string>> = {

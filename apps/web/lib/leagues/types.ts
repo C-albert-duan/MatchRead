@@ -11,6 +11,8 @@ export type League = {
   tournament_label: string | null;
   commissioner_id: string;
   created_at: string;
+  /** True while this is still a personal league of one (solo funnel). */
+  is_solo: boolean;
 };
 
 export type LeagueListItem = League & {

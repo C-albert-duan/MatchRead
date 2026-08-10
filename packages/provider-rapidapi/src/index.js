@@ -83,13 +83,79 @@ export function createClient(opts) {
 }
 
 /**
+ * @param {'atp'|'wta'|string|null|undefined} tour
+ * @returns {'atp'|'wta'}
+ */
+export function normalizeTour(tour) {
+  return tour === "wta" ? "wta" : "atp";
+}
+
+/**
+ * Tournament calendar for one tour/year (discovery).
+ * @param {{ get: (path: string) => Promise<any> }} client
+ * @param {'atp'|'wta'} tour
+ * @param {number|string} year
+ * @param {{ since?: string, pageSize?: number, pageNo?: number, filter?: string }} [opts]
+ */
+export async function getTournamentCalendar(client, tour, year, opts = {}) {
+  const t = normalizeTour(tour);
+  const y = String(year).trim();
+  const qs = new URLSearchParams();
+  if (opts.since) qs.set("since", opts.since);
+  if (opts.pageSize != null) qs.set("pageSize", String(opts.pageSize));
+  if (opts.pageNo != null) qs.set("pageNo", String(opts.pageNo));
+  if (opts.filter) qs.set("filter", opts.filter);
+  const q = qs.toString();
+  const path = `/tennis/v2/${t}/tournament/calendar/${y}${q ? `?${q}` : ""}`;
+  const body = await client.get(path);
+  const data = body?.data ?? body;
+  /** @type {any[]} */
+  const rows = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.tournaments)
+      ? data.tournaments
+      : Array.isArray(data?.rows)
+        ? data.rows
+        : [];
+  return { tour: t, year: Number(y), tournaments: rows, raw: body };
+}
+
+/**
+ * Pull ATP + WTA calendars for the same year (dual-tour discovery).
+ * @param {{ get: (path: string) => Promise<any> }} client
+ * @param {number|string} year
+ * @param {{ since?: string, pageSize?: number, pageNo?: number, filter?: string }} [opts]
+ */
+export async function getDualTourCalendar(client, year, opts = {}) {
+  const [atp, wta] = await Promise.all([
+    getTournamentCalendar(client, "atp", year, opts),
+    getTournamentCalendar(client, "wta", year, opts),
+  ]);
+  return { atp, wta };
+}
+
+/**
+ * Tournament season info.
+ * @param {{ get: (path: string) => Promise<any> }} client
+ * @param {'atp'|'wta'} tour
+ * @param {string|number} providerTournamentId
+ */
+export async function getTournamentInfo(client, tour, providerTournamentId) {
+  const t = normalizeTour(tour);
+  const id = String(providerTournamentId).trim();
+  const body = await client.get(`/tennis/v2/${t}/tournament/info/${id}`);
+  const data = body?.data ?? body;
+  return { tour: t, info: data, raw: body };
+}
+
+/**
  * Tournament results (Game archive). player1 is typically winner; prefer match_winner.
  * @param {{ get: (path: string) => Promise<any> }} client
  * @param {'atp'|'wta'} tour
  * @param {string|number} providerTournamentId
  */
 export async function getTournamentResults(client, tour, providerTournamentId) {
-  const t = tour === "wta" ? "wta" : "atp";
+  const t = normalizeTour(tour);
   const id = String(providerTournamentId).trim();
   const body = await client.get(`/tennis/v2/${t}/tournament/results/${id}`);
   const data = body?.data ?? body;
@@ -98,6 +164,39 @@ export async function getTournamentResults(client, tour, providerTournamentId) {
   /** @type {ProviderMatchResult[]} */
   const doubles = Array.isArray(data?.doubles) ? data.doubles : [];
   return { singles, doubles, raw: body };
+}
+
+/**
+ * Find National Bank Open week events: Montreal (ATP) + Toronto (WTA).
+ * @param {{ atp: { tournaments: any[] }, wta: { tournaments: any[] } }} dual
+ */
+export function resolveNationalBankOpenWeek(dual) {
+  const montreal = (dual.atp?.tournaments ?? []).find((row) => {
+    const name = String(row?.name ?? "").toLowerCase();
+    return name.includes("national bank") && name.includes("montreal");
+  });
+  const toronto = (dual.wta?.tournaments ?? []).find((row) => {
+    const name = String(row?.name ?? "").toLowerCase();
+    return name.includes("national bank") && name.includes("toronto");
+  });
+  return {
+    montreal: montreal
+      ? {
+          tour: "atp",
+          provider_tournament_id: String(montreal.id),
+          name: montreal.name,
+          starts_on: (montreal.date || montreal.start || "").slice?.(0, 10) || null,
+        }
+      : null,
+    toronto: toronto
+      ? {
+          tour: "wta",
+          provider_tournament_id: String(toronto.id),
+          name: toronto.name,
+          starts_on: (toronto.date || toronto.start || "").slice?.(0, 10) || null,
+        }
+      : null,
+  };
 }
 
 /**

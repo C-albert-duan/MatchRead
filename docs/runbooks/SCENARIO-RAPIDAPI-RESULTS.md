@@ -41,7 +41,14 @@ RapidAPI knows who won → your reconcile job maps that to MatchRead’s bracket
 
 If any link is missing, reconcile **skips** that match (fail closed).
 
-**Live event:** National Bank Open Montreal 2026 is a **64-draw** on tournament ref `uso-2026` (stable URL), `provider_tournament_id=21346`. Rebuild seats + map with `node scripts/import-montreal-draw.mjs` (writes via Edge Function `rebuild-draw`). RG/Wim fixtures were removed.
+**Live event:** National Bank Open week runs **two** MatchRead tournaments:
+
+| Tour | City | Ref | Provider id |
+|---|---|---|---|
+| ATP | Montreal | `uso-2026` | `21346` |
+| WTA | Toronto | `nbo-tor-2026` | `16739` |
+
+Montreal seats + map: `node scripts/import-montreal-draw.mjs`. Toronto is seeded by migration `0014_dual_tour.sql` (placeholder seats until a live WTA import). Verify both calendars: `node scripts/probe-rapidapi.mjs calendar 2026`. RG/Wim fixtures were removed.
 
 ---
 

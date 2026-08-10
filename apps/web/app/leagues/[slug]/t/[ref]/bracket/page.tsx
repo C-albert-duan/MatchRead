@@ -11,6 +11,7 @@ import { BracketEditor } from "@/components/bracket/BracketEditor";
 import { getSessionUser } from "@/lib/auth";
 import { isTournamentLocked } from "@/lib/brackets/types";
 import { t, tf } from "@/lib/i18n";
+import { isSoloPresentation } from "@/lib/leagues/solo";
 import { createClient } from "@/lib/supabase/server";
 
 type Props = {
@@ -31,20 +32,31 @@ export default async function BracketPage({ params }: Props) {
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, slug, name, format, tournament_label")
+    .select("id, slug, name, format, tournament_label, is_solo")
     .eq("slug", params.slug)
     .maybeSingle();
 
   if (!league) notFound();
 
-  const { data: membership } = await supabase
-    .from("league_members")
-    .select("role")
-    .eq("league_id", league.id)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const [{ data: membership }, { count: memberCount }] = await Promise.all([
+    supabase
+      .from("league_members")
+      .select("role")
+      .eq("league_id", league.id)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("league_members")
+      .select("*", { count: "exact", head: true })
+      .eq("league_id", league.id),
+  ]);
 
   if (!membership) notFound();
+
+  const solo = isSoloPresentation({
+    is_solo: Boolean((league as { is_solo?: boolean }).is_solo),
+    member_count: memberCount ?? 1,
+  });
 
   const { data: tournament } = await supabase
     .from("tournaments")
@@ -120,7 +132,9 @@ export default async function BracketPage({ params }: Props) {
       <div className={`page page--court page--court-${courtTone}`}>
         <header className="page-header page-header--split page-header--court">
           <div className="page-header-copy">
-            <p className="eyebrow">{league.name}</p>
+            <p className="eyebrow">
+              {solo ? t("league.solo.eyebrow") : league.name}
+            </p>
             <h1 className="t-page-title">
               {tf("bracket.page.title", { name: tournament.name })}
             </h1>
@@ -159,6 +173,7 @@ export default async function BracketPage({ params }: Props) {
             locked={locked}
             isCommissioner={membership.role === "commissioner"}
             officialResults={officialResults}
+            showSoloInvite={solo && membership.role === "commissioner"}
           />
         </div>
       </div>

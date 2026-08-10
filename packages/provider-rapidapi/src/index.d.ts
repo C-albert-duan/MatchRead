@@ -3,6 +3,8 @@ export type RapidApiClientOptions = {
   host?: string;
 };
 
+export type Tour = "atp" | "wta";
+
 export type ProviderMatchResult = {
   id: string | number;
   match_winner?: number | null;
@@ -17,7 +19,7 @@ export type ProviderMatchResult = {
 export type ReconcileMapping = {
   tournament_id: string;
   provider_tournament_id: string;
-  tour?: "atp" | "wta";
+  tour?: Tour;
   players: Record<string, string>;
   matches: Record<string, string>;
 };
@@ -28,20 +30,82 @@ export type IngestResultRow = {
   voided: boolean;
 };
 
+export type CalendarQueryOptions = {
+  since?: string;
+  pageSize?: number;
+  pageNo?: number;
+  filter?: string;
+};
+
+export type ProviderCalendarTournament = {
+  id?: string | number;
+  name?: string;
+  date?: string;
+  start?: string;
+  [key: string]: unknown;
+};
+
 export declare function createClient(opts: RapidApiClientOptions): {
   host: string;
   get: (path: string, attempt?: number) => Promise<any>;
 };
 
+export declare function normalizeTour(tour: string | null | undefined): Tour;
+
+export declare function getTournamentCalendar(
+  client: { get: (path: string) => Promise<any> },
+  tour: Tour,
+  year: number | string,
+  opts?: CalendarQueryOptions
+): Promise<{
+  tour: Tour;
+  year: number;
+  tournaments: ProviderCalendarTournament[];
+  raw: unknown;
+}>;
+
+export declare function getDualTourCalendar(
+  client: { get: (path: string) => Promise<any> },
+  year: number | string,
+  opts?: CalendarQueryOptions
+): Promise<{
+  atp: Awaited<ReturnType<typeof getTournamentCalendar>>;
+  wta: Awaited<ReturnType<typeof getTournamentCalendar>>;
+}>;
+
+export declare function getTournamentInfo(
+  client: { get: (path: string) => Promise<any> },
+  tour: Tour,
+  providerTournamentId: string | number
+): Promise<{ tour: Tour; info: unknown; raw: unknown }>;
+
 export declare function getTournamentResults(
   client: { get: (path: string) => Promise<any> },
-  tour: "atp" | "wta",
+  tour: Tour,
   providerTournamentId: string | number
 ): Promise<{
   singles: ProviderMatchResult[];
   doubles: ProviderMatchResult[];
   raw: unknown;
 }>;
+
+export declare function resolveNationalBankOpenWeek(dual: {
+  atp: { tournaments: ProviderCalendarTournament[] };
+  wta: { tournaments: ProviderCalendarTournament[] };
+}): {
+  montreal: {
+    tour: "atp";
+    provider_tournament_id: string;
+    name: string;
+    starts_on: string | null;
+  } | null;
+  toronto: {
+    tour: "wta";
+    provider_tournament_id: string;
+    name: string;
+    starts_on: string | null;
+  } | null;
+};
 
 export declare function mapResultsToIngest(
   matches: ProviderMatchResult[],

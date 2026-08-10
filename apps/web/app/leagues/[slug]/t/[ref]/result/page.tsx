@@ -8,9 +8,12 @@ import {
 } from "@matchread/core";
 import { ResultPickBreakdown } from "@/components/league/ResultPickBreakdown";
 import { AppShell } from "@/components/shell/AppShell";
+import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { t } from "@/lib/i18n";
+import { isSoloPresentation } from "@/lib/leagues/solo";
 import { createClient } from "@/lib/supabase/server";
+import { normalizeTour } from "@/lib/tournaments/calendar";
 
 type Props = {
   params: { slug: string; ref: string };
@@ -30,20 +33,31 @@ export default async function ResultArtifactPage({ params }: Props) {
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, slug, name, format, tournament_label")
+    .select("id, slug, name, format, tournament_label, is_solo")
     .eq("slug", params.slug)
     .maybeSingle();
 
   if (!league) notFound();
 
-  const { data: membership } = await supabase
-    .from("league_members")
-    .select("role")
-    .eq("league_id", league.id)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const [{ data: membership }, { count: memberCount }] = await Promise.all([
+    supabase
+      .from("league_members")
+      .select("role")
+      .eq("league_id", league.id)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("league_members")
+      .select("*", { count: "exact", head: true })
+      .eq("league_id", league.id),
+  ]);
 
   if (!membership) notFound();
+
+  const solo = isSoloPresentation({
+    is_solo: Boolean((league as { is_solo?: boolean }).is_solo),
+    member_count: memberCount ?? 1,
+  });
 
   const { data: tournament } = await supabase
     .from("tournaments")
@@ -145,9 +159,19 @@ export default async function ResultArtifactPage({ params }: Props) {
       <div className="page">
         <header className="page-header page-header--split">
           <div className="page-header-copy">
-            <p className="eyebrow">{league.name}</p>
+            <p className="eyebrow">
+              {solo ? t("league.solo.eyebrow") : league.name}
+            </p>
             <h1 className="t-page-title">{t("result.title")}</h1>
-            <p className="t-lead">{tournament.name}</p>
+            <p className="t-lead">
+              <TourLabel
+                tour={normalizeTour(
+                  (tournament as { tour?: string | null }).tour
+                )}
+              />
+              {" · "}
+              {tournament.name}
+            </p>
           </div>
           <div className="page-actions">
             <Link
@@ -198,21 +222,42 @@ export default async function ResultArtifactPage({ params }: Props) {
                 <span className="t-caption">· {tournament.name}</span>
               </div>
               <div className="stack gap-md">
-                <p className="eyebrow">{t("result.finalPlace")}</p>
-                <p className="artifact-place numeral">
-                  {ordinal(snap.position ?? 0)}
-                  <span className="artifact-field">
-                    {" "}
-                    of {fieldSize ?? "—"}
-                  </span>
+                <p className="eyebrow">
+                  {solo
+                    ? t("result.solo.scoreEyebrow")
+                    : t("result.finalPlace")}
                 </p>
-                <p className="t-lead">
-                  {t("result.score")}{" "}
-                  <span className="numeral">
-                    {snap.score} / {maxScore}
-                  </span>
-                  {percent != null ? ` · ${percent}% ${t("result.ofPerfect")}` : ""}
-                </p>
+                {solo ? (
+                  <p className="artifact-place numeral">
+                    {snap.score}
+                    <span className="artifact-field"> / {maxScore}</span>
+                  </p>
+                ) : (
+                  <p className="artifact-place numeral">
+                    {ordinal(snap.position ?? 0)}
+                    <span className="artifact-field">
+                      {" "}
+                      of {fieldSize ?? "—"}
+                    </span>
+                  </p>
+                )}
+                {solo ? (
+                  <p className="t-lead">
+                    {percent != null
+                      ? `${percent}% ${t("result.ofPerfect")}`
+                      : t("result.score")}
+                  </p>
+                ) : (
+                  <p className="t-lead">
+                    {t("result.score")}{" "}
+                    <span className="numeral">
+                      {snap.score} / {maxScore}
+                    </span>
+                    {percent != null
+                      ? ` · ${percent}% ${t("result.ofPerfect")}`
+                      : ""}
+                  </p>
+                )}
               </div>
               <dl className="meta-grid">
                 <div>
@@ -234,7 +279,7 @@ export default async function ResultArtifactPage({ params }: Props) {
                         : ""}
                   </dd>
                 </div>
-                {season?.position != null ? (
+                {!solo && season?.position != null ? (
                   <div>
                     <dt className="t-caption">{t("result.season")}</dt>
                     <dd>

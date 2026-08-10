@@ -1,6 +1,48 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mapResultsToIngest } from "./index.js";
+import {
+  mapResultsToIngest,
+  normalizeTour,
+  resolveNationalBankOpenWeek,
+} from "./index.js";
+
+describe("normalizeTour", () => {
+  it("defaults unknown to atp", () => {
+    assert.equal(normalizeTour(undefined), "atp");
+    assert.equal(normalizeTour("ATP"), "atp");
+    assert.equal(normalizeTour("wta"), "wta");
+  });
+});
+
+describe("resolveNationalBankOpenWeek", () => {
+  it("finds Montreal ATP and Toronto WTA", () => {
+    const week = resolveNationalBankOpenWeek({
+      atp: {
+        tournaments: [
+          { id: 21346, name: "National Bank Open - Montreal", date: "2026-08-03T00:00:00.000Z" },
+          { id: 1, name: "Other" },
+        ],
+      },
+      wta: {
+        tournaments: [
+          { id: 16739, name: "National Bank Open - Toronto", date: "2026-08-03T00:00:00.000Z" },
+        ],
+      },
+    });
+    assert.deepEqual(week.montreal, {
+      tour: "atp",
+      provider_tournament_id: "21346",
+      name: "National Bank Open - Montreal",
+      starts_on: "2026-08-03",
+    });
+    assert.deepEqual(week.toronto, {
+      tour: "wta",
+      provider_tournament_id: "16739",
+      name: "National Bank Open - Toronto",
+      starts_on: "2026-08-03",
+    });
+  });
+});
 
 describe("mapResultsToIngest", () => {
   const mapping = {
@@ -39,14 +81,12 @@ describe("mapResultsToIngest", () => {
 
   it("voids walkover without winner", () => {
     const { results, skipped } = mapResultsToIngest(
-      [{ id: "999", match_winner: null, result_type: "walkover", result: "" }],
+      [{ id: "999", result_type: "walkover" }],
       mapping
     );
     assert.equal(skipped.length, 0);
-    assert.deepEqual(results[0], {
-      match_key: "r0-m1",
-      winner_ref: null,
-      voided: true,
-    });
+    assert.deepEqual(results, [
+      { match_key: "r0-m1", winner_ref: null, voided: true },
+    ]);
   });
 });

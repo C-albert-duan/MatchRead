@@ -7,26 +7,25 @@ import { InvitePanel } from "@/components/league/InvitePanel";
 import { LeagueHighlights } from "@/components/league/LeagueHighlights";
 import { LeagueMembersPanel } from "@/components/league/LeagueMembersPanel";
 import { LeagueSettingsPanel } from "@/components/league/LeagueSettingsPanel";
+import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { getServerSiteUrl } from "@/lib/env";
 import { t, tf } from "@/lib/i18n";
 import { loadDailyCheck } from "@/lib/leagues/daily-check";
+import { isSoloPresentation } from "@/lib/leagues/solo";
 import type { LeagueVisibility } from "@/lib/leagues/types";
 import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
 import { redirectIfMissingDisplayName } from "@/lib/profiles/require-name";
 import { createClient } from "@/lib/supabase/server";
+import {
+  normalizeTour,
+  surfaceClass,
+} from "@/lib/tournaments/calendar";
 
 type Props = {
   params: { slug: string };
   searchParams: { invite?: string };
 };
-
-function surfaceClass(surface: string | null | undefined) {
-  const s = (surface ?? "").toLowerCase();
-  if (s.includes("clay")) return "clay";
-  if (s.includes("grass")) return "grass";
-  return "hard";
-}
 
 /** Badge on league home tournament list — not just “does a draw exist?”. */
 function tournamentListStatus(input: {
@@ -89,6 +88,10 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
   const members = membersRes.data ?? [];
   const memberCount = members.length;
   const isCommissioner = membership.role === "commissioner";
+  const solo = isSoloPresentation({
+    is_solo: Boolean((league as { is_solo?: boolean }).is_solo),
+    member_count: memberCount,
+  });
 
   const memberNames = await loadDisplayNames(
     supabase,
@@ -114,7 +117,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
       : Promise.resolve({ data: null as { token: string } | null }),
     supabase
       .from("tournaments")
-      .select("id, ref, name, surface, starts_on, draw_size")
+      .select("id, ref, name, surface, starts_on, draw_size, tour")
       .order("starts_on", { ascending: true }),
     supabase.from("draws").select("tournament_id"),
   ]);
@@ -176,37 +179,53 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
       <div className="page">
         <header className="page-header page-header--split">
           <div className="page-header-copy">
-            <p className="eyebrow">{t("league.eyebrow")}</p>
-            <h1 className="t-page-title">{league.name}</h1>
+            <p className="eyebrow">
+              {solo ? t("league.solo.eyebrow") : t("league.eyebrow")}
+            </p>
+            <h1 className="t-page-title">
+              {solo
+                ? league.tournament_label ?? league.name
+                : league.name}
+            </h1>
             <p className="t-lead">
-              {league.format === "single"
-                ? league.tournament_label ?? t("league.format.single")
-                : t("league.format.season")}
-              {" · "}
-              {league.visibility}
-              {" · "}
-              {memberCount === 1
-                ? tf("leagues.members.count.one", { n: memberCount })
-                : tf("leagues.members.count", { n: memberCount })}
+              {solo ? (
+                t("leagues.solo.caption")
+              ) : (
+                <>
+                  {league.format === "single"
+                    ? league.tournament_label ?? t("league.format.single")
+                    : t("league.format.season")}
+                  {" · "}
+                  {league.visibility}
+                  {" · "}
+                  {memberCount === 1
+                    ? tf("leagues.members.count.one", { n: memberCount })
+                    : tf("leagues.members.count", { n: memberCount })}
+                </>
+              )}
             </p>
           </div>
           <div className="page-actions">
             {tournament ? (
               <Link
-                href={`/leagues/${league.slug}/t/${tournament.ref}`}
+                href={`/leagues/${league.slug}/t/${tournament.ref}${
+                  tournament.has_draw ? "/bracket" : ""
+                }`}
                 className="act act--prominent act--prominent-size"
               >
                 {tournament.has_draw
-                  ? t("league.openTournament")
+                  ? t("tournament.openBracket")
                   : t("league.drawPendingCta")}
               </Link>
             ) : null}
-            <Link
-              href={`/leagues/${league.slug}/season`}
-              className="act act--standard act--standard-size"
-            >
-              {t("league.seasonStandings")}
-            </Link>
+            {!solo ? (
+              <Link
+                href={`/leagues/${league.slug}/season`}
+                className="act act--standard act--standard-size"
+              >
+                {t("league.seasonStandings")}
+              </Link>
+            ) : null}
             <Link href="/leagues" className="act act--quiet">
               {t("league.allLeagues")}
             </Link>
@@ -225,7 +244,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
           </section>
         ) : null}
 
-        {engagement && engagement.highlights.length > 0 ? (
+        {engagement && !solo && engagement.highlights.length > 0 ? (
           <section className="section" aria-label="Highlights">
             <LeagueHighlights
               items={engagement.highlights.map((h) => ({
@@ -240,14 +259,19 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
         {isCommissioner && inviteUrl ? (
           <section className="section" aria-labelledby="invite-heading">
             <h2 id="invite-heading" className="section-title">
-              {t("league.grow.title")}
+              {solo ? t("league.grow.solo.title") : t("league.grow.title")}
             </h2>
-            <p className="section-lede">{t("league.grow.lede")}</p>
+            <p className="section-lede">
+              {solo ? t("league.grow.solo.lede") : t("league.grow.lede")}
+            </p>
             <InvitePanel
               leagueId={league.id}
               slug={league.slug}
               inviteUrl={inviteUrl}
-              defaultOpen={openInvite}
+              defaultOpen={
+                openInvite ||
+                Boolean((league as { is_solo?: boolean }).is_solo)
+              }
             />
           </section>
         ) : null}
@@ -280,6 +304,11 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                       <span
                         className={`court-hairline court-${surfaceClass(t.surface)}`}
                         aria-hidden
+                      />
+                      <TourLabel
+                        tour={normalizeTour(
+                          (t as { tour?: string | null }).tour
+                        )}
                       />
                       <span
                         className="stack gap-sm"

@@ -1,11 +1,16 @@
 ﻿import Link from "next/link";
 import { AppShell } from "@/components/shell/AppShell";
+import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
-import { t } from "@/lib/i18n";
+import { getLocale, t, tf } from "@/lib/i18n";
 import {
   formatTournamentWhen,
+  formatUpcomingAction,
   listCalendarTournaments,
+  partitionLandingCalendar,
   surfaceClass,
+  type CalendarTournament,
+  type Tour,
 } from "@/lib/tournaments/calendar";
 
 const HOW_STEPS = [
@@ -15,10 +20,94 @@ const HOW_STEPS = [
   ["landing.how.4.title", "landing.how.4.body"],
 ] as const;
 
+function UpcomingEmpty({
+  nextNamed,
+}: {
+  nextNamed: Partial<Record<Tour, CalendarTournament>>;
+}) {
+  const atp = nextNamed.atp;
+  const wta = nextNamed.wta;
+
+  if (atp && wta) {
+    return (
+      <p className="calendar-fact">
+        {tf("landing.calendar.upcoming.empty.both", {
+          atp: atp.name,
+          wta: wta.name,
+        })}
+      </p>
+    );
+  }
+
+  const one = atp ?? wta;
+  if (one) {
+    return (
+      <p className="calendar-fact">
+        {tf("landing.calendar.upcoming.empty.next", {
+          tour: one.tour === "wta" ? t("tour.wta") : t("tour.atp"),
+          name: one.name,
+        })}
+      </p>
+    );
+  }
+
+  return (
+    <p className="calendar-fact">{t("landing.calendar.upcoming.empty.none")}</p>
+  );
+}
+
+function TournamentRows({
+  events,
+  variant,
+  locale,
+}: {
+  events: CalendarTournament[];
+  variant: "open" | "upcoming";
+  locale: string;
+}) {
+  return (
+    <ul className="calendar">
+      {events.map((event) => (
+        <li key={event.ref}>
+          <Link href="/tournaments" className="trow">
+            <span
+              className={`court-hairline court-${surfaceClass(event.surface)}`}
+              aria-hidden
+            />
+            <TourLabel tour={event.tour} />
+            <span className="trow-name">{event.name}</span>
+            <span className="trow-meta">
+              {variant === "upcoming"
+                ? formatUpcomingAction(
+                    event,
+                    {
+                      drawOpen: t("calendar.drawOpen"),
+                      drawPending: t("calendar.drawPending"),
+                      entryLocks: t("calendar.entryLocks"),
+                      starts: t("calendar.starts"),
+                      today: t("calendar.today"),
+                      tomorrow: t("calendar.tomorrow"),
+                    },
+                    locale
+                  )
+                : formatTournamentWhen(event, {
+                    drawOpen: t("calendar.drawOpen"),
+                    drawPending: t("calendar.drawPending"),
+                  })}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default async function HomePage() {
   const user = await getSessionUser();
   const signedIn = Boolean(user);
+  const locale = getLocale();
   const calendar = await listCalendarTournaments();
+  const { openNow, upcoming, nextNamed } = partitionLandingCalendar(calendar);
 
   return (
     <AppShell signedIn={signedIn} email={user?.email} arena>
@@ -29,19 +118,35 @@ export default async function HomePage() {
           <p className="t-lead">{t("landing.hero.lede")}</p>
           <div className="page-actions">
             {signedIn ? (
-              <Link
-                href="/leagues"
-                className="act act--prominent act--prominent-size"
-              >
-                {t("landing.cta.leagues")}
-              </Link>
+              <>
+                <Link
+                  href="/tournaments"
+                  className="act act--prominent act--prominent-size"
+                >
+                  {t("landing.cta.bracket")}
+                </Link>
+                <Link
+                  href="/leagues"
+                  className="act act--standard act--standard-size"
+                >
+                  {t("landing.cta.leagues")}
+                </Link>
+              </>
             ) : (
-              <Link
-                href="/sign-in?next=%2Fleagues%2Fnew"
-                className="act act--prominent act--prominent-size"
-              >
-                {t("landing.cta.start")}
-              </Link>
+              <>
+                <Link
+                  href="/sign-in?next=%2Ftournaments"
+                  className="act act--prominent act--prominent-size"
+                >
+                  {t("landing.cta.bracket")}
+                </Link>
+                <Link
+                  href="/sign-in?next=%2Fleagues%2Fnew"
+                  className="act act--quiet"
+                >
+                  {t("landing.cta.start")}
+                </Link>
+              </>
             )}
             <Link href="/showcase" className="act act--quiet">
               {t("landing.cta.showcase")}
@@ -54,28 +159,43 @@ export default async function HomePage() {
             {t("landing.calendar.title")}
           </h2>
           <p className="section-lede">{t("landing.calendar.lede")}</p>
+
           {calendar.length === 0 ? (
             <p className="stub-note">{t("calendar.empty")}</p>
           ) : (
-            <ul className="calendar">
-              {calendar.map((event) => (
-                <li key={event.ref}>
-                  <Link href="/tournaments" className="trow">
-                    <span
-                      className={`court-hairline court-${surfaceClass(event.surface)}`}
-                      aria-hidden
-                    />
-                    <span className="trow-name">{event.name}</span>
-                    <span className="trow-meta">
-                      {formatTournamentWhen(event, {
-                        drawOpen: t("calendar.drawOpen"),
-                        drawPending: t("calendar.drawPending"),
-                      })}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <div className="calendar-panels">
+              <div className="calendar-panel">
+                <h3 className="calendar-panel-title">
+                  {t("landing.calendar.openNow")}
+                </h3>
+                {openNow.length === 0 ? (
+                  <p className="calendar-fact">
+                    {t("landing.calendar.openNow.empty")}
+                  </p>
+                ) : (
+                  <TournamentRows
+                    events={openNow}
+                    variant="open"
+                    locale={locale}
+                  />
+                )}
+              </div>
+
+              <div className="calendar-panel">
+                <h3 className="calendar-panel-title">
+                  {t("landing.calendar.upcoming")}
+                </h3>
+                {upcoming.length === 0 ? (
+                  <UpcomingEmpty nextNamed={nextNamed} />
+                ) : (
+                  <TournamentRows
+                    events={upcoming}
+                    variant="upcoming"
+                    locale={locale}
+                  />
+                )}
+              </div>
+            </div>
           )}
         </section>
 

@@ -9,6 +9,7 @@ Source of truth for screens: `Wireframe/MatchRead-main/matchread-spec/docs/ENGIN
 | Check your email | `/sign-in` (state) | Yes | Same route |
 | My leagues | `/leagues` | Yes | |
 | Start a league | `/leagues/new` | Yes | |
+| Enter solo bracket | `/enter/[ref]` | Yes | Ensures personal `is_solo` league → bracket |
 | Invite friends | `/leagues/[slug]` panel | Yes | |
 | Join a league | `/join/[token]` | Yes | |
 | League home | `/leagues/[slug]` | Yes | Daily Check lead |

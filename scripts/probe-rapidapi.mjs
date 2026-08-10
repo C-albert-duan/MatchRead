@@ -4,12 +4,19 @@
  * Usage (from repo root):
  *   node scripts/probe-rapidapi.mjs
  *   node scripts/probe-rapidapi.mjs fixtures
+ *   node scripts/probe-rapidapi.mjs calendar
+ *   node scripts/probe-rapidapi.mjs calendar 2026
  *
  * Loads RAPIDAPI_KEY / RAPIDAPI_HOST from .env.provider (gitignored).
  * Never prints the key.
  */
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
+import {
+  createClient,
+  getDualTourCalendar,
+  resolveNationalBankOpenWeek,
+} from "@matchread/provider-rapidapi";
 
 function loadEnvProvider() {
   const path = resolve(process.cwd(), ".env.provider");
@@ -27,7 +34,10 @@ function loadEnvProvider() {
 
 const env = loadEnvProvider();
 const key = env.RAPIDAPI_KEY || process.env.RAPIDAPI_KEY;
-const host = env.RAPIDAPI_HOST || process.env.RAPIDAPI_HOST || "tennis-api-atp-wta-itf.p.rapidapi.com";
+const host =
+  env.RAPIDAPI_HOST ||
+  process.env.RAPIDAPI_HOST ||
+  "tennis-api-atp-wta-itf.p.rapidapi.com";
 
 if (!key || key.startsWith("<")) {
   console.error("RAPIDAPI_KEY is missing or still a placeholder in .env.provider");
@@ -35,6 +45,38 @@ if (!key || key.startsWith("<")) {
 }
 
 const mode = (process.argv[2] || "ranking").toLowerCase();
+const yearArg = process.argv[3];
+
+if (mode === "calendar") {
+  const year = Number(yearArg || new Date().getUTCFullYear());
+  const client = createClient({ key, host });
+  const since = `${year}-07-01`;
+  console.log(`mode=calendar year=${year} (ATP + WTA)`);
+  const dual = await getDualTourCalendar(client, year, {
+    since,
+    pageSize: 500,
+    pageNo: 1,
+  });
+  console.log(`ATP rows=${dual.atp.tournaments.length} WTA rows=${dual.wta.tournaments.length}`);
+  const week = resolveNationalBankOpenWeek(dual);
+  console.log("National Bank Open week:");
+  console.log(JSON.stringify(week, null, 2));
+  if (!week.montreal || !week.toronto) {
+    console.error("\nFAIL — expected Montreal (ATP) and Toronto (WTA) on the calendar.");
+    process.exit(1);
+  }
+  if (
+    week.montreal.provider_tournament_id !== "21346" ||
+    week.toronto.provider_tournament_id !== "16739"
+  ) {
+    console.warn(
+      "Note: provider ids differ from seeded MatchRead map (Montreal 21346 / Toronto 16739)."
+    );
+  }
+  console.log("\nOK — dual-tour calendar resolves Montreal ATP + Toronto WTA.");
+  process.exit(0);
+}
+
 const paths = {
   ranking: "/tennis/v2/atp/ranking/singles?race=true",
   // date fixtures — today UTC YYYY-MM-DD
@@ -43,7 +85,7 @@ const paths = {
 
 const path = paths[mode];
 if (!path) {
-  console.error(`Unknown mode "${mode}". Use: ranking | fixtures`);
+  console.error(`Unknown mode "${mode}". Use: ranking | fixtures | calendar`);
   process.exit(1);
 }
 

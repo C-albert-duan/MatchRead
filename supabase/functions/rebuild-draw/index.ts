@@ -65,6 +65,7 @@ Deno.serve(async (req) => {
       name?: string;
       draw_size?: number;
       provider_tournament_id?: string;
+      tour?: "atp" | "wta";
       surface?: string;
       starts_on?: string;
       lock_at?: string;

@@ -21,6 +21,52 @@ async function requireUser() {
   return { supabase, user };
 }
 
+/**
+ * Find or create a personal (is_solo) league for a tournament, then open the bracket.
+ */
+export async function ensureSoloLeague(tournamentRef: string): Promise<ActionResult> {
+  const { supabase, user } = await requireUser();
+  if (!user) {
+    return { ok: false, error: "Sign in to fill a bracket." };
+  }
+
+  const ref = tournamentRef.trim();
+  if (!ref) {
+    return { ok: false, error: "Tournament not found." };
+  }
+
+  await supabase.rpc("ensure_profile");
+
+  const { data, error } = await supabase.rpc("ensure_solo_league", {
+    p_tournament_ref: ref,
+  });
+
+  if (error) {
+    const msg = error.message ?? "";
+    if (/tournament not found/i.test(msg)) {
+      return { ok: false, error: "Tournament not found." };
+    }
+    return { ok: false, error: msg || "Could not start your bracket." };
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  const slug =
+    row && typeof row === "object"
+      ? ((row as { league_slug?: string }).league_slug ?? null)
+      : null;
+  const outRef =
+    row && typeof row === "object"
+      ? ((row as { tournament_ref?: string }).tournament_ref ?? ref)
+      : ref;
+
+  if (!slug) {
+    return { ok: false, error: "Could not start your bracket." };
+  }
+
+  revalidatePath("/leagues");
+  redirect(`/leagues/${slug}/t/${outRef}/bracket`);
+}
+
 export async function createLeague(formData: FormData): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) {

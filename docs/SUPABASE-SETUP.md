@@ -30,6 +30,8 @@ Use **SQL Editor**. Run in order:
 7. `supabase/migrations/0007_lock_season_commissioner.sql` — season commissioners can lock draws (fixes UI vs RPC mismatch)  
 8. `supabase/migrations/0008_commissioner_read_brackets.sql` — commissioners can read all league brackets (needed for settlement to grade invitees)
 9. `supabase/migrations/0009_display_names.sql` — league mates can read display names; `set_my_display_name` RPC
+10. Later migrations through `0012_league_member_crud.sql` as needed for member CRUD
+11. `supabase/migrations/0013_solo_brackets.sql` — `leagues.is_solo`, `ensure_solo_league`, graduate solo on join
 
 Phase 7 (founder / void / i18n) needs **no new migration** — uses `pick_voids` + `match_results.voided` from 0004. Void writes still require commissioner RLS for that tournament.
 

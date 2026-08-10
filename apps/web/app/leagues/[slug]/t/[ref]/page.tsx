@@ -5,13 +5,16 @@ import { LiveRefresh } from "@/components/shell/LiveRefresh";
 import { OfficialResultsPanel } from "@/components/league/OfficialResultsPanel";
 import { SettleButton } from "@/components/league/SettleButton";
 import { StandingsTable } from "@/components/league/StandingsTable";
+import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { isFounderEmail } from "@/lib/auth/founder";
 import { isTournamentLocked } from "@/lib/brackets/types";
 import { t } from "@/lib/i18n";
+import { isSoloPresentation } from "@/lib/leagues/solo";
 import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
 import { redirectIfMissingDisplayName } from "@/lib/profiles/require-name";
 import { createClient } from "@/lib/supabase/server";
+import { normalizeTour } from "@/lib/tournaments/calendar";
 
 type Props = {
   params: { slug: string; ref: string };
@@ -29,20 +32,31 @@ export default async function TournamentInLeaguePage({ params }: Props) {
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, slug, name, format, tournament_label")
+    .select("id, slug, name, format, tournament_label, is_solo")
     .eq("slug", params.slug)
     .maybeSingle();
 
   if (!league) notFound();
 
-  const { data: membership } = await supabase
-    .from("league_members")
-    .select("role")
-    .eq("league_id", league.id)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const [{ data: membership }, { count: memberCount }] = await Promise.all([
+    supabase
+      .from("league_members")
+      .select("role")
+      .eq("league_id", league.id)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("league_members")
+      .select("*", { count: "exact", head: true })
+      .eq("league_id", league.id),
+  ]);
 
   if (!membership) notFound();
+
+  const solo = isSoloPresentation({
+    is_solo: Boolean((league as { is_solo?: boolean }).is_solo),
+    member_count: memberCount ?? 1,
+  });
 
   await redirectIfMissingDisplayName(
     supabase,
@@ -170,9 +184,19 @@ export default async function TournamentInLeaguePage({ params }: Props) {
       <div className="page">
         <header className="page-header page-header--split">
           <div className="page-header-copy">
-            <p className="eyebrow">{league.name}</p>
+            <p className="eyebrow">
+              {solo
+                ? t("league.solo.eyebrow")
+                : league.name}
+            </p>
             <h1 className="t-page-title">{tournament.name}</h1>
             <p className="t-lead">
+              <TourLabel
+                tour={normalizeTour(
+                  (tournament as { tour?: string | null }).tour
+                )}
+              />
+              {" · "}
               {tournament.surface} court
               {tournament.starts_on ? ` · starts ${tournament.starts_on}` : ""}
               {tournament.lock_at
@@ -194,14 +218,16 @@ export default async function TournamentInLeaguePage({ params }: Props) {
               href={`/leagues/${league.slug}`}
               className="act act--standard act--standard-size"
             >
-              {t("tournament.leagueHome")}
+              {solo ? t("league.solo.eyebrow") : t("tournament.leagueHome")}
             </Link>
-            <Link
-              href={`/leagues/${league.slug}/season`}
-              className="act act--quiet"
-            >
-              {t("league.seasonStandings")}
-            </Link>
+            {!solo ? (
+              <Link
+                href={`/leagues/${league.slug}/season`}
+                className="act act--quiet"
+              >
+                {t("league.seasonStandings")}
+              </Link>
+            ) : null}
           </div>
         </header>
 
@@ -231,19 +257,54 @@ export default async function TournamentInLeaguePage({ params }: Props) {
         {hasDraw ? (
           <section className="section" aria-labelledby="event-standings">
             <h2 id="event-standings" className="section-title">
-              {t("tournament.eventStandings")}
+              {solo
+                ? t("tournament.solo.scoreTitle")
+                : t("tournament.eventStandings")}
             </h2>
-            <StandingsTable rows={standingRows} kind="event" />
-            {standingRows.length > 0 ? (
-              <div className="page-actions">
-                <Link
-                  href={`/leagues/${league.slug}/t/${tournament.ref}/result`}
-                  className="act act--standard act--standard-size"
-                >
-                  {t("tournament.seeResult")}
-                </Link>
-              </div>
-            ) : null}
+            {solo ? (
+              <>
+                {standingRows.length > 0 ? (
+                  <>
+                    <p className="t-lead numeral">
+                      {standingRows[0]?.score ?? 0}
+                      {standingRows[0]?.upside != null
+                        ? ` · +${standingRows[0].upside} upside`
+                        : ""}
+                    </p>
+                    <div className="page-actions">
+                      <Link
+                        href={`/leagues/${league.slug}/t/${tournament.ref}/result`}
+                        className="act act--standard act--standard-size"
+                      >
+                        {t("tournament.seeResult")}
+                      </Link>
+                      <Link
+                        href={`/leagues/${league.slug}?invite=1`}
+                        className="act act--quiet"
+                      >
+                        {t("bracket.solo.invite.cta")}
+                      </Link>
+                    </div>
+                  </>
+                ) : (
+                  <p className="t-body">{t("tournament.solo.noStandings")}</p>
+                )}
+              </>
+            ) : (
+              <>
+                <StandingsTable rows={standingRows} kind="event" />
+                {standingRows.length > 0 ? (
+                  <div className="page-actions">
+                    <Link
+                      href={`/leagues/${league.slug}/t/${tournament.ref}/result`}
+                      className="act act--standard act--standard-size"
+                    >
+                      {t("tournament.seeResult")}
+                    </Link>
+                  </div>
+                ) : null}
+              </>
+            )}
             {/* Ops: commissioner only. Live-feed tournaments ingest winners
                 via RapidAPI — no manual Official Results panel. */}
             {isCommissioner ? (

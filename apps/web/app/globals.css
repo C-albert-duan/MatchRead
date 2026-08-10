@@ -21,6 +21,7 @@
   --mr-accent: #00a6ef;
   --mr-accent-strong: #5ad0ff;
   --mr-data: #2dcf7a;
+  --mr-wta: #c6a2ff;
   --mr-miss: #e0453a;
   --mr-court-hard: #00a6ef;
   --mr-court-clay: #d96b3c;
@@ -951,6 +952,10 @@ a {
   background: transparent;
 }
 
+.steps > li .t-body {
+  min-height: calc(1.0625rem * 1.55 * 3);
+}
+
 .steps > li .eyebrow {
   display: inline-flex;
   align-items: center;
@@ -975,6 +980,31 @@ a {
   .steps {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
+
+.calendar-panels {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3xl);
+}
+
+.calendar-panel-title {
+  margin: 0 0 var(--s-md);
+  font-family: var(--mr-font-numeral);
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mr-text-muted);
+}
+
+.calendar-fact {
+  margin: 0;
+  padding: var(--s-xl) 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--mr-text-secondary);
+  max-width: var(--max-prose);
 }
 
 .calendar,
@@ -1076,11 +1106,28 @@ a {
   letter-spacing: -0.025em;
 }
 
+.tour-label {
+  flex-shrink: 0;
+  font-family: var(--mr-font-numeral);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mr-text-muted);
+  white-space: nowrap;
+}
+
+.tour-label--wta {
+  color: var(--mr-wta);
+}
+
 .trow-meta {
   font-family: var(--mr-font-numeral);
   font-size: 0.875rem;
   color: var(--mr-text-muted);
-  white-space: nowrap;
+  white-space: normal;
+  text-align: right;
+  max-width: 16rem;
+  line-height: 1.35;
 }
 
 .member-row {

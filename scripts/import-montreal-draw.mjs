@@ -326,6 +326,7 @@ async function main() {
       name: "National Bank Open Montreal 2026",
       draw_size: DRAW_SIZE,
       provider_tournament_id: PROVIDER_TOURNAMENT_ID,
+      tour: "atp",
       surface: "hard",
       starts_on: "2026-08-03",
       lock_at: "2026-08-02T15:00:00+00",

@@ -67,10 +67,10 @@ export function AppShell({
                     {t("nav.signIn")}
                   </Link>
                   <Link
-                    href="/sign-in?next=%2Fleagues%2Fnew"
+                    href="/sign-in?next=%2Ftournaments"
                     className="act act--prominent act--prominent-size"
                   >
-                    {t("cta.startLeague")}
+                    {t("cta.fillBracket")}
                   </Link>
                 </>
               )}

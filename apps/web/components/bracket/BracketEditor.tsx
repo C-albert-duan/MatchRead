@@ -1,5 +1,6 @@
 ﻿"use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
   applyByeAdvances,
@@ -32,6 +33,8 @@ type Props = {
   locked: boolean;
   isCommissioner: boolean;
   officialResults?: OfficialResults;
+  /** Soft upgrade CTA after submit while still alone. */
+  showSoloInvite?: boolean;
 };
 
 type SaveStatus =
@@ -57,6 +60,7 @@ export function BracketEditor({
   locked,
   isCommissioner,
   officialResults = {},
+  showSoloInvite = false,
 }: Props) {
   const [picks, setPicks] = useState<BracketPicks>(() =>
     applyByeAdvances(seats, initialPicks, drawSize)
@@ -260,6 +264,22 @@ export function BracketEditor({
         <p className="hint">
           {tf("bracket.completeHint", { left: need - made })}
         </p>
+      ) : null}
+
+      {showSoloInvite && submitted && !isLocked ? (
+        <section className="panel stack gap-md" aria-labelledby="solo-invite">
+          <h2 id="solo-invite" className="section-title">
+            {t("bracket.solo.invite.title")}
+          </h2>
+          <p className="t-body">{t("bracket.solo.invite.body")}</p>
+          <Link
+            href={`/leagues/${leagueSlug}?invite=1`}
+            className="act act--prominent act--standard-size"
+            style={{ alignSelf: "flex-start" }}
+          >
+            {t("bracket.solo.invite.cta")}
+          </Link>
+        </section>
       ) : null}
 
       <BracketGrid

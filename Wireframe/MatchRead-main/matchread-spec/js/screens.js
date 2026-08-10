@@ -38,7 +38,7 @@
         ['Start a league', 'Name it, pick a tournament or a whole season, and you are the commissioner.'],
         ['Share one link', 'Drop it in the group chat. People join in two taps.'],
         ['Fill in a bracket', 'When the draw lands, everyone picks. Nobody sees anyone else\u2019s until it locks.'],
-        ['Check it tomorrow', 'Standings move as matches finish. That is the part people come back for.']
+        ['Check it tomorrow', 'Standings move as matches finish.']
       ];
 
       var why = [

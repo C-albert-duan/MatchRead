@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/AppShell";
 import { getSessionUser } from "@/lib/auth";
 import { t, tf } from "@/lib/i18n";
+import { isSoloPresentation } from "@/lib/leagues/solo";
 import { createClient } from "@/lib/supabase/server";
 import type { LeagueListItem, MemberRole } from "@/lib/leagues/types";
 
@@ -29,7 +30,7 @@ export default async function LeaguesPage() {
   const { data: rows, error } = await supabase
     .from("league_members")
     .select(
-      "role, leagues ( id, slug, name, format, visibility, tournament_label, commissioner_id, created_at )"
+      "role, leagues ( id, slug, name, format, visibility, tournament_label, commissioner_id, created_at, is_solo )"
     )
     .eq("user_id", user.id)
     .order("joined_at", { ascending: false });
@@ -48,13 +49,20 @@ export default async function LeaguesPage() {
         tournament_label: string | null;
         commissioner_id: string;
         created_at: string;
+        is_solo: boolean;
       };
     }> = [];
 
     for (const row of rows) {
       const league = Array.isArray(row.leagues) ? row.leagues[0] : row.leagues;
       if (!league) continue;
-      leagueRows.push({ role: row.role as MemberRole, league });
+      leagueRows.push({
+        role: row.role as MemberRole,
+        league: {
+          ...league,
+          is_solo: Boolean((league as { is_solo?: boolean }).is_solo),
+        },
+      });
     }
 
     const ids = leagueRows.map((r) => r.league.id);
@@ -104,8 +112,14 @@ export default async function LeaguesPage() {
           </div>
           <div className="page-actions">
             <Link
-              href="/leagues/new"
+              href="/tournaments"
               className="act act--prominent act--prominent-size"
+            >
+              {t("cta.fillBracket")}
+            </Link>
+            <Link
+              href="/leagues/new"
+              className="act act--standard act--standard-size"
             >
               {t("cta.startLeague")}
             </Link>
@@ -125,48 +139,81 @@ export default async function LeaguesPage() {
           <div className="empty-invite focus-band">
             <h2 className="t-title3">{t("leagues.empty.title")}</h2>
             <p className="t-body">{t("leagues.empty.body")}</p>
-            <Link
-              href="/leagues/new"
-              className="act act--prominent act--prominent-size"
-              style={{ alignSelf: "flex-start" }}
-            >
-              {t("cta.startLeague")}
-            </Link>
+            <div className="page-actions" style={{ alignSelf: "flex-start" }}>
+              <Link
+                href="/tournaments"
+                className="act act--prominent act--prominent-size"
+              >
+                {t("cta.fillBracket")}
+              </Link>
+              <Link
+                href="/leagues/new"
+                className="act act--standard act--standard-size"
+              >
+                {t("cta.startLeague")}
+              </Link>
+            </div>
           </div>
         ) : null}
 
         {leagues.length > 0 ? (
           <ul className="league-list focus-band">
-            {leagues.map((league) => (
-              <li key={league.id}>
-                <Link href={`/leagues/${league.slug}`} className="league-card">
-                  <span className="stack gap-sm" style={{ flex: 1, minWidth: 0 }}>
-                    <span className="league-card-name">{league.name}</span>
-                    <span className="t-caption">
-                      {league.format === "single"
-                        ? league.tournament_label ?? t("league.format.single")
-                        : t("league.format.season")}
-                      {" · "}
-                      {league.visibility}
-                      {" · "}
-                      {league.member_count === 1
-                        ? tf("leagues.members.count.one", {
-                            n: league.member_count,
-                          })
-                        : tf("leagues.members.count", {
-                            n: league.member_count,
-                          })}
-                      {league.role === "commissioner"
-                        ? ` · ${t("league.role.commissioner").toLowerCase()}`
-                        : ""}
+            {leagues.map((league) => {
+              const solo = isSoloPresentation({
+                is_solo: league.is_solo,
+                member_count: league.member_count,
+              });
+              const displayName = solo
+                ? league.tournament_label ?? league.name
+                : league.name;
+              return (
+                <li key={league.id}>
+                  <Link
+                    href={`/leagues/${league.slug}`}
+                    className="league-card"
+                  >
+                    <span
+                      className="stack gap-sm"
+                      style={{ flex: 1, minWidth: 0 }}
+                    >
+                      <span className="league-card-name">{displayName}</span>
+                      <span className="t-caption">
+                        {solo ? (
+                          <>
+                            {t("leagues.solo.badge")}
+                            {" · "}
+                            {t("leagues.solo.caption")}
+                          </>
+                        ) : (
+                          <>
+                            {league.format === "single"
+                              ? league.tournament_label ??
+                                t("league.format.single")
+                              : t("league.format.season")}
+                            {" · "}
+                            {league.visibility}
+                            {" · "}
+                            {league.member_count === 1
+                              ? tf("leagues.members.count.one", {
+                                  n: league.member_count,
+                                })
+                              : tf("leagues.members.count", {
+                                  n: league.member_count,
+                                })}
+                            {league.role === "commissioner"
+                              ? ` · ${t("league.role.commissioner").toLowerCase()}`
+                              : ""}
+                          </>
+                        )}
+                      </span>
                     </span>
-                  </span>
-                  <span className="league-card-status">
-                    {leagueStatus(league, drawByTournamentName)}
-                  </span>
-                </Link>
-              </li>
-            ))}
+                    <span className="league-card-status">
+                      {leagueStatus(league, drawByTournamentName)}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         ) : null}
       </div>

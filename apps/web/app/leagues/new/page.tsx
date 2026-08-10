@@ -12,13 +12,18 @@ export default async function NewLeaguePage() {
   }
 
   const rows = await listCalendarTournaments();
-  const tournaments = rows.map((row) => ({
-    value: row.name,
-    ref: row.ref,
-    label: row.hasDraw
-      ? `${row.name} — ${t("calendar.drawOpen")}`
-      : `${row.name} — ${t("calendar.drawPending")}`,
-  }));
+  const tournaments = rows.map((row) => {
+    const tour =
+      row.tour === "wta" ? t("tour.wta") : t("tour.atp");
+    const status = row.hasDraw
+      ? t("calendar.drawOpen")
+      : t("calendar.drawPending");
+    return {
+      value: row.name,
+      ref: row.ref,
+      label: `${tour} · ${row.name} — ${status}`,
+    };
+  });
 
   return (
     <AppShell signedIn email={user.email}>

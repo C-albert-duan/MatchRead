@@ -17,6 +17,8 @@ Flow:
 3. Writes `bracket_snapshots` + recomputes `season_standings`
 4. UI: event + season tables; Daily Check reads deltas
 
+Settlement is **per tournament id**. Concurrent ATP + WTA draws in the same calendar week (e.g. Montreal + Toronto) are two tournament rows — settle each separately. Season standings sum snapshots across every tournament in the league, so both draws contribute when the league format is season.
+
 Void / withdrawal: `pick_voids` + voided results — do not score as misses.
 
 ## Intent (production)
