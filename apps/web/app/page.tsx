@@ -1,12 +1,13 @@
 ﻿import Link from "next/link";
+import { DailyCheckPreview } from "@/components/league/DailyCheckPreview";
 import { AppShell } from "@/components/shell/AppShell";
 import { HeroCourt } from "@/components/shell/HeroCourt";
-import { TourLabel } from "@/components/tournaments/TourLabel";
+import { SurfaceKey } from "@/components/tournaments/SurfaceKey";
+import { TournamentCard } from "@/components/tournaments/TournamentCard";
 import { getSessionUser } from "@/lib/auth";
 import { getLocale, t, tf } from "@/lib/i18n";
 import {
-  formatTournamentWhen,
-  formatUpcomingAction,
+  formatTournamentDate,
   isOnCourt,
   listCalendarTournaments,
   partitionLandingCalendar,
@@ -14,6 +15,7 @@ import {
   type CalendarTournament,
   type Tour,
 } from "@/lib/tournaments/calendar";
+import { lockWhenLabel } from "@/lib/tournaments/when";
 
 const HOW_STEPS = [
   ["landing.how.1.title", "landing.how.1.body"],
@@ -86,66 +88,40 @@ function TournamentRows({
         const surface = surfaceClass(event.surface);
         return (
           <li key={event.ref}>
-            <Link
+            <TournamentCard
               href="/tournaments"
-              className={
-                variant === "upcoming" ? "trow trow--soon" : "trow"
+              name={event.name}
+              tour={event.tour}
+              surface={surface}
+              surfaceLabel={t(surfaceKey(event.surface))}
+              when={formatTournamentDate(event.starts_on, locale) ?? t("calendar.dateTbc")}
+              lockWhen={lockWhenLabel(event, locale)}
+              status={
+                event.hasDraw
+                  ? t("calendar.drawOpen")
+                  : t("calendar.drawPending")
               }
-              data-s={surface}
-            >
-              <span
-                className={`court-hairline court-${surface}`}
-                aria-hidden
-              />
-              <div className="trow-top">
-                <TourLabel tour={event.tour} />
-                {variant === "upcoming" ? (
-                  <span className="chip chip--quiet">{t("chip.upcoming")}</span>
-                ) : onCourt ? (
-                  <span className="chip chip--data">{t("chip.onCourt")}</span>
-                ) : null}
-              </div>
-              <span className="trow-name">{event.name}</span>
-              <div className="trow-foot">
-                <span className="trow-meta">
-                  <span className="surf" data-s={surface}>
-                    <i aria-hidden />
-                    {t(surfaceKey(event.surface))}
-                  </span>
-                  {" · "}
-                  {variant === "upcoming"
-                    ? formatUpcomingAction(
-                        event,
-                        {
-                          drawOpen: t("calendar.drawOpen"),
-                          drawPending: t("calendar.drawPending"),
-                          entryLocks: t("calendar.entryLocks"),
-                          starts: t("calendar.starts"),
-                          today: t("calendar.today"),
-                          tomorrow: t("calendar.tomorrow"),
-                        },
-                        locale
-                      )
-                    : formatTournamentWhen(event, {
-                        drawOpen: t("calendar.drawOpen"),
-                        drawPending: t("calendar.drawPending"),
-                      })}
-                </span>
-                <span
-                  className="league-card-status"
-                  data-pending={event.hasDraw ? undefined : "true"}
-                >
-                  {event.hasDraw
-                    ? t("calendar.drawOpen")
-                    : t("calendar.drawPending")}
-                </span>
-              </div>
-            </Link>
+              statusPending={!event.hasDraw}
+              soon={variant === "upcoming"}
+              chip={
+                variant === "upcoming"
+                  ? "upcoming"
+                  : onCourt
+                    ? "onCourt"
+                    : null
+              }
+            />
           </li>
         );
       })}
     </ul>
   );
+}
+
+function calendarHeading(openCount: number) {
+  if (openCount === 0) return t("landing.calendar.heading.none");
+  if (openCount === 1) return t("landing.calendar.heading.openOne");
+  return tf("landing.calendar.heading.openMany", { n: openCount });
 }
 
 export default async function HomePage() {
@@ -239,10 +215,13 @@ export default async function HomePage() {
         </header>
 
         <section className="section" aria-labelledby="calendar-heading">
-          <p className="eyebrow">{t("landing.calendar.title")}</p>
-          <h2 id="calendar-heading" className="section-title">
-            {t("landing.calendar.lede")}
-          </h2>
+          <div className="sec-head">
+            <p className="eyebrow">{t("landing.calendar.title")}</p>
+            <h2 id="calendar-heading" className="section-title">
+              {calendarHeading(openNow.length)}
+            </h2>
+            <p className="section-lede">{t("landing.calendar.lede")}</p>
+          </div>
 
           {calendar.length === 0 ? (
             <p className="stub-note">{t("calendar.empty")}</p>
@@ -281,13 +260,29 @@ export default async function HomePage() {
               </div>
             </div>
           )}
+
+          <div className="cal-note">
+            {calendar.length > 0 &&
+            openNow.length === 0 &&
+            upcoming.length === 0 ? (
+              <p className="calendar-fact">
+                {t("landing.calendar.upcoming.empty.none")}
+              </p>
+            ) : null}
+            <SurfaceKey />
+          </div>
         </section>
 
+        <DailyCheckPreview />
+
         <section className="section" aria-labelledby="how-heading">
-          <p className="eyebrow">{t("landing.how.title")}</p>
-          <h2 id="how-heading" className="section-title">
-            {t("landing.how.lede")}
-          </h2>
+          <div className="sec-head">
+            <p className="eyebrow">{t("landing.how.title")}</p>
+            <h2 id="how-heading" className="section-title">
+              {t("landing.how.lede")}
+            </h2>
+            <p className="section-lede">{t("landing.how.body")}</p>
+          </div>
           <ol className="steps">
             {HOW_STEPS.map((step, i) => (
               <li key={step[0]} className="stack gap-sm">

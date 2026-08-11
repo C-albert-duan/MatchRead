@@ -28,6 +28,12 @@ type ResultRow = {
   voided?: boolean;
 };
 
+type ScheduleRow = {
+  match_key: string;
+  scheduled_at: string;
+  has_time?: boolean;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: cors });
@@ -74,6 +80,7 @@ Deno.serve(async (req) => {
     delete_tournament_refs?: string[];
     seats?: SeatRow[];
     results?: ResultRow[];
+    schedule?: ScheduleRow[];
     /** When set, retarget leagues from these old fixture labels to tournament_patch.name. */
     montreal_name_labels?: string[];
   };
@@ -227,6 +234,23 @@ Deno.serve(async (req) => {
     log.push(`upserted ${rows.length} match_results`);
   }
 
+  const schedule = (body.schedule ?? []).filter((s) => s.match_key && s.scheduled_at);
+  if (schedule.length > 0) {
+    const now = new Date().toISOString();
+    const rows = schedule.map((s) => ({
+      tournament_id: tournamentId,
+      match_key: s.match_key,
+      scheduled_at: s.scheduled_at,
+      has_time: Boolean(s.has_time),
+      updated_at: now,
+    }));
+    const { error } = await admin.from("match_schedule").upsert(rows, {
+      onConflict: "tournament_id,match_key",
+    });
+    if (error) return jsonError(400, error.message, log);
+    log.push(`upserted ${rows.length} match_schedule`);
+  }
+
   return new Response(
     JSON.stringify({
       ok: true,
@@ -234,6 +258,7 @@ Deno.serve(async (req) => {
       draw_id: draw.id,
       seats: seatRows.length,
       results: results.length,
+      schedule: schedule.length,
       log,
     }),
     {

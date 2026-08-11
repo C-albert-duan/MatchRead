@@ -79,6 +79,17 @@ export declare function getTournamentInfo(
   providerTournamentId: string | number
 ): Promise<{ tour: Tour; info: unknown; raw: unknown }>;
 
+export declare function getTournamentFixtures(
+  client: { get: (path: string) => Promise<any> },
+  tour: Tour,
+  providerTournamentId: string | number,
+  opts?: { include?: string; filter?: string; pageSize?: number }
+): Promise<{ tour: Tour; fixtures: unknown[]; raw: unknown }>;
+
+export declare function parseFixtureInstant(
+  row: Record<string, unknown> | null | undefined
+): { scheduled_at: string; has_time: boolean } | null;
+
 export declare function getTournamentResults(
   client: { get: (path: string) => Promise<any> },
   tour: Tour,

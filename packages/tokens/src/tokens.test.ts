@@ -15,7 +15,13 @@ test("hard court is not the accent / CTA colour", () => {
 
 test("verified fact is Tournament Green, not mint", () => {
   assert.equal(color.data, "#0A6B42");
-  assert.equal(color.canvas, "#FFFFFF");
+  assert.equal(color.inverse, "#053D26");
+  assert.notEqual(color.canvas, "#FFFFFF");
+});
+
+test("the room is lawn paper; cards sit on it as cream", () => {
+  assert.equal(color.canvas, "#E8F1EB");
+  assert.equal(color.card, "#FBFDFA");
 });
 
 test("cssVariables emits the new colours under --mr-* names", () => {
@@ -24,5 +30,7 @@ test("cssVariables emits the new colours under --mr-* names", () => {
   assert.match(css, /--mr-ball-edge: #C4DE3F/);
   assert.match(css, /--mr-court-hard: #2F6FA8/);
   assert.match(css, /--mr-data: #0A6B42/);
+  assert.match(css, /--mr-card: #FBFDFA/);
+  assert.match(css, /--mr-canvas: #E8F1EB/);
   assert.equal(rootStyle().startsWith(":root"), true);
 });

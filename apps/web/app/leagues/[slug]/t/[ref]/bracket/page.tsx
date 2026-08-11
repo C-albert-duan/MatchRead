@@ -10,9 +10,11 @@ import { AppShell } from "@/components/shell/AppShell";
 import { BracketEditor } from "@/components/bracket/BracketEditor";
 import { getSessionUser } from "@/lib/auth";
 import { isTournamentLocked } from "@/lib/brackets/types";
-import { t, tf } from "@/lib/i18n";
+import { getLocale, t, tf } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
 import { createClient } from "@/lib/supabase/server";
+import type { MatchScheduleRow } from "@/lib/tournaments/calendar";
+import { whenCaption } from "@/lib/tournaments/when";
 
 type Props = {
   params: { slug: string; ref: string };
@@ -84,7 +86,7 @@ export default async function BracketPage({ params }: Props) {
     redirect(`/leagues/${league.slug}/t/${tournament.ref}`);
   }
 
-  const [{ data: seatRows }, { data: bracket }, { data: resultRows }] =
+  const [{ data: seatRows }, { data: bracket }, { data: resultRows }, { data: scheduleRows }] =
     await Promise.all([
       supabase
         .from("draw_seats")
@@ -104,6 +106,10 @@ export default async function BracketPage({ params }: Props) {
         .from("match_results")
         .select("match_key, winner_ref, voided")
         .eq("tournament_id", tournament.id),
+      supabase
+        .from("match_schedule")
+        .select("match_key, scheduled_at, has_time")
+        .eq("tournament_id", tournament.id),
     ]);
 
   const seats = (seatRows ?? []) as DrawSeat[];
@@ -119,6 +125,15 @@ export default async function BracketPage({ params }: Props) {
     };
   }
   const hasOfficial = Object.keys(officialResults).length > 0;
+
+  const schedule: Record<string, MatchScheduleRow> = {};
+  for (const row of scheduleRows ?? []) {
+    if (!row.match_key || !row.scheduled_at) continue;
+    schedule[row.match_key] = {
+      scheduled_at: row.scheduled_at,
+      has_time: Boolean(row.has_time),
+    };
+  }
 
   const surface = String(tournament.surface ?? "hard").toLowerCase();
   const courtTone = surface.includes("clay")
@@ -139,6 +154,10 @@ export default async function BracketPage({ params }: Props) {
               {tf("bracket.page.title", { name: tournament.name })}
             </h1>
             <p className="t-lead">
+              <span className="numeral">
+                {whenCaption(tournament, getLocale())}
+              </span>
+              {" · "}
               {locked && hasOfficial
                 ? t("bracket.page.lockedLede")
                 : locked
@@ -173,6 +192,10 @@ export default async function BracketPage({ params }: Props) {
             locked={locked}
             isCommissioner={membership.role === "commissioner"}
             officialResults={officialResults}
+            schedule={schedule}
+            venueTz={
+              (tournament as { venue_tz?: string | null }).venue_tz || "UTC"
+            }
             showSoloInvite={solo && membership.role === "commissioner"}
           />
         </div>

@@ -13,7 +13,11 @@ import {
   saveOfficialWinner,
   settleAllLeaguesForTournament,
 } from "@/app/actions/settlement";
-import { useT, useTf } from "@/components/shell/LocaleProvider";
+import { useLocale, useT, useTf } from "@/components/shell/LocaleProvider";
+import {
+  formatMatchWhen,
+  type MatchScheduleRow,
+} from "@/lib/tournaments/format";
 
 type Props = {
   leagueId: string;
@@ -25,6 +29,8 @@ type Props = {
   /** Existing official winners: matchKey → player_ref */
   initialResults: Record<string, string>;
   isFounder: boolean;
+  schedule?: Record<string, MatchScheduleRow>;
+  venueTz?: string;
 };
 
 type Busy =
@@ -62,6 +68,8 @@ export function OfficialResultsPanel({
   seats,
   initialResults,
   isFounder,
+  schedule = {},
+  venueTz = "UTC",
 }: Props) {
   const [results, setResults] = useState<Record<string, string>>(initialResults);
   const [message, setMessage] = useState<string | null>(null);
@@ -73,6 +81,8 @@ export function OfficialResultsPanel({
   const panelBusy = busy != null;
   const t = useT();
   const tf = useTf();
+  const locale = useLocale();
+  const tbc = t("calendar.dateTbc");
 
   async function saveWinner(
     matchKey: string,
@@ -288,6 +298,15 @@ export function OfficialResultsPanel({
                 <div className="row between wrap gap-sm">
                   <p className="result-match-label">
                     {round.label.match} {match.indexInRound + 1}
+                    {" · "}
+                    <span className="numeral">
+                      {formatMatchWhen(
+                        schedule[match.key],
+                        venueTz,
+                        locale,
+                        tbc
+                      )}
+                    </span>
                     {matchBusy ? (
                       <span className="result-match-pending">
                         {" "}

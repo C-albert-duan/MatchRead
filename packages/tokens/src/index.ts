@@ -1,23 +1,27 @@
 /** Design tokens — MatchRead club system.
- * White is the room. Charcoal is type and the only primary button.
- * Tournament Green is identity and verified fact — never a button.
+ * The room is lawn paper, not sterile white. Cards sit on it as cream.
+ * Charcoal is type and the only primary button.
+ * Tournament Green is identity, atmosphere, and verified fact — never a button.
  * Ball yellow is live energy, rare. Court colours are surface facts only.
  * Elevation is canvas / raised / sunken + hairlines. No shadows.
  */
 
 export const color = {
-  canvas: "#FFFFFF",
-  raised: "#F2F5F4",
-  sunken: "#FAFBFB",
-  input: "#FFFFFF",
-  line: "#E2E7E6",
-  lineStrong: "#C9D1CF",
-  lineControl: "#828E8B",
+  /** Lawn paper — the page ground. */
+  canvas: "#E8F1EB",
+  /** Cream sheet on the lawn. Cards, inputs, raised panels. */
+  card: "#FBFDFA",
+  raised: "#DCE8E1",
+  sunken: "#F3F8F5",
+  input: "#FBFDFA",
+  line: "#C5D6CB",
+  lineStrong: "#A8BDB0",
+  lineControl: "#6E8A78",
   textPrimary: "#15181B",
   textSecondary: "#3B4248",
   textMuted: "#626A72",
-  /** Charcoal inverse panels (close band, settled artifact). */
-  inverse: "#15181B",
+  /** Deep Tournament Green — close band and settled artifact. */
+  inverse: "#053D26",
   inverseText: "#FFFFFF",
   /** A user's pick — ink, not celebration. */
   read: "#15181B",
@@ -28,7 +32,7 @@ export const color = {
   /** Verified tournament fact. */
   data: "#0A6B42",
   dataStrong: "#053D26",
-  dataTint: "#EDF4F0",
+  dataTint: "#D7EBE0",
   wta: "#C6A2FF",
   miss: "#C93F36",
   missStrong: "#A3322B",
@@ -39,9 +43,9 @@ export const color = {
   courtGrass: "#5F8F3A",
   courtHard: "#2F6FA8",
   courtIndoor: "#293D5E",
-  /** Inverse charcoal — one moment per view, not page ground. */
-  scoreboard: "#15181B",
-  scoreboardRaised: "#1C2126",
+  /** Inverse green — one clubhouse moment per view, not page ground. */
+  scoreboard: "#053D26",
+  scoreboardRaised: "#0A4F32",
 } as const;
 
 export const font = {
@@ -91,6 +95,7 @@ export const motion = {
 export function cssVariables(): string {
   return [
     `--mr-canvas: ${color.canvas}`,
+    `--mr-card: ${color.card}`,
     `--mr-raised: ${color.raised}`,
     `--mr-sunken: ${color.sunken}`,
     `--mr-input: ${color.input}`,

@@ -17,8 +17,10 @@ import {
   saveBracketPicks,
   submitBracket,
 } from "@/app/actions/brackets";
+import { BracketFind } from "@/components/bracket/BracketFind";
 import { BracketGrid } from "@/components/bracket/BracketGrid";
-import { useT, useTf } from "@/components/shell/LocaleProvider";
+import { useLocale, useT, useTf } from "@/components/shell/LocaleProvider";
+import type { MatchScheduleRow } from "@/lib/tournaments/format";
 
 type Props = {
   leagueId: string;
@@ -33,6 +35,8 @@ type Props = {
   locked: boolean;
   isCommissioner: boolean;
   officialResults?: OfficialResults;
+  schedule?: Record<string, MatchScheduleRow>;
+  venueTz?: string;
   /** Soft upgrade CTA after submit while still alone. */
   showSoloInvite?: boolean;
 };
@@ -60,6 +64,8 @@ export function BracketEditor({
   locked,
   isCommissioner,
   officialResults = {},
+  schedule = {},
+  venueTz = "UTC",
   showSoloInvite = false,
 }: Props) {
   const [picks, setPicks] = useState<BracketPicks>(() =>
@@ -80,6 +86,7 @@ export function BracketEditor({
   confidenceRef.current = confidence;
   const t = useT();
   const tf = useTf();
+  const locale = useLocale();
 
   useEffect(() => {
     function onOnline() {
@@ -282,6 +289,16 @@ export function BracketEditor({
         </section>
       ) : null}
 
+      <BracketFind
+        drawSize={drawSize}
+        seats={seats}
+        picks={picks}
+        official={officialResults}
+        schedule={schedule}
+        venueTz={venueTz}
+        locale={locale}
+      />
+
       <BracketGrid
         drawSize={drawSize}
         seats={seats}
@@ -289,6 +306,9 @@ export function BracketEditor({
         confidence={confidence}
         locked={isLocked}
         official={officialResults}
+        schedule={schedule}
+        venueTz={venueTz}
+        locale={locale}
         onPick={handlePick}
         onConfidence={handleConfidence}
       />

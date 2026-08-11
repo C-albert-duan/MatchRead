@@ -1,5 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 
+export type { MatchScheduleRow } from "@/lib/tournaments/format";
+export { formatMatchWhen } from "@/lib/tournaments/format";
+
 export type Tour = "atp" | "wta";
 
 export type CalendarTournament = {
@@ -60,6 +63,72 @@ export function formatTournamentWhen(
   const parts: string[] = [];
   if (row.starts_on) parts.push(row.starts_on);
   parts.push(row.hasDraw ? labels.drawOpen : labels.drawPending);
+  return parts.join(" · ");
+}
+
+/** Draw-sheet date: `03 AUG 2026`. Month follows the locale; day and year stay tabular. */
+export function formatTournamentDate(
+  startsOn: string | null,
+  locale: string
+): string | null {
+  if (!startsOn) return null;
+  const d = new Date(`${startsOn}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return startsOn;
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  const month = d
+    .toLocaleString(locale, { month: "short", timeZone: "UTC" })
+    .replace(".", "")
+    .toUpperCase();
+  const year = d.getUTCFullYear();
+  return `${day} ${month} ${year}`;
+}
+
+export type TournamentTimeRow = {
+  starts_on: string | null;
+  lock_at?: string | null;
+  venue_tz?: string | null;
+};
+
+export type TournamentTimeLabels = {
+  today: string;
+  tomorrow: string;
+  tbc: string;
+  entryLocks: string;
+  locked: string;
+};
+
+/** Start date + venue-local lock. Never invents a clock we do not have. */
+export function tournamentTimeFacts(
+  row: TournamentTimeRow,
+  locale: string,
+  labels: Pick<TournamentTimeLabels, "today" | "tomorrow" | "tbc">,
+  now: Date = new Date()
+) {
+  const start = formatTournamentDate(row.starts_on, locale) ?? labels.tbc;
+  const locked = Boolean(row.lock_at) && isEntryLocked({ lock_at: row.lock_at! }, now);
+  const lock = row.lock_at
+    ? formatLockWhen(
+        row.lock_at,
+        row.venue_tz || "UTC",
+        locale,
+        { today: labels.today, tomorrow: labels.tomorrow },
+        now
+      )
+    : null;
+  return { start, lock, locked };
+}
+
+/** One caption for headers: `03 AUG 2026 · entry locks Today 14:00`. */
+export function formatWhenCaption(
+  row: TournamentTimeRow,
+  locale: string,
+  labels: TournamentTimeLabels,
+  now: Date = new Date()
+) {
+  const facts = tournamentTimeFacts(row, locale, labels, now);
+  const parts = [facts.start];
+  if (facts.locked) parts.push(labels.locked);
+  else if (facts.lock) parts.push(`${labels.entryLocks} ${facts.lock}`);
   return parts.join(" · ");
 }
 

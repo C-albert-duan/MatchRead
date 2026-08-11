@@ -19,7 +19,9 @@ import { writeFileSync, readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   createClient,
+  getTournamentFixtures,
   getTournamentResults,
+  parseFixtureInstant,
 } from "@matchread/provider-rapidapi";
 
 const DRAW_SIZE = 64;
@@ -347,6 +349,7 @@ function rebuildFromResults(singles, prefix) {
     players,
     matches,
     results,
+    schedule: collectSchedule(singles, matches),
     stats: {
       r16: r16.length,
       realPlayers: real.length,
@@ -356,6 +359,25 @@ function rebuildFromResults(singles, prefix) {
       verifiedPlayers: verified.length,
     },
   };
+}
+
+/**
+ * @param {any[]} providerMatches
+ * @param {Record<string,string>} matchMap
+ */
+function collectSchedule(providerMatches, matchMap) {
+  /** @type {Array<{match_key:string,scheduled_at:string,has_time:boolean}>} */
+  const out = [];
+  const seen = new Set();
+  for (const m of providerMatches) {
+    const key = matchMap[String(m?.id ?? "")];
+    if (!key || seen.has(key)) continue;
+    const parsed = parseFixtureInstant(m);
+    if (!parsed) continue;
+    seen.add(key);
+    out.push({ match_key: key, ...parsed });
+  }
+  return out;
 }
 
 function parseTours(argv) {
@@ -391,6 +413,29 @@ async function importTour(client, cfg, env, dryRun) {
   const rebuilt = rebuildFromResults(singles, cfg.prefix);
   console.log("rebuild stats", rebuilt.stats);
 
+  /** @type {any[]} */
+  let fixtures = [];
+  try {
+    const fetched = await getTournamentFixtures(
+      client,
+      cfg.tour,
+      cfg.provider_tournament_id
+    );
+    fixtures = fetched.fixtures;
+    console.log("fixture rows", fixtures.length);
+  } catch (err) {
+    console.warn("fixtures unavailable:", err instanceof Error ? err.message : err);
+  }
+
+  const scheduleByKey = new Map(
+    rebuilt.schedule.map((row) => [row.match_key, row])
+  );
+  for (const row of collectSchedule(fixtures, rebuilt.matches)) {
+    scheduleByKey.set(row.match_key, row);
+  }
+  const schedule = [...scheduleByKey.values()];
+  console.log("schedule rows", schedule.length);
+
   const payload = {
     tournament_ref: cfg.ref,
     tournament_patch: {
@@ -406,6 +451,7 @@ async function importTour(client, cfg, env, dryRun) {
     montreal_name_labels: cfg.montreal_name_labels ?? [],
     seats: rebuilt.seats,
     results: rebuilt.results,
+    schedule,
   };
 
   const previewPath = resolve(process.cwd(), cfg.previewFile);

@@ -35,38 +35,27 @@ function localizeCta(label: string): string {
 }
 
 export function DailyCheckPanel({ check }: Props) {
+  const action = check.action;
+
   return (
     <section
       className="daily-check focus-band"
       aria-labelledby="daily-check"
       data-emotion={check.emotion}
     >
-      <div className="stack gap-xl">
-        <div className="daily-check-kicker">
-          <span className="daily-check-live">
-            <span className="live-dot" aria-hidden />
-            {t("daily.yours")}
-          </span>
-          <span className="daily-check-frame">
-            {localizeFrame(check.frame)} · {check.eventName}
-          </span>
-        </div>
-        <h2 id="daily-check" className="daily-check-headline">
-          {check.headline}
-        </h2>
-        <p className="t-lead">{check.detail}</p>
+      <div className="check-head">
+        <span className="daily-check-live">
+          <span className="live-dot" aria-hidden />
+          {t("daily.yours")}
+        </span>
+        <span className="daily-check-frame">
+          {localizeFrame(check.frame)} · {check.eventName}
+        </span>
       </div>
-
-      {check.action ? (
-        <div className="page-actions">
-          <Link
-            href={check.action.href}
-            className="act act--standard act--standard-size"
-          >
-            {localizeCta(check.action.label)}
-          </Link>
-        </div>
-      ) : null}
+      <h2 id="daily-check" className="daily-check-headline">
+        {check.headline}
+      </h2>
+      <p className="check-detail">{check.detail}</p>
 
       {check.beats.length > 0 ? (
         <ul className="beats">
@@ -93,6 +82,17 @@ export function DailyCheckPanel({ check }: Props) {
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {action ? (
+        <div className="check-foot">
+          <Link
+            href={action.href}
+            className="act act--standard act--standard-size"
+          >
+            {localizeCta(action.label)}
+          </Link>
+        </div>
       ) : null}
     </section>
   );

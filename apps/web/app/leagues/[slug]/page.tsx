@@ -10,7 +10,7 @@ import { LeagueSettingsPanel } from "@/components/league/LeagueSettingsPanel";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { getServerSiteUrl } from "@/lib/env";
-import { t, tf } from "@/lib/i18n";
+import { getLocale, t, tf } from "@/lib/i18n";
 import { loadDailyCheck } from "@/lib/leagues/daily-check";
 import { isSoloPresentation } from "@/lib/leagues/solo";
 import type { LeagueVisibility } from "@/lib/leagues/types";
@@ -18,10 +18,12 @@ import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
 import { redirectIfMissingDisplayName } from "@/lib/profiles/require-name";
 import { createClient } from "@/lib/supabase/server";
 import {
+  formatTournamentDate,
   listVerifiedDrawTournamentIds,
   normalizeTour,
   surfaceClass,
 } from "@/lib/tournaments/calendar";
+import { lockWhenLabel } from "@/lib/tournaments/when";
 
 type Props = {
   params: { slug: string };
@@ -49,6 +51,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
   if (!user) {
     redirect(`/sign-in?next=${encodeURIComponent(`/leagues/${params.slug}`)}`);
   }
+  const locale = getLocale();
 
   const supabase = createClient();
   const { data: league, error } = await supabase
@@ -118,7 +121,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
       : Promise.resolve({ data: null as { token: string } | null }),
     supabase
       .from("tournaments")
-      .select("id, ref, name, surface, starts_on, draw_size, tour")
+      .select("id, ref, name, surface, starts_on, lock_at, venue_tz, draw_size, tour")
       .order("starts_on", { ascending: true }),
     listVerifiedDrawTournamentIds(),
   ]);
@@ -292,6 +295,12 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                   decidedCount: decidedByTournament.get(t.id) ?? 0,
                   settled: settledTournaments.has(t.id),
                 });
+                const start =
+                  formatTournamentDate(t.starts_on, locale) ?? t.starts_on;
+                const lock = lockWhenLabel(t, locale);
+                const whenBits = [start, lock, `${t.draw_size}-draw`].filter(
+                  Boolean
+                );
                 return (
                   <li key={t.id}>
                     <Link
@@ -312,11 +321,8 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                         style={{ flex: 1, minWidth: 0 }}
                       >
                         <span className="league-card-name">{t.name}</span>
-                        <span className="t-caption">
-                          {t.surface}
-                          {t.starts_on ? ` · ${t.starts_on}` : ""}
-                          {" · "}
-                          {t.draw_size}-draw
+                        <span className="t-caption numeral">
+                          {whenBits.join(" · ")}
                         </span>
                       </span>
                       <span className="league-card-status">{status}</span>

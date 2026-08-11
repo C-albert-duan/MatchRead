@@ -12,6 +12,11 @@ import {
   type SlotOccupant,
 } from "@matchread/core";
 import { PlayerChip } from "@/components/bracket/PlayerChip";
+import { useT } from "@/components/shell/LocaleProvider";
+import {
+  formatMatchWhen,
+  type MatchScheduleRow,
+} from "@/lib/tournaments/format";
 
 type Props = {
   drawSize: number;
@@ -21,6 +26,9 @@ type Props = {
   locked: boolean;
   /** When set, decided matches show pick vs official winner. */
   official?: OfficialResults;
+  schedule?: Record<string, MatchScheduleRow>;
+  venueTz?: string;
+  locale?: string;
   onPick?: (matchKey: string, playerRef: string) => void;
   onConfidence?: (matchKey: string, level: number) => void;
 };
@@ -73,9 +81,14 @@ export function BracketGrid({
   confidence,
   locked,
   official = {},
+  schedule = {},
+  venueTz = "UTC",
+  locale = "en",
   onPick,
   onConfidence,
 }: Props) {
+  const t = useT();
+  const tbc = t("calendar.dateTbc");
   const rounds = buildRoundStructure(drawSize);
   const r0Slots = drawSize / 2;
   const regionStyle = {
@@ -177,11 +190,21 @@ export function BracketGrid({
                   graded,
                 });
 
+                const when = schedule[match.key]
+                  ? formatMatchWhen(
+                      schedule[match.key],
+                      venueTz,
+                      locale,
+                      tbc
+                    )
+                  : null;
+
                 if (byeMatch && advancer) {
                   return (
                     <div
                       key={match.key}
                       className="match-cell match-cell--bye"
+                      data-match-key={match.key}
                     >
                       <div
                         className="slot slot--bye"
@@ -191,12 +214,19 @@ export function BracketGrid({
                         <PlayerChip occupant={advancer} grade="official" />
                         <span className="bye-tag">Bye · advances</span>
                       </div>
+                      {when ? (
+                        <p className="match-when numeral">{when}</p>
+                      ) : null}
                     </div>
                   );
                 }
 
                 return (
-                  <div key={match.key} className="match-cell">
+                  <div
+                    key={match.key}
+                    className="match-cell"
+                    data-match-key={match.key}
+                  >
                     <div
                       className="slot"
                       role="radiogroup"
@@ -286,6 +316,9 @@ export function BracketGrid({
                       <div className="grade-row" aria-hidden="true">
                         {gradeLabel}
                       </div>
+                    ) : null}
+                    {when ? (
+                      <p className="match-when numeral">{when}</p>
                     ) : null}
                   </div>
                 );

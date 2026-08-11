@@ -1,15 +1,17 @@
 ﻿import Link from "next/link";
 import { AppShell } from "@/components/shell/AppShell";
-import { TourLabel } from "@/components/tournaments/TourLabel";
+import { SurfaceKey } from "@/components/tournaments/SurfaceKey";
+import { TournamentCard } from "@/components/tournaments/TournamentCard";
 import { getSessionUser } from "@/lib/auth";
-import { t } from "@/lib/i18n";
+import { getLocale, t } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
 import {
-  formatTournamentWhen,
+  formatTournamentDate,
   isOnCourt,
   listCalendarTournaments,
   surfaceClass,
 } from "@/lib/tournaments/calendar";
+import { lockWhenLabel } from "@/lib/tournaments/when";
 
 type LeagueRow = {
   slug: string;
@@ -70,6 +72,7 @@ export default async function TournamentsPage({
   searchParams?: { error?: string };
 }) {
   const user = await getSessionUser();
+  const locale = getLocale();
   const supabase = createClient();
   const tournaments = await listCalendarTournaments();
   const enterError = searchParams?.error?.trim() || null;
@@ -135,70 +138,58 @@ export default async function TournamentsPage({
         {tournaments.length === 0 ? (
           <p className="stub-note">{t("calendar.empty")}</p>
         ) : (
-          <ul className="calendar focus-band">
-            {tournaments.map((row, index) => {
-              const href = hrefForTournament(
-                row.name,
-                row.ref,
-                Boolean(user),
-                leagues,
-                row.hasDraw
-              );
-              const surface = surfaceClass(row.surface);
-              const showOnCourt =
-                isOnCourt(row) &&
-                !tournaments.slice(0, index).some((prior) => isOnCourt(prior));
-              return (
-                <li key={row.ref}>
-                  <Link
-                    href={href}
-                    className={row.hasDraw ? "trow" : "trow trow--soon"}
-                  >
-                    <span
-                      className={`court-hairline court-${surface}`}
-                      aria-hidden
-                    />
-                    <div className="trow-top">
-                      <TourLabel tour={row.tour} />
-                      {showOnCourt ? (
-                        <span className="chip chip--live">
-                          <i className="live-dot" aria-hidden />
-                          {t("chip.onCourt")}
-                        </span>
-                      ) : null}
-                    </div>
-                    <span className="trow-name">{row.name}</span>
-                    <div className="trow-foot">
-                      <span className="trow-meta">
-                        <span className="surf" data-s={surface}>
-                          <i aria-hidden />
-                          {t(
-                            surface === "clay"
-                              ? "surface.clay"
-                              : surface === "grass"
-                                ? "surface.grass"
-                                : surface === "indoor"
-                                  ? "surface.indoor"
-                                  : "surface.hard"
-                          )}
-                        </span>
-                        {" · "}
-                        {formatTournamentWhen(row, {
-                          drawOpen: t("calendar.drawOpen"),
-                          drawPending: t("calendar.drawPending"),
-                        })}
-                      </span>
-                      <span className="league-card-status">
-                        {row.hasDraw
+          <div className="calendar-block">
+            <ul className="calendar focus-band">
+              {tournaments.map((row, index) => {
+                const href = hrefForTournament(
+                  row.name,
+                  row.ref,
+                  Boolean(user),
+                  leagues,
+                  row.hasDraw
+                );
+                const surface = surfaceClass(row.surface);
+                const showOnCourt =
+                  isOnCourt(row) &&
+                  !tournaments.slice(0, index).some((prior) => isOnCourt(prior));
+                return (
+                  <li key={row.ref}>
+                    <TournamentCard
+                      href={href}
+                      name={row.name}
+                      tour={row.tour}
+                      surface={surface}
+                      surfaceLabel={t(
+                        surface === "clay"
+                          ? "surface.clay"
+                          : surface === "grass"
+                            ? "surface.grass"
+                            : surface === "indoor"
+                              ? "surface.indoor"
+                              : "surface.hard"
+                      )}
+                      when={
+                        formatTournamentDate(row.starts_on, locale) ??
+                        t("calendar.dateTbc")
+                      }
+                      lockWhen={lockWhenLabel(row, locale)}
+                      status={
+                        row.hasDraw
                           ? t("calendar.open")
-                          : t("league.status.drawPending")}
-                      </span>
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+                          : t("league.status.drawPending")
+                      }
+                      statusPending={!row.hasDraw}
+                      soon={!row.hasDraw}
+                      chip={showOnCourt ? "onCourt" : null}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="cal-note">
+              <SurfaceKey />
+            </div>
+          </div>
         )}
       </div>
     </AppShell>

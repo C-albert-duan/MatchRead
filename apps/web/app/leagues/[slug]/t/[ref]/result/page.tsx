@@ -10,10 +10,13 @@ import { ResultPickBreakdown } from "@/components/league/ResultPickBreakdown";
 import { AppShell } from "@/components/shell/AppShell";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
-import { t } from "@/lib/i18n";
+import { getLocale, t } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
 import { createClient } from "@/lib/supabase/server";
-import { normalizeTour } from "@/lib/tournaments/calendar";
+import {
+  formatTournamentDate,
+  normalizeTour,
+} from "@/lib/tournaments/calendar";
 
 type Props = {
   params: { slug: string; ref: string };
@@ -171,6 +174,14 @@ export default async function ResultArtifactPage({ params }: Props) {
               />
               {" · "}
               {tournament.name}
+              {tournament.starts_on ? (
+                <>
+                  {" · "}
+                  <span className="numeral">
+                    {formatTournamentDate(tournament.starts_on, getLocale())}
+                  </span>
+                </>
+              ) : null}
             </p>
           </div>
           <div className="page-actions">

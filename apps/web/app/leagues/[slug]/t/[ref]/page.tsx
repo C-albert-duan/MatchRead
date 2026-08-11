@@ -9,12 +9,16 @@ import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { isFounderEmail } from "@/lib/auth/founder";
 import { isTournamentLocked } from "@/lib/brackets/types";
-import { t } from "@/lib/i18n";
+import { getLocale, t } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
 import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
 import { redirectIfMissingDisplayName } from "@/lib/profiles/require-name";
 import { createClient } from "@/lib/supabase/server";
-import { normalizeTour } from "@/lib/tournaments/calendar";
+import {
+  normalizeTour,
+  type MatchScheduleRow,
+} from "@/lib/tournaments/calendar";
+import { whenCaption } from "@/lib/tournaments/when";
 
 type Props = {
   params: { slug: string; ref: string };
@@ -95,7 +99,8 @@ export default async function TournamentInLeaguePage({ params }: Props) {
   // Manual Official Results UI only for fixture tournaments without a provider.
   const showManualResults = isCommissioner && !liveFeed;
 
-  const [bracketRes, snapshotsRes, seatsRes, resultsRes] = await Promise.all([
+  const [bracketRes, snapshotsRes, seatsRes, resultsRes, scheduleRes] =
+    await Promise.all([
     supabase
       .from("brackets")
       .select("submitted_at, updated_at")
@@ -139,6 +144,18 @@ export default async function TournamentInLeaguePage({ params }: Props) {
             voided: boolean;
           }>,
         }),
+    showManualResults
+      ? supabase
+          .from("match_schedule")
+          .select("match_key, scheduled_at, has_time")
+          .eq("tournament_id", tournament.id)
+      : Promise.resolve({
+          data: [] as Array<{
+            match_key: string;
+            scheduled_at: string;
+            has_time: boolean;
+          }>,
+        }),
   ]);
 
   const bracket = bracketRes.data;
@@ -149,6 +166,14 @@ export default async function TournamentInLeaguePage({ params }: Props) {
     if (!row.voided && row.winner_ref) {
       initialResults[row.match_key] = row.winner_ref;
     }
+  }
+  const schedule: Record<string, MatchScheduleRow> = {};
+  for (const row of scheduleRes.data ?? []) {
+    if (!row.match_key || !row.scheduled_at) continue;
+    schedule[row.match_key] = {
+      scheduled_at: row.scheduled_at,
+      has_time: Boolean(row.has_time),
+    };
   }
 
   const locked = isTournamentLocked(tournament);
@@ -198,11 +223,10 @@ export default async function TournamentInLeaguePage({ params }: Props) {
               />
               {" · "}
               {tournament.surface} court
-              {tournament.starts_on ? ` · starts ${tournament.starts_on}` : ""}
-              {tournament.lock_at
-                ? ` · locks ${new Date(tournament.lock_at).toUTCString()}`
-                : ""}
-              {locked ? " · locked" : ""}
+              {" · "}
+              <span className="numeral">
+                {whenCaption(tournament, getLocale())}
+              </span>
             </p>
           </div>
           <div className="page-actions">
@@ -319,6 +343,11 @@ export default async function TournamentInLeaguePage({ params }: Props) {
                     seats={seats}
                     initialResults={initialResults}
                     isFounder={isFounder}
+                    schedule={schedule}
+                    venueTz={
+                      (tournament as { venue_tz?: string | null }).venue_tz ||
+                      "UTC"
+                    }
                   />
                 ) : null}
                 <SettleButton

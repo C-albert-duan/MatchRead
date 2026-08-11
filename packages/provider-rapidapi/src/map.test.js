@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   mapResultsToIngest,
   normalizeTour,
+  parseFixtureInstant,
   resolveNationalBankOpenWeek,
 } from "./index.js";
 
@@ -41,6 +42,34 @@ describe("resolveNationalBankOpenWeek", () => {
       name: "National Bank Open - Toronto",
       starts_on: "2026-08-03",
     });
+  });
+});
+
+describe("parseFixtureInstant", () => {
+  it("keeps a real clock from an ISO datetime", () => {
+    const parsed = parseFixtureInstant({
+      date: "2026-08-11T18:30:00.000Z",
+    });
+    assert.equal(parsed?.has_time, true);
+    assert.equal(parsed?.scheduled_at, "2026-08-11T18:30:00.000Z");
+  });
+
+  it("does not invent midnight as a kickoff", () => {
+    const parsed = parseFixtureInstant({ date: "2026-08-11T00:00:00.000Z" });
+    assert.equal(parsed?.has_time, false);
+    assert.equal(parsed?.scheduled_at, "2026-08-11T00:00:00.000Z");
+  });
+
+  it("joins a date and a clock", () => {
+    const parsed = parseFixtureInstant({ date: "2026-08-11", time: "14:05" });
+    assert.equal(parsed?.has_time, true);
+    assert.equal(parsed?.scheduled_at, "2026-08-11T14:05:00.000Z");
+  });
+
+  it("date-only is a day, not a time", () => {
+    const parsed = parseFixtureInstant({ date: "2026-08-11" });
+    assert.equal(parsed?.has_time, false);
+    assert.equal(parsed?.scheduled_at, "2026-08-11T12:00:00.000Z");
   });
 });
 

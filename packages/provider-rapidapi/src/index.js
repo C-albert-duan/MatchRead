@@ -167,6 +167,80 @@ export async function getTournamentResults(client, tour, providerTournamentId) {
 }
 
 /**
+ * Upcoming / scheduled fixtures for a tournament season.
+ * @param {{ get: (path: string) => Promise<any> }} client
+ * @param {'atp'|'wta'} tour
+ * @param {string|number} providerTournamentId
+ * @param {{ include?: string, filter?: string, pageSize?: number }} [opts]
+ */
+export async function getTournamentFixtures(
+  client,
+  tour,
+  providerTournamentId,
+  opts = {}
+) {
+  const t = normalizeTour(tour);
+  const id = String(providerTournamentId).trim();
+  const qs = new URLSearchParams();
+  qs.set(
+    "include",
+    opts.include || "round,tournament,tournament.court,tournament.country"
+  );
+  qs.set("filter", opts.filter || "PlayerGroup:singles");
+  qs.set("pageSize", String(opts.pageSize ?? 500));
+  const body = await client.get(
+    `/tennis/v2/${t}/fixtures/tournament/${id}?${qs}`
+  );
+  const data = body?.data ?? body;
+  /** @type {any[]} */
+  const rows = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.fixtures)
+      ? data.fixtures
+      : Array.isArray(data?.rows)
+        ? data.rows
+        : [];
+  return { tour: t, fixtures: rows, raw: body };
+}
+
+/**
+ * Parse a provider fixture/result into a stored instant.
+ * Date-only values do not invent a kickoff clock (`has_time: false`).
+ * @param {Record<string, unknown>|null|undefined} row
+ * @returns {{ scheduled_at: string, has_time: boolean } | null}
+ */
+export function parseFixtureInstant(row) {
+  if (!row || typeof row !== "object") return null;
+  const rawDate = String(
+    row.date ?? row.start ?? row.startDate ?? row.datetime ?? ""
+  ).trim();
+  if (!rawDate) return null;
+
+  if (/T\d{2}:\d{2}/.test(rawDate)) {
+    const d = new Date(rawDate);
+    if (Number.isNaN(d.getTime())) return null;
+    const hasTime = !/T00:00(?::00)?/.test(rawDate);
+    return { scheduled_at: d.toISOString(), has_time: hasTime };
+  }
+
+  const day = rawDate.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+
+  const rawTime = String(row.time ?? row.startTime ?? row.hour ?? "").trim();
+  const hm = rawTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (hm) {
+    const hh = String(hm[1]).padStart(2, "0");
+    const d = new Date(`${day}T${hh}:${hm[2]}:${hm[3] || "00"}Z`);
+    if (Number.isNaN(d.getTime())) return null;
+    return { scheduled_at: d.toISOString(), has_time: true };
+  }
+
+  const d = new Date(`${day}T12:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  return { scheduled_at: d.toISOString(), has_time: false };
+}
+
+/**
  * Find National Bank Open week events: Montreal (ATP) + Toronto (WTA).
  * @param {{ atp: { tournaments: any[] }, wta: { tournaments: any[] } }} dual
  */

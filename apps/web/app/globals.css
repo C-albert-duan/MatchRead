@@ -46,7 +46,7 @@ a {
   color: inherit;
 }
 
-/* shell — white room, no photo wash */
+/* shell — lawn paper, a quiet green room */
 .shell {
   position: relative;
   display: flex;
@@ -54,6 +54,25 @@ a {
   flex-direction: column;
   background: var(--mr-canvas);
   isolation: isolate;
+}
+
+.shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      80% 55% at 88% -8%,
+      color-mix(in srgb, var(--mr-data) 18%, transparent),
+      transparent 58%
+    ),
+    radial-gradient(
+      55% 40% at 8% 108%,
+      color-mix(in srgb, var(--mr-court-grass) 14%, transparent),
+      transparent 62%
+    );
 }
 
 .court-atmosphere {
@@ -108,7 +127,7 @@ a {
   font-weight: 800;
   font-size: 1.375rem;
   letter-spacing: -0.036em;
-  color: var(--mr-text-primary);
+  color: var(--mr-data);
   padding: 6px 0;
 }
 
@@ -246,7 +265,7 @@ a {
   border-radius: var(--r-xl);
   color: var(--mr-text-primary);
   border: 1px solid var(--mr-line);
-  background: var(--mr-canvas);
+  background: var(--mr-card);
   position: relative;
   overflow: hidden;
 }
@@ -290,7 +309,7 @@ a {
   padding: 0;
   border-radius: var(--r-xl);
   border: 1px solid var(--mr-line);
-  background: var(--mr-canvas);
+  background: var(--mr-card);
   overflow-x: auto;
 }
 
@@ -314,8 +333,6 @@ a {
 .landing-hero {
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  min-height: calc(100svh - var(--header-h));
   padding:
     clamp(56px, 7vw, 104px)
     max(var(--page-gutter), calc((100% - min(1220px, 100%)) / 2 + var(--page-gutter)))
@@ -468,7 +485,7 @@ a {
 }
 
 .landing-close .act--prominent:hover {
-  background: var(--mr-raised);
+  background: var(--mr-card);
 }
 
 .landing-close .act--quiet {
@@ -494,6 +511,7 @@ a {
   padding: var(--section) var(--page-gutter) 0;
   box-sizing: border-box;
   border-top: 0;
+  gap: 0;
 }
 
 .page--landing > .section + .section {
@@ -597,7 +615,7 @@ a {
 .act--standard {
   border-color: var(--mr-line-strong);
   color: var(--mr-text-primary);
-  background: var(--mr-canvas);
+  background: var(--mr-card);
 }
 
 .act--standard:hover {
@@ -857,12 +875,27 @@ time,
   max-width: 18ch;
 }
 
+.sec-head {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-bottom: clamp(32px, 3.6vw, 52px);
+}
+
+.sec-head--flush {
+  margin-bottom: 0;
+}
+
+.sec-head .section-title {
+  max-width: 16ch;
+}
+
 .section-lede {
-  margin: calc(var(--s-sm) * -1) 0 0;
-  font-size: 1.0625rem;
-  line-height: 1.5;
-  color: var(--mr-text-secondary);
-  max-width: 42rem;
+  margin: 0;
+  font-size: 15.5px;
+  line-height: 1.65;
+  color: var(--mr-text-muted);
+  max-width: 52ch;
 }
 
 .steps {
@@ -889,8 +922,17 @@ time,
   border-top-color: var(--mr-line-strong);
 }
 
+.steps > li .t-title3 {
+  font-size: 19px;
+  letter-spacing: -0.026em;
+  margin: 20px 0 12px;
+}
+
 .steps > li .t-body {
-  min-height: calc(1.0625rem * 1.55 * 3);
+  min-height: calc(14.5px * 1.62 * 3);
+  font-size: 14.5px;
+  line-height: 1.62;
+  color: var(--mr-text-muted);
 }
 
 .steps > li .eyebrow {
@@ -922,6 +964,11 @@ time,
   .steps {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
+
+.calendar-block {
+  display: flex;
+  flex-direction: column;
 }
 
 .calendar-panels {
@@ -972,7 +1019,7 @@ time,
   text-decoration: none;
   border: 1px solid var(--mr-line);
   border-radius: var(--r-xl);
-  background: var(--mr-canvas);
+  background: var(--mr-card);
   overflow: hidden;
   transition:
     border-color var(--mr-duration-enter) var(--mr-ease-standard),
@@ -1029,7 +1076,7 @@ a.league-card:hover {
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
-  min-height: 240px;
+  min-height: 264px;
 }
 
 .trow-name,
@@ -1119,6 +1166,10 @@ a.league-card:hover {
 }
 
 .trow-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
   font-family: var(--mr-font-numeral);
   font-size: 12px;
   color: var(--mr-text-muted);
@@ -1128,6 +1179,20 @@ a.league-card:hover {
   line-height: 1.35;
 }
 
+.trow-sep {
+  width: 3px;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: var(--mr-line-strong);
+  flex: none;
+}
+
+.trow-date {
+  font-family: var(--mr-font-numeral);
+  font-size: 12px;
+  color: var(--mr-text-muted);
+}
+
 .trow-city {
   font-family: var(--mr-font-numeral);
   font-size: 11.5px;
@@ -1135,6 +1200,34 @@ a.league-card:hover {
   text-transform: uppercase;
   color: var(--mr-text-muted);
   margin-top: 10px;
+}
+
+.cal-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 28px;
+  padding-top: 22px;
+  border-top: 1px solid var(--mr-line);
+}
+
+.cal-note:not(:has(.calendar-fact)) {
+  justify-content: flex-end;
+}
+
+.cal-note .calendar-fact {
+  padding: 0;
+}
+
+.surface-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .trow--soon {
@@ -1208,7 +1301,7 @@ a.league-card:hover {
   padding: var(--card-pad);
   border: 1px solid var(--mr-line);
   border-radius: var(--r-xl);
-  background: var(--mr-canvas);
+  background: var(--mr-card);
   width: 100%;
 }
 
@@ -1279,7 +1372,7 @@ a.league-card:hover {
   padding: 0 var(--s-md);
   border: 1px solid var(--mr-line);
   border-radius: var(--r-pill);
-  background: var(--mr-canvas);
+  background: var(--mr-card);
   color: var(--mr-text-secondary);
   font-family: var(--mr-font-body);
   font-size: 0.8125rem;
@@ -1306,7 +1399,7 @@ a.league-card:hover {
   padding: var(--s-lg);
   border: 1px solid var(--mr-line);
   border-radius: var(--r-md);
-  background: var(--mr-canvas);
+  background: var(--mr-card);
   display: flex;
   flex-direction: column;
   gap: var(--s-md);
@@ -1420,7 +1513,7 @@ a.league-card:hover {
   padding: var(--s-md) var(--s-lg);
   border: 1px solid var(--mr-line-control);
   border-radius: var(--r-md);
-  background: var(--mr-canvas);
+  background: var(--mr-card);
   font-family: var(--mr-font-numeral);
   font-size: 0.8125rem;
   word-break: break-all;
@@ -1851,6 +1944,71 @@ label.name:hover {
   color: var(--mr-text-muted);
 }
 
+.match-when {
+  margin: 6px 0 0;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mr-text-muted);
+}
+
+.match-cell[data-find-hit="true"] .slot {
+  background: var(--mr-sunken);
+}
+
+.bracket-find {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: clamp(20px, 2.2vw, 28px) clamp(24px, 2.6vw, 38px) 0;
+}
+
+.bracket-find-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--mr-line);
+}
+
+.bracket-find-row {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) auto;
+  gap: 12px 16px;
+  align-items: center;
+  width: 100%;
+  min-height: var(--touch);
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid var(--mr-line);
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bracket-find-row:hover {
+  background: var(--mr-sunken);
+}
+
+.bracket-find-round,
+.bracket-find-when {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mr-text-muted);
+}
+
+.bracket-find-names {
+  min-width: 0;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .confidence-btn {
   appearance: none;
   border: 1px solid var(--mr-line);
@@ -1937,14 +2095,25 @@ label.name:hover {
 }
 
 /* daily check — a sentence, not a dashboard */
+.check-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: clamp(32px, 5vw, 80px);
+  align-items: center;
+}
+
+.check-see {
+  margin: 28px 0 0;
+}
+
 .daily-check {
   display: flex;
   flex-direction: column;
-  gap: var(--s-2xl);
+  gap: 0;
   padding: clamp(28px, 3vw, 42px);
   border: 1px solid var(--mr-line);
   border-radius: var(--r-xl);
-  background: var(--mr-canvas);
+  background: var(--mr-card);
   color: var(--mr-text-primary);
   position: relative;
   overflow: hidden;
@@ -1952,6 +2121,14 @@ label.name:hover {
 
 .daily-check::before {
   display: none;
+}
+
+.check-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 .daily-check-live {
@@ -2008,8 +2185,11 @@ label.name:hover {
   max-width: 18ch;
 }
 
+.check-detail,
 .daily-check .t-lead {
+  margin: 12px 0 0;
   max-width: 40rem;
+  font-size: 16px;
   color: var(--mr-text-muted);
 }
 
@@ -2017,15 +2197,36 @@ label.name:hover {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 2px;
-  margin-top: 8px;
+  margin-top: 32px;
   background: var(--mr-line);
   border: 1px solid var(--mr-line);
   border-radius: var(--r-md);
   overflow: hidden;
 }
 
+.check-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 26px;
+  padding-top: 22px;
+  border-top: 1px solid var(--mr-line);
+}
+
+.check-foot > :only-child {
+  margin-left: auto;
+}
+
+.check-note {
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--mr-text-muted);
+}
+
 .check-stat {
-  background: var(--mr-canvas);
+  background: var(--mr-card);
   padding: 18px 16px;
   margin: 0;
 }
@@ -2054,12 +2255,12 @@ label.name:hover {
 
 .beats {
   list-style: none;
-  margin: 0;
+  margin: 26px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
   gap: 0;
-  border-top: 1px solid var(--mr-line);
+  border-top: 0;
 }
 
 .beat {
@@ -2230,7 +2431,7 @@ label.name:hover {
   padding: var(--s-md) var(--s-lg);
   border-radius: var(--r-md);
   border: 1px solid var(--mr-line);
-  background: var(--mr-canvas);
+  background: var(--mr-card);
 }
 
 .result-breakdown-row--correct {
@@ -2443,6 +2644,11 @@ html[data-nav-pending="true"] .shell-main {
   .calendar,
   .league-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .check-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
   }
 
   .check-stats {

@@ -32,12 +32,16 @@ const en = {
   "surface.grass": "Grass",
   "surface.indoor": "Indoor",
   "chip.onCourt": "On court",
+  "chip.onCourt.hint": " — matches in play now",
   "chip.upcoming": "Upcoming",
   "daily.yours": "Your Daily Check",
   "bracket.notPlayed": "Not played",
   "landing.calendar.title": "On the calendar",
   "landing.calendar.lede":
     "Pick an event and fill a bracket — no league needed to start. Invite friends when you want company.",
+  "landing.calendar.heading.openOne": "One draw is open right now.",
+  "landing.calendar.heading.openMany": "{n} draws are open right now.",
+  "landing.calendar.heading.none": "No draws are open right now.",
   "landing.calendar.openNow": "Open now",
   "landing.calendar.openNow.empty":
     "No draws open right now — brackets unlock when the next draw lands.",
@@ -49,8 +53,21 @@ const en = {
   "landing.calendar.upcoming.empty.none":
     "Between events — the next tournament lands when the season calendar is confirmed.",
   "landing.how.title": "How it works",
-  "landing.how.lede":
-    "Fill a bracket first. Invite friends later. Come back for the Daily Check.",
+  "landing.how.lede": "Fill a bracket first. Invite friends later.",
+  "landing.how.body": "Come back for the Daily Check.",
+  "landing.daily.title": "The Daily Check",
+  "landing.daily.heading": "The reason to open it on a Tuesday.",
+  "landing.daily.body":
+    "Not a dashboard. One computed sentence about what changed overnight, and the numbers behind it. If nothing moved, it says so.",
+  "landing.daily.seeLeague": "See a full league",
+  "landing.daily.sample.line": "Up 4 places overnight.",
+  "landing.daily.sample.detail": "You are 3rd in Sunday Doubles.",
+  "landing.daily.sample.note": "Your champion is still standing.",
+  "landing.daily.sample.when": "This morning",
+  "landing.daily.stat.settled": "Settled",
+  "landing.daily.stat.correct": "Correct",
+  "landing.daily.stat.points": "Points",
+  "landing.daily.stat.places": "Places",
   "landing.how.1.title": "Fill in the draw",
   "landing.how.1.body":
     "Pick a winner for every match, all the way to the champion. No league required.",
@@ -366,6 +383,10 @@ const en = {
   "bracket.gradedHint":
     "Locked — green is a correct pick, red is a miss; official winners are marked.",
   "bracket.lockedHint": "This draw is locked.",
+  "bracket.find.label": "Find a match",
+  "bracket.find.placeholder": "Player name",
+  "bracket.find.hint": "Type two letters to search the draw.",
+  "bracket.find.empty": "No matches for that name.",
 
   // Engagement
   "engage.yourBracket": "Your bracket",
@@ -482,6 +503,8 @@ const en = {
   "calendar.tomorrow": "Tomorrow",
   "calendar.open": "Open",
   "calendar.empty": "No tournaments in the database yet.",
+  "calendar.surfaceKey": "Court surface key",
+  "calendar.dateTbc": "TBC",
   "tour.atp": "ATP",
   "tour.wta": "WTA",
 } as const;
@@ -512,12 +535,16 @@ const es: Record<MessageKey, string> = {
   "surface.grass": "Hierba",
   "surface.indoor": "Indoor",
   "chip.onCourt": "En pista",
+  "chip.onCourt.hint": " — partidos en juego ahora",
   "chip.upcoming": "Próximo",
   "daily.yours": "Tu Daily Check",
   "bracket.notPlayed": "Sin jugar",
   "landing.calendar.title": "En el calendario",
   "landing.calendar.lede":
     "Elige un evento y rellena un cuadro — no hace falta una liga para empezar. Invita amigos cuando quieras compañía.",
+  "landing.calendar.heading.openOne": "Hay un sorteo abierto ahora.",
+  "landing.calendar.heading.openMany": "Hay {n} sorteos abiertos ahora.",
+  "landing.calendar.heading.none": "No hay sorteos abiertos ahora.",
   "landing.calendar.openNow": "Abiertos ahora",
   "landing.calendar.openNow.empty":
     "No hay sorteos abiertos ahora — los cuadros se abren cuando llegue el próximo sorteo.",
@@ -529,8 +556,21 @@ const es: Record<MessageKey, string> = {
   "landing.calendar.upcoming.empty.none":
     "Entre eventos — el próximo torneo llega cuando se confirme el calendario de la temporada.",
   "landing.how.title": "Cómo funciona",
-  "landing.how.lede":
-    "Primero el cuadro. Invita después. Vuelve por el Daily Check.",
+  "landing.how.lede": "Primero el cuadro. Invita después.",
+  "landing.how.body": "Vuelve por el Daily Check.",
+  "landing.daily.title": "El Daily Check",
+  "landing.daily.heading": "La razón para abrirlo un martes.",
+  "landing.daily.body":
+    "No es un panel. Una frase calculada sobre lo que cambió por la noche, y los números detrás. Si no se movió nada, lo dice.",
+  "landing.daily.seeLeague": "Ver una liga completa",
+  "landing.daily.sample.line": "Subes 4 puestos de la noche a la mañana.",
+  "landing.daily.sample.detail": "Vas 3º en Sunday Doubles.",
+  "landing.daily.sample.note": "Tu campeón sigue en pie.",
+  "landing.daily.sample.when": "Esta mañana",
+  "landing.daily.stat.settled": "Resueltos",
+  "landing.daily.stat.correct": "Acertados",
+  "landing.daily.stat.points": "Puntos",
+  "landing.daily.stat.places": "Puestos",
   "landing.how.1.title": "Rellena el cuadro",
   "landing.how.1.body":
     "Elige un ganador en cada partido hasta el campeón. No hace falta una liga.",
@@ -853,6 +893,10 @@ const es: Record<MessageKey, string> = {
   "bracket.gradedHint":
     "Bloqueado — verde es un acierto, rojo es un fallo; los ganadores oficiales están marcados.",
   "bracket.lockedHint": "Este sorteo está bloqueado.",
+  "bracket.find.label": "Buscar un partido",
+  "bracket.find.placeholder": "Nombre del jugador",
+  "bracket.find.hint": "Escribe dos letras para buscar en el cuadro.",
+  "bracket.find.empty": "No hay partidos con ese nombre.",
 
   // Engagement
   "engage.yourBracket": "Tu cuadro",
@@ -968,6 +1012,8 @@ const es: Record<MessageKey, string> = {
   "calendar.tomorrow": "Mañana",
   "calendar.open": "Abrir",
   "calendar.empty": "Aún no hay torneos en la base de datos.",
+  "calendar.surfaceKey": "Clave de superficie",
+  "calendar.dateTbc": "Por confirmar",
   "tour.atp": "ATP",
   "tour.wta": "WTA",
 };
@@ -996,12 +1042,16 @@ const ja: Record<MessageKey, string> = {
   "surface.grass": "芝",
   "surface.indoor": "インドア",
   "chip.onCourt": "コート上",
+  "chip.onCourt.hint": " — 試合進行中",
   "chip.upcoming": "今後",
   "daily.yours": "あなたのDaily Check",
   "bracket.notPlayed": "未実施",
   "landing.calendar.title": "カレンダー",
   "landing.calendar.lede":
     "大会を選んでブラケットを埋める——リーグはあとで。友だちを誘うのはいつでも。",
+  "landing.calendar.heading.openOne": "いま1本のドローが開いている。",
+  "landing.calendar.heading.openMany": "いま{n}本のドローが開いている。",
+  "landing.calendar.heading.none": "いま開いているドローはない。",
   "landing.calendar.openNow": "受付中",
   "landing.calendar.openNow.empty":
     "いま公開中のドローはない——次のドローが出るとブラケットが開く。",
@@ -1013,8 +1063,21 @@ const ja: Record<MessageKey, string> = {
   "landing.calendar.upcoming.empty.none":
     "大会のあいだ——次の大会はシーズン日程が確定してから。",
   "landing.how.title": "使い方",
-  "landing.how.lede":
-    "まずブラケット。あとから招待。Daily Checkに戻ってくる。",
+  "landing.how.lede": "まずブラケット。あとから招待。",
+  "landing.how.body": "Daily Checkに戻ってくる。",
+  "landing.daily.title": "Daily Check",
+  "landing.daily.heading": "火曜日に開く理由。",
+  "landing.daily.body":
+    "ダッシュボードではない。一晩で何が変わったかの一文と、その数字。動かなければ、そう書く。",
+  "landing.daily.seeLeague": "リーグを見る",
+  "landing.daily.sample.line": "一晩で4つ上がった。",
+  "landing.daily.sample.detail": "Sunday Doublesで3位。",
+  "landing.daily.sample.note": "あなたの優勝予想はまだ残っている。",
+  "landing.daily.sample.when": "今朝",
+  "landing.daily.stat.settled": "確定",
+  "landing.daily.stat.correct": "的中",
+  "landing.daily.stat.points": "ポイント",
+  "landing.daily.stat.places": "順位",
   "landing.how.1.title": "ドローを埋める",
   "landing.how.1.body":
     "優勝まで全試合の勝者を選ぶ。リーグは不要。",
@@ -1325,6 +1388,10 @@ const ja: Record<MessageKey, string> = {
   "bracket.gradedHint":
     "ロック済み — 緑は正解、赤はミスです。公式の勝者にマークが付きます。",
   "bracket.lockedHint": "このドローはロックされています。",
+  "bracket.find.label": "試合を探す",
+  "bracket.find.placeholder": "選手名",
+  "bracket.find.hint": "2文字以上でドローを検索。",
+  "bracket.find.empty": "その名前の試合はない。",
 
   // Engagement
   "engage.yourBracket": "あなたのブラケット",
@@ -1438,6 +1505,8 @@ const ja: Record<MessageKey, string> = {
   "calendar.tomorrow": "明日",
   "calendar.open": "開く",
   "calendar.empty": "データベースに大会がまだありません。",
+  "calendar.surfaceKey": "コート面の凡例",
+  "calendar.dateTbc": "未定",
   "tour.atp": "ATP",
   "tour.wta": "WTA",
 };
