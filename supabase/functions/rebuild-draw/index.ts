@@ -61,6 +61,7 @@ Deno.serve(async (req) => {
 
   let body: {
     tournament_id?: string;
+    tournament_ref?: string;
     tournament_patch?: {
       name?: string;
       draw_size?: number;
@@ -73,20 +74,13 @@ Deno.serve(async (req) => {
     delete_tournament_refs?: string[];
     seats?: SeatRow[];
     results?: ResultRow[];
+    /** When set, retarget leagues from these old fixture labels to tournament_patch.name. */
     montreal_name_labels?: string[];
   };
   try {
     body = await req.json();
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON" }), {
-      status: 400,
-      headers: { ...cors, "Content-Type": "application/json" },
-    });
-  }
-
-  const tournamentId = body.tournament_id?.trim();
-  if (!tournamentId) {
-    return new Response(JSON.stringify({ error: "tournament_id required" }), {
       status: 400,
       headers: { ...cors, "Content-Type": "application/json" },
     });
@@ -103,23 +97,46 @@ Deno.serve(async (req) => {
   const admin = createClient(supabaseUrl, serviceKey);
   const log: string[] = [];
 
-  // Retarget leagues that pointed at deleted fixture names.
-  const labels = body.montreal_name_labels ?? [
-    "Roland Garros 2026",
-    "Wimbledon 2026",
-    "US Open 2026",
-  ];
-  const montrealName =
-    body.tournament_patch?.name ?? "National Bank Open Montreal 2026";
-  for (const label of labels) {
-    const { error, count } = await admin
-      .from("leagues")
-      .update({ tournament_label: montrealName })
-      .eq("tournament_label", label);
-    if (error) {
-      return jsonError(400, error.message, log);
+  let tournamentId = body.tournament_id?.trim() || "";
+  const tournamentRef = body.tournament_ref?.trim() || "";
+  if (!tournamentId && tournamentRef) {
+    const { data: tRow, error: tErr } = await admin
+      .from("tournaments")
+      .select("id")
+      .eq("ref", tournamentRef)
+      .maybeSingle();
+    if (tErr) return jsonError(400, tErr.message, log);
+    if (!tRow?.id) {
+      return jsonError(400, `tournament not found for ref ${tournamentRef}`, log);
     }
-    log.push(`retargeted leagues from ${label} (count≈${count ?? "?"})`);
+    tournamentId = tRow.id;
+    log.push(`resolved ref ${tournamentRef} → ${tournamentId}`);
+  }
+  if (!tournamentId) {
+    return new Response(
+      JSON.stringify({ error: "tournament_id or tournament_ref required" }),
+      {
+        status: 400,
+        headers: { ...cors, "Content-Type": "application/json" },
+      }
+    );
+  }
+
+  // Retarget leagues that pointed at deleted fixture names (ATP migration only).
+  const labels = body.montreal_name_labels ?? [];
+  if (labels.length > 0) {
+    const targetName =
+      body.tournament_patch?.name ?? "National Bank Open Montreal 2026";
+    for (const label of labels) {
+      const { error, count } = await admin
+        .from("leagues")
+        .update({ tournament_label: targetName })
+        .eq("tournament_label", label);
+      if (error) {
+        return jsonError(400, error.message, log);
+      }
+      log.push(`retargeted leagues from ${label} (count≈${count ?? "?"})`);
+    }
   }
 
   // Delete fixture tournaments (cascade draws/seats).
@@ -145,14 +162,21 @@ Deno.serve(async (req) => {
     log.push(`wiped ${table}`);
   }
 
-  const { data: draw, error: drawErr } = await admin
+  let { data: draw, error: drawErr } = await admin
     .from("draws")
     .select("id")
     .eq("tournament_id", tournamentId)
     .maybeSingle();
   if (drawErr) return jsonError(400, drawErr.message, log);
   if (!draw?.id) {
-    return jsonError(400, "draw missing for tournament", log);
+    const { data: created, error: createErr } = await admin
+      .from("draws")
+      .insert({ tournament_id: tournamentId })
+      .select("id")
+      .single();
+    if (createErr) return jsonError(400, createErr.message, log);
+    draw = created;
+    log.push("created draw");
   }
 
   const { error: seatDelErr } = await admin
@@ -206,6 +230,7 @@ Deno.serve(async (req) => {
   return new Response(
     JSON.stringify({
       ok: true,
+      tournament_id: tournamentId,
       draw_id: draw.id,
       seats: seatRows.length,
       results: results.length,

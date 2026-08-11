@@ -214,18 +214,40 @@ export function partitionLandingCalendar(
   return { openNow, upcoming, nextNamed };
 }
 
+/**
+ * Tournament ids with a verified provider draw: at least one non-bye seat
+ * carries `provider_player_id`. Placeholder / empty draws do not count.
+ */
+export async function listVerifiedDrawTournamentIds(): Promise<Set<string>> {
+  const supabase = createClient();
+  const { data: draws } = await supabase.from("draws").select("id, tournament_id");
+  if (!draws?.length) return new Set();
+
+  const drawIds = draws.map((d) => d.id);
+  const { data: seats } = await supabase
+    .from("draw_seats")
+    .select("draw_id")
+    .in("draw_id", drawIds)
+    .eq("is_bye", false)
+    .not("provider_player_id", "is", null);
+
+  const verifiedDrawIds = new Set((seats ?? []).map((s) => s.draw_id));
+  return new Set(
+    draws.filter((d) => verifiedDrawIds.has(d.id)).map((d) => d.tournament_id)
+  );
+}
+
 /** Live tournaments from Supabase — no hardcoded calendar. */
 export async function listCalendarTournaments(): Promise<CalendarTournament[]> {
   const supabase = createClient();
-  const [{ data: tournaments }, { data: draws }] = await Promise.all([
+  const [{ data: tournaments }, verifiedIds] = await Promise.all([
     supabase
       .from("tournaments")
       .select("id, ref, name, surface, starts_on, lock_at, venue_tz, tour")
       .order("starts_on", { ascending: true }),
-    supabase.from("draws").select("tournament_id"),
+    listVerifiedDrawTournamentIds(),
   ]);
 
-  const publishedIds = new Set((draws ?? []).map((d) => d.tournament_id));
   return (tournaments ?? []).map((row) => ({
     id: row.id,
     ref: row.ref,
@@ -235,6 +257,6 @@ export async function listCalendarTournaments(): Promise<CalendarTournament[]> {
     lock_at: row.lock_at ?? null,
     venue_tz: row.venue_tz || "UTC",
     tour: normalizeTour((row as { tour?: string | null }).tour),
-    hasDraw: publishedIds.has(row.id),
+    hasDraw: verifiedIds.has(row.id),
   }));
 }

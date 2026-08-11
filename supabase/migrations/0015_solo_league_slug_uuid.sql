@@ -1,21 +1,7 @@
--- 0013_solo_brackets.sql
--- Solo brackets: implicit private single-tournament league of one (is_solo).
--- Idempotent: safe to re-run.
-
--- ---------------------------------------------------------------------------
--- Column + uniqueness
--- ---------------------------------------------------------------------------
-
-alter table public.leagues
-  add column if not exists is_solo boolean not null default false;
-
-create unique index if not exists leagues_solo_commissioner_tournament_uidx
-  on public.leagues (commissioner_id, tournament_label)
-  where is_solo and format = 'single' and tournament_label is not null;
-
--- ---------------------------------------------------------------------------
--- ensure_solo_league: find or create personal league for a tournament ref
--- ---------------------------------------------------------------------------
+-- 0015_solo_league_slug_uuid.sql
+-- Fix ensure_solo_league slug entropy: gen_random_bytes is not on search_path
+-- (public-only) on Supabase. Use gen_random_uuid instead.
+-- Idempotent: redefines the same RPC as 0013.
 
 drop function if exists public.ensure_solo_league(text);
 
@@ -47,8 +33,8 @@ begin
   end if;
 
   select * into v_t
-  from public.tournaments t
-  where t.ref = trim(p_tournament_ref);
+    from public.tournaments t
+   where t.ref = trim(p_tournament_ref);
 
   if v_t.id is null then
     raise exception 'tournament not found';
@@ -81,8 +67,6 @@ begin
 
   loop
     v_attempt := v_attempt + 1;
-    -- pg_catalog.gen_random_uuid (not pgcrypto): security definer search_path
-    -- is public-only, so extensions.gen_random_bytes is invisible on Supabase.
     v_suffix := substr(replace(gen_random_uuid()::text, '-', ''), 1, 4);
     v_slug := v_base || '-' || v_suffix;
 
@@ -132,57 +116,3 @@ $$;
 
 revoke all on function public.ensure_solo_league(text) from public;
 grant execute on function public.ensure_solo_league(text) to authenticated;
-
--- ---------------------------------------------------------------------------
--- join_league_with_token: graduate solo → social when a second member joins
--- ---------------------------------------------------------------------------
-
-create or replace function public.join_league_with_token(p_token text)
-returns uuid
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_league_id uuid;
-  v_revoked timestamptz;
-  v_member_count int;
-begin
-  if auth.uid() is null then
-    raise exception 'not authenticated';
-  end if;
-
-  select i.league_id, i.revoked_at
-    into v_league_id, v_revoked
-  from public.league_invites i
-  where i.token = p_token;
-
-  if v_league_id is null then
-    raise exception 'invalid invite';
-  end if;
-
-  if v_revoked is not null then
-    raise exception 'invite revoked';
-  end if;
-
-  insert into public.league_members (league_id, user_id, role)
-  values (v_league_id, auth.uid(), 'member')
-  on conflict (league_id, user_id) do nothing;
-
-  select count(*)::int into v_member_count
-  from public.league_members m
-  where m.league_id = v_league_id;
-
-  if v_member_count >= 2 then
-    update public.leagues
-    set is_solo = false
-    where id = v_league_id
-      and is_solo = true;
-  end if;
-
-  return v_league_id;
-end;
-$$;
-
-revoke all on function public.join_league_with_token(text) from public;
-grant execute on function public.join_league_with_token(text) to authenticated;

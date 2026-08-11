@@ -18,6 +18,7 @@ import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
 import { redirectIfMissingDisplayName } from "@/lib/profiles/require-name";
 import { createClient } from "@/lib/supabase/server";
 import {
+  listVerifiedDrawTournamentIds,
   normalizeTour,
   surfaceClass,
 } from "@/lib/tournaments/calendar";
@@ -98,7 +99,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
     members.map((m) => m.user_id)
   );
 
-  const [bundle, inviteRes, tournamentsRes, drawsRes] = await Promise.all([
+  const [bundle, inviteRes, tournamentsRes, publishedIds] = await Promise.all([
     loadDailyCheck({
       supabase,
       league,
@@ -119,7 +120,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
       .from("tournaments")
       .select("id, ref, name, surface, starts_on, draw_size, tour")
       .order("starts_on", { ascending: true }),
-    supabase.from("draws").select("tournament_id"),
+    listVerifiedDrawTournamentIds(),
   ]);
 
   const { check, engagement, tournament } = bundle;
@@ -130,10 +131,6 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
   }
 
   const openInvite = searchParams.invite === "1" && Boolean(inviteUrl);
-
-  const publishedIds = new Set(
-    (drawsRes.data ?? []).map((d) => d.tournament_id)
-  );
 
   const leagueTournaments = (tournamentsRes.data ?? []).filter((t) => {
     if (league.format === "single" && league.tournament_label) {

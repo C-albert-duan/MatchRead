@@ -110,34 +110,5 @@ on conflict (ref) do update set
   venue_tz = excluded.venue_tz,
   provider_tournament_id = excluded.provider_tournament_id;
 
-insert into public.draws (tournament_id)
-select t.id
-  from public.tournaments t
- where t.ref = 'nbo-tor-2026'
-on conflict (tournament_id) do nothing;
-
--- Placeholder 64-draw so the event is entry-eligible until a live import replaces seats.
-insert into public.draw_seats (
-  draw_id,
-  position,
-  player_ref,
-  last_name,
-  seed,
-  country_code,
-  is_bye
-)
-select
-  d.id,
-  g.pos,
-  'wta-' || g.pos::text,
-  'Player ' || (g.pos + 1)::text,
-  case when g.pos < 16 then g.pos + 1 else null end,
-  'XXX',
-  false
-from public.draws d
-join public.tournaments t on t.id = d.tournament_id
-cross join generate_series(0, 63) as g(pos)
-where t.ref = 'nbo-tor-2026'
-  and not exists (
-    select 1 from public.draw_seats ds where ds.draw_id = d.id
-  );
+-- No placeholder draw/seats — Toronto stays draw-pending until RapidAPI import
+-- (scripts/import-nbo-draw.mjs --tour wta) writes verified provider_player_id seats.

@@ -6,6 +6,7 @@ import { t, tf } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
 import { createClient } from "@/lib/supabase/server";
 import type { LeagueListItem, MemberRole } from "@/lib/leagues/types";
+import { listVerifiedDrawTournamentIds } from "@/lib/tournaments/calendar";
 
 function leagueStatus(
   league: LeagueListItem,
@@ -89,15 +90,12 @@ export default async function LeaguesPage() {
 
   const drawByTournamentName = new Map<string, boolean>();
   if (leagues.length > 0) {
-    const [tournamentsRes, drawsRes] = await Promise.all([
+    const [tournamentsRes, verifiedIds] = await Promise.all([
       supabase.from("tournaments").select("id, name"),
-      supabase.from("draws").select("tournament_id"),
+      listVerifiedDrawTournamentIds(),
     ]);
-    const published = new Set(
-      (drawsRes.data ?? []).map((d) => d.tournament_id as string)
-    );
     for (const t of tournamentsRes.data ?? []) {
-      drawByTournamentName.set(t.name, published.has(t.id));
+      drawByTournamentName.set(t.name, verifiedIds.has(t.id));
     }
   }
 

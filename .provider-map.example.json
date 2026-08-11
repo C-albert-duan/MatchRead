@@ -2,7 +2,7 @@
   "tournament_id": "REPLACE-WITH-MATCHREAD-TOURNAMENT-UUID",
   "provider_tournament_id": "21346",
   "tour": "atp",
-  "comment": "Montreal Masters 2026 (National Bank Open) — MatchRead models a 64-draw (R64→Final). Copy to .provider-map.json after scripts/import-montreal-draw.mjs. Toronto WTA is a separate row (ref nbo-tor-2026, provider 16739, tour wta).",
+  "comment": "Montreal Masters 2026 (National Bank Open) — MatchRead models a 64-draw (R64→Final). Produced by scripts/import-nbo-draw.mjs --tour atp. Toronto WTA: .provider-map-toronto.json from --tour wta (ref nbo-tor-2026, provider 16739).",
   "players": {
     "28170": "atp-28170",
     "29939": "atp-29939"

@@ -48,7 +48,7 @@ If any link is missing, reconcile **skips** that match (fail closed).
 | ATP | Montreal | `uso-2026` | `21346` |
 | WTA | Toronto | `nbo-tor-2026` | `16739` |
 
-Montreal seats + map: `node scripts/import-montreal-draw.mjs`. Toronto is seeded by migration `0014_dual_tour.sql` (placeholder seats until a live WTA import). Verify both calendars: `node scripts/probe-rapidapi.mjs calendar 2026`. RG/Wim fixtures were removed.
+Pure-fact seats + maps: `node scripts/import-nbo-draw.mjs` (or `--tour atp` / `--tour wta`). Toronto stays draw-pending until WTA import writes `provider_player_id` seats (migration `0016` strips placeholders). Verify both calendars: `node scripts/probe-rapidapi.mjs calendar 2026`. RG/Wim fixtures were removed.
 
 ---
 

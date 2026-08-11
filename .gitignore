@@ -49,3 +49,5 @@ Wireframe/**/*.tar.gz
 npm-debug.log*
 pnpm-debug.log*
 agent-transcripts
+
+.provider-map-toronto.json

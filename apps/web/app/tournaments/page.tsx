@@ -21,13 +21,10 @@ function hrefForTournament(
   tournamentName: string,
   tournamentRef: string,
   signedIn: boolean,
-  leagues: LeagueRow[]
+  leagues: LeagueRow[],
+  hasDraw: boolean
 ): string {
   const enterHref = `/enter/${encodeURIComponent(tournamentRef)}`;
-
-  if (!signedIn) {
-    return `/sign-in?next=${encodeURIComponent(enterHref)}`;
-  }
 
   const socialSingle = leagues.find(
     (l) =>
@@ -52,6 +49,15 @@ function hrefForTournament(
   );
   if (solo) {
     return `/leagues/${solo.slug}/t/${tournamentRef}`;
+  }
+
+  // Pure-fact: no enter path until a verified provider draw exists.
+  if (!hasDraw) {
+    return "/tournaments";
+  }
+
+  if (!signedIn) {
+    return `/sign-in?next=${encodeURIComponent(enterHref)}`;
   }
 
   return enterHref;
@@ -134,7 +140,8 @@ export default async function TournamentsPage({
                 row.name,
                 row.ref,
                 Boolean(user),
-                leagues
+                leagues,
+                row.hasDraw
               );
               return (
                 <li key={row.ref}>
@@ -152,7 +159,9 @@ export default async function TournamentsPage({
                       })}
                     </span>
                     <span className="league-card-status">
-                      {t("calendar.open")}
+                      {row.hasDraw
+                        ? t("calendar.open")
+                        : t("league.status.drawPending")}
                     </span>
                   </Link>
                 </li>

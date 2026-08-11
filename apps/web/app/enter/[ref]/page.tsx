@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
+import { listCalendarTournaments } from "@/lib/tournaments/calendar";
 
 type Props = {
   params: { ref: string };
@@ -21,6 +22,16 @@ export default async function EnterTournamentPage({ params }: Props) {
 
   if (!ref) {
     redirect("/tournaments");
+  }
+
+  const calendar = await listCalendarTournaments();
+  const event = calendar.find((row) => row.ref === ref);
+  if (!event?.hasDraw) {
+    redirect(
+      `/tournaments?error=${encodeURIComponent(
+        "Draw pending — entry opens when the official draw is verified."
+      )}`
+    );
   }
 
   const supabase = createClient();
