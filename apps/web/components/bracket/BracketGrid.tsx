@@ -229,7 +229,6 @@ export function BracketGrid({
                               onPick?.(match.key, a.ref)
                             }
                           />
-                          <div className="slot-divider" />
                           <PlayerChip
                             as="button"
                             occupant={b}
@@ -250,7 +249,6 @@ export function BracketGrid({
                             chosen={a.kind === "player" && chosen === a.ref}
                             grade={gradeA}
                           />
-                          <div className="slot-divider" />
                           <PlayerChip
                             occupant={b}
                             chosen={b.kind === "player" && chosen === b.ref}
@@ -258,37 +256,37 @@ export function BracketGrid({
                           />
                         </>
                       )}
-                      {showConfidence ? (
-                        <div
-                          className="confidence-row"
-                          role="group"
-                          aria-label={`Confidence for ${round.label.match} match ${match.indexInRound + 1}`}
-                        >
-                          {[1, 2, 3, 4, 5].map((n) => (
-                            <button
-                              key={n}
-                              type="button"
-                              className="confidence-btn"
-                              data-active={level === n ? "true" : undefined}
-                              disabled={locked}
-                              aria-pressed={level === n}
-                              aria-label={`Confidence ${n} of 5`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onConfidence?.(match.key, n);
-                              }}
-                            >
-                              {n}
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                      {showGrade && gradeLabel ? (
-                        <div className="grade-row" aria-hidden="true">
-                          {gradeLabel}
-                        </div>
-                      ) : null}
                     </div>
+                    {showConfidence ? (
+                      <div
+                        className="confidence-row"
+                        role="group"
+                        aria-label={`Confidence for ${round.label.match} match ${match.indexInRound + 1}`}
+                      >
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            className="confidence-btn"
+                            data-active={level === n ? "true" : undefined}
+                            disabled={locked}
+                            aria-pressed={level === n}
+                            aria-label={`Confidence ${n} of 5`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onConfidence?.(match.key, n);
+                            }}
+                          >
+                            {n}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                    {showGrade && gradeLabel ? (
+                      <div className="grade-row" aria-hidden="true">
+                        {gradeLabel}
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}

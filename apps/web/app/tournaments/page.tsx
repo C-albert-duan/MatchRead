@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
 import {
   formatTournamentWhen,
+  isOnCourt,
   listCalendarTournaments,
   surfaceClass,
 } from "@/lib/tournaments/calendar";
@@ -135,7 +136,7 @@ export default async function TournamentsPage({
           <p className="stub-note">{t("calendar.empty")}</p>
         ) : (
           <ul className="calendar focus-band">
-            {tournaments.map((row) => {
+            {tournaments.map((row, index) => {
               const href = hrefForTournament(
                 row.name,
                 row.ref,
@@ -143,26 +144,56 @@ export default async function TournamentsPage({
                 leagues,
                 row.hasDraw
               );
+              const surface = surfaceClass(row.surface);
+              const showOnCourt =
+                isOnCourt(row) &&
+                !tournaments.slice(0, index).some((prior) => isOnCourt(prior));
               return (
                 <li key={row.ref}>
-                  <Link href={href} className="trow">
+                  <Link
+                    href={href}
+                    className={row.hasDraw ? "trow" : "trow trow--soon"}
+                  >
                     <span
-                      className={`court-hairline court-${surfaceClass(row.surface)}`}
+                      className={`court-hairline court-${surface}`}
                       aria-hidden
                     />
-                    <TourLabel tour={row.tour} />
+                    <div className="trow-top">
+                      <TourLabel tour={row.tour} />
+                      {showOnCourt ? (
+                        <span className="chip chip--live">
+                          <i className="live-dot" aria-hidden />
+                          {t("chip.onCourt")}
+                        </span>
+                      ) : null}
+                    </div>
                     <span className="trow-name">{row.name}</span>
-                    <span className="trow-meta">
-                      {formatTournamentWhen(row, {
-                        drawOpen: t("calendar.drawOpen"),
-                        drawPending: t("calendar.drawPending"),
-                      })}
-                    </span>
-                    <span className="league-card-status">
-                      {row.hasDraw
-                        ? t("calendar.open")
-                        : t("league.status.drawPending")}
-                    </span>
+                    <div className="trow-foot">
+                      <span className="trow-meta">
+                        <span className="surf" data-s={surface}>
+                          <i aria-hidden />
+                          {t(
+                            surface === "clay"
+                              ? "surface.clay"
+                              : surface === "grass"
+                                ? "surface.grass"
+                                : surface === "indoor"
+                                  ? "surface.indoor"
+                                  : "surface.hard"
+                          )}
+                        </span>
+                        {" · "}
+                        {formatTournamentWhen(row, {
+                          drawOpen: t("calendar.drawOpen"),
+                          drawPending: t("calendar.drawPending"),
+                        })}
+                      </span>
+                      <span className="league-card-status">
+                        {row.hasDraw
+                          ? t("calendar.open")
+                          : t("league.status.drawPending")}
+                      </span>
+                    </div>
                   </Link>
                 </li>
               );

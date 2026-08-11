@@ -1,4 +1,7 @@
+"use client";
+
 import type { SlotOccupant } from "@matchread/core";
+import { useT } from "@/components/shell/LocaleProvider";
 
 type GradeTone = "correct" | "incorrect" | "voided" | "official" | null;
 
@@ -14,7 +17,10 @@ type Props = {
   checked?: boolean;
 };
 
-function labelFor(occupant: SlotOccupant): {
+function labelFor(
+  occupant: SlotOccupant,
+  t: (key: "bracket.notPlayed") => string
+): {
   text: string;
   seed: string;
   country: string;
@@ -31,7 +37,12 @@ function labelFor(occupant: SlotOccupant): {
     case "bye":
       return { text: "Bye", seed: "", country: "", kindClass: "name--bye" };
     case "dash":
-      return { text: "—", seed: "", country: "", kindClass: "name--empty" };
+      return {
+        text: t("bracket.notPlayed"),
+        seed: "",
+        country: "",
+        kindClass: "name--empty",
+      };
     case "unpicked":
       return {
         text: "Unpicked",
@@ -53,7 +64,8 @@ export function PlayerChip({
   value,
   checked,
 }: Props) {
-  const meta = labelFor(occupant);
+  const t = useT();
+  const meta = labelFor(occupant, t);
   const className = [
     "name",
     meta.kindClass,
@@ -100,7 +112,7 @@ export function PlayerChip({
   }
 
   return (
-    <span className={className} aria-hidden={occupant.kind === "dash"}>
+    <span className={className}>
       {inner}
     </span>
   );

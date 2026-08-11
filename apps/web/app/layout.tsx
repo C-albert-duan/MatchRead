@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Archivo, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
+import { rootStyle } from "@matchread/tokens";
 import { getLocale } from "@/lib/i18n";
 import "./globals.css";
 
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 
 const archivo = Archivo({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["500", "600", "700", "800"],
   variable: "--font-archivo",
   display: "swap",
 });
@@ -57,6 +58,9 @@ export default function RootLayout({
       lang={locale}
       className={`${archivo.variable} ${instrumentSans.variable} ${ibmPlexMono.variable}`}
     >
+      <head>
+        <style dangerouslySetInnerHTML={{ __html: rootStyle() }} />
+      </head>
       <body>
         <script dangerouslySetInnerHTML={{ __html: UNREGISTER_SW }} />
         {children}

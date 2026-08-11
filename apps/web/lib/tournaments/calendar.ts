@@ -30,7 +30,19 @@ export function surfaceClass(surface: string | null | undefined) {
   const s = (surface ?? "").toLowerCase();
   if (s.includes("clay")) return "clay";
   if (s.includes("grass")) return "grass";
+  if (s.includes("indoor") || s.includes("carpet")) return "indoor";
   return "hard";
+}
+
+/** Matches are being played — different from “you can still enter”. */
+export function isOnCourt(
+  row: Pick<CalendarTournament, "hasDraw" | "starts_on" | "lock_at">,
+  now: Date = new Date()
+) {
+  if (!row.hasDraw) return false;
+  const age = daysFromStart(row as CalendarTournament, now);
+  if (age == null) return false;
+  return age >= 0 && age <= IN_PLAY_DAYS;
 }
 
 export function isEntryLocked(
@@ -46,7 +58,6 @@ export function formatTournamentWhen(
   labels: { drawOpen: string; drawPending: string }
 ) {
   const parts: string[] = [];
-  if (row.surface) parts.push(row.surface);
   if (row.starts_on) parts.push(row.starts_on);
   parts.push(row.hasDraw ? labels.drawOpen : labels.drawPending);
   return parts.join(" · ");

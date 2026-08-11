@@ -1,8 +1,8 @@
 ﻿import Link from "next/link";
 import { signOut } from "@/app/actions/auth";
 import { BackButton } from "@/components/shell/BackButton";
-import { CourtAtmosphere } from "@/components/shell/CourtAtmosphere";
 import { LocaleSwitcher } from "@/components/shell/LocaleSwitcher";
+import { ShellHeader } from "@/components/shell/ShellHeader";
 import { NavigationProgressHost } from "@/components/shell/NavigationProgressHost";
 import { OfflineBanner } from "@/components/shell/OfflineBanner";
 import { DisplayNameBootstrap } from "@/components/shell/DisplayNameBootstrap";
@@ -28,15 +28,13 @@ export function AppShell({
   return (
     <LocaleProvider locale={locale}>
       <div className={arena ? "shell shell--arena" : "shell"}>
-        <CourtAtmosphere />
         <NavigationProgressHost />
         <OfflineBanner message={t("offline.banner")} />
         {signedIn ? <DisplayNameBootstrap /> : null}
-        <header className="shell-header">
+        <ShellHeader>
           <div className="shell-header-inner">
             <BackButton label={t("nav.back")} />
             <Link href="/" className="wordmark">
-              <span className="wordmark-mark" aria-hidden />
               MatchRead
             </Link>
             <div className="shell-spacer" />
@@ -76,7 +74,7 @@ export function AppShell({
               )}
             </nav>
           </div>
-        </header>
+        </ShellHeader>
         {email && signedIn ? (
           <div className="session-chip" aria-live="polite">
             <span className="live-dot" aria-hidden />
@@ -85,6 +83,7 @@ export function AppShell({
         ) : null}
         <main className="shell-main">{children}</main>
         <footer className="shell-footer">
+          <p className="eyebrow eyebrow--plain">{t("landing.footer.mark")}</p>
           <LocaleSwitcher current={locale} label={t("locale.label")} />
         </footer>
       </div>

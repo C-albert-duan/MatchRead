@@ -45,9 +45,8 @@ export function DailyCheckPanel({ check }: Props) {
         <div className="daily-check-kicker">
           <span className="daily-check-live">
             <span className="live-dot" aria-hidden />
-            {t("daily.live")}
+            {t("daily.yours")}
           </span>
-          <p className="eyebrow">{t("daily.title")}</p>
           <span className="daily-check-frame">
             {localizeFrame(check.frame)} · {check.eventName}
           </span>
@@ -62,7 +61,7 @@ export function DailyCheckPanel({ check }: Props) {
         <div className="page-actions">
           <Link
             href={check.action.href}
-            className="act act--prominent act--prominent-size"
+            className="act act--standard act--standard-size"
           >
             {localizeCta(check.action.label)}
           </Link>
