@@ -45,8 +45,13 @@ If any link is missing, reconcile **skips** that match (fail closed).
 
 | Tour | City | Ref | Provider id |
 |---|---|---|---|
-| ATP | Montreal | `uso-2026` | `21346` |
+| ATP | Montreal | `nbo-mtl-2026` | `21346` |
 | WTA | Toronto | `nbo-tor-2026` | `16739` |
+| ATP | Cincinnati | `cin-2026` | `21347` |
+| WTA | Cincinnati | `cin-wta-2026` | `16740` |
+| ATP | Winston-Salem | `wsal-2026` | `21348` |
+| ATP | US Open | `uso-2026` | `21349` |
+| WTA | US Open | `uso-wta-2026` | `16743` |
 
 Pure-fact seats + maps: `node scripts/import-nbo-draw.mjs` (or `--tour atp` / `--tour wta`). Toronto stays draw-pending until WTA import writes `provider_player_id` seats (migration `0016` strips placeholders). Verify both calendars: `node scripts/probe-rapidapi.mjs calendar 2026`. RG/Wim fixtures were removed.
 

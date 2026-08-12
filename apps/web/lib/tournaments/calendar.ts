@@ -1,7 +1,30 @@
 import { createClient } from "@/lib/supabase/server";
+import {
+  DAY_MS,
+  IN_PLAY_DAYS,
+  daysFromStart,
+  eventMoment,
+  isEntryLocked,
+  isInPlay,
+} from "@/lib/tournaments/status";
 
 export type { MatchScheduleRow } from "@/lib/tournaments/format";
 export { formatMatchWhen } from "@/lib/tournaments/format";
+export {
+  calendarStatus,
+  calendarStatusMessageKey,
+  formatCountdown,
+  isEntryLocked,
+  isInPlay,
+  startInstant,
+  IN_PLAY_DAYS,
+} from "@/lib/tournaments/status";
+export {
+  enterHref,
+  leagueNewHref,
+  signInNextHref,
+  tournamentHref,
+} from "@/lib/tournaments/href";
 
 export type Tour = "atp" | "wta";
 
@@ -12,6 +35,7 @@ export type CalendarTournament = {
   surface: string;
   starts_on: string | null;
   lock_at: string | null;
+  admin_locked_at: string | null;
   venue_tz: string;
   tour: Tour;
   hasDraw: boolean;
@@ -19,11 +43,6 @@ export type CalendarTournament = {
 
 /** Landing "Upcoming" looks ahead this many days — not one event, not the full season. */
 export const UPCOMING_HORIZON_DAYS = 28;
-
-const DAY_MS = 86_400_000;
-
-/** Rough in-play window after start when the event still belongs on "Open now". */
-const IN_PLAY_DAYS = 14;
 
 export function normalizeTour(value: string | null | undefined): Tour {
   return value === "wta" ? "wta" : "atp";
@@ -42,18 +61,7 @@ export function isOnCourt(
   row: Pick<CalendarTournament, "hasDraw" | "starts_on" | "lock_at">,
   now: Date = new Date()
 ) {
-  if (!row.hasDraw) return false;
-  const age = daysFromStart(row as CalendarTournament, now);
-  if (age == null) return false;
-  return age >= 0 && age <= IN_PLAY_DAYS;
-}
-
-export function isEntryLocked(
-  row: Pick<CalendarTournament, "lock_at">,
-  now: Date = new Date()
-) {
-  if (!row.lock_at) return false;
-  return new Date(row.lock_at).getTime() <= now.getTime();
+  return row.hasDraw && isInPlay(row, now);
 }
 
 export function formatTournamentWhen(
@@ -86,6 +94,7 @@ export function formatTournamentDate(
 export type TournamentTimeRow = {
   starts_on: string | null;
   lock_at?: string | null;
+  admin_locked_at?: string | null;
   venue_tz?: string | null;
 };
 
@@ -105,7 +114,10 @@ export function tournamentTimeFacts(
   now: Date = new Date()
 ) {
   const start = formatTournamentDate(row.starts_on, locale) ?? labels.tbc;
-  const locked = Boolean(row.lock_at) && isEntryLocked({ lock_at: row.lock_at! }, now);
+  const locked = isEntryLocked(
+    { lock_at: row.lock_at ?? null, admin_locked_at: row.admin_locked_at },
+    now
+  );
   const lock = row.lock_at
     ? formatLockWhen(
         row.lock_at,
@@ -203,24 +215,6 @@ export function formatUpcomingAction(
     parts.push(`${labels.starts} ${row.starts_on}`);
   }
   return parts.join(" · ");
-}
-
-function eventMoment(row: CalendarTournament): Date | null {
-  if (row.starts_on) {
-    const d = new Date(`${row.starts_on}T12:00:00Z`);
-    if (!Number.isNaN(d.getTime())) return d;
-  }
-  if (row.lock_at) {
-    const d = new Date(row.lock_at);
-    if (!Number.isNaN(d.getTime())) return d;
-  }
-  return null;
-}
-
-function daysFromStart(row: CalendarTournament, now: Date): number | null {
-  const start = eventMoment(row);
-  if (!start) return null;
-  return (now.getTime() - start.getTime()) / DAY_MS;
 }
 
 /** Fillable now, or draw is live and the tournament week is still current. */
@@ -323,20 +317,60 @@ export async function listCalendarTournaments(): Promise<CalendarTournament[]> {
   const [{ data: tournaments }, verifiedIds] = await Promise.all([
     supabase
       .from("tournaments")
-      .select("id, ref, name, surface, starts_on, lock_at, venue_tz, tour")
+      .select(
+        "id, ref, name, surface, starts_on, lock_at, admin_locked_at, venue_tz, tour"
+      )
       .order("starts_on", { ascending: true }),
     listVerifiedDrawTournamentIds(),
   ]);
 
-  return (tournaments ?? []).map((row) => ({
+  return (tournaments ?? []).map((row) => mapCalendarRow(row, verifiedIds));
+}
+
+export async function getCalendarTournament(
+  ref: string
+): Promise<CalendarTournament | null> {
+  const trimmed = ref.trim();
+  if (!trimmed) return null;
+  const supabase = createClient();
+  const { data: row } = await supabase
+    .from("tournaments")
+    .select(
+      "id, ref, name, surface, starts_on, lock_at, admin_locked_at, venue_tz, tour"
+    )
+    .eq("ref", trimmed)
+    .maybeSingle();
+  if (!row) return null;
+  const verifiedIds = await listVerifiedDrawTournamentIds();
+  return mapCalendarRow(row, verifiedIds);
+}
+
+type TournamentQueryRow = {
+  id: string;
+  ref: string;
+  name: string;
+  surface: string | null;
+  starts_on: string | null;
+  lock_at: string | null;
+  admin_locked_at: string | null;
+  venue_tz: string | null;
+  tour?: string | null;
+};
+
+function mapCalendarRow(
+  row: TournamentQueryRow,
+  verifiedIds: Set<string>
+): CalendarTournament {
+  return {
     id: row.id,
     ref: row.ref,
     name: row.name,
     surface: row.surface ?? "hard",
     starts_on: row.starts_on,
     lock_at: row.lock_at ?? null,
+    admin_locked_at: row.admin_locked_at ?? null,
     venue_tz: row.venue_tz || "UTC",
-    tour: normalizeTour((row as { tour?: string | null }).tour),
+    tour: normalizeTour(row.tour),
     hasDraw: verifiedIds.has(row.id),
-  }));
+  };
 }

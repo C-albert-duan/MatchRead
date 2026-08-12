@@ -7,11 +7,14 @@ import { TournamentCard } from "@/components/tournaments/TournamentCard";
 import { getSessionUser } from "@/lib/auth";
 import { getLocale, t, tf } from "@/lib/i18n";
 import {
+  calendarStatus,
+  calendarStatusMessageKey,
   formatTournamentDate,
   isOnCourt,
   listCalendarTournaments,
   partitionLandingCalendar,
   surfaceClass,
+  tournamentHref,
   type CalendarTournament,
   type Tour,
 } from "@/lib/tournaments/calendar";
@@ -86,22 +89,19 @@ function TournamentRows({
       {events.map((event) => {
         const onCourt = variant === "open" && isOnCourt(event);
         const surface = surfaceClass(event.surface);
+        const status = calendarStatus(event);
         return (
           <li key={event.ref}>
             <TournamentCard
-              href="/tournaments"
+              href={tournamentHref(event.ref)}
               name={event.name}
               tour={event.tour}
               surface={surface}
               surfaceLabel={t(surfaceKey(event.surface))}
               when={formatTournamentDate(event.starts_on, locale) ?? t("calendar.dateTbc")}
               lockWhen={lockWhenLabel(event, locale)}
-              status={
-                event.hasDraw
-                  ? t("calendar.drawOpen")
-                  : t("calendar.drawPending")
-              }
-              statusPending={!event.hasDraw}
+              status={t(calendarStatusMessageKey(status))}
+              statusPending={status === "drawPending"}
               soon={variant === "upcoming"}
               chip={
                 variant === "upcoming"

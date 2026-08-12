@@ -1,0 +1,16 @@
+Gate 1.3 — lock proof (direct database write, not the website)
+
+Date: 12 August 2026
+Project: opugihofwvunwkpcmboq
+Method: INSERT into public.brackets for a tournament where tournament_is_locked(id) is true.
+Dummy league_id / user_id UUIDs — the BEFORE trigger fires before FK checks.
+
+Result: refused.
+
+    ERROR:  P0001: tournament locked
+    CONTEXT:  PL/pgSQL function brackets_reject_if_locked() line 4 at RAISE
+    SQL statement "insert into public.brackets (league_id, tournament_id, user_id, picks)
+      values (gen_random_uuid(), v_tid, gen_random_uuid(), '{}'::jsonb)"
+    PL/pgSQL function inline_code_block line 15 at SQL statement
+
+Started tournament + direct write = database error.

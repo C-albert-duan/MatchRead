@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import { listCalendarTournaments } from "@/lib/tournaments/calendar";
+import {
+  enterHref,
+  getCalendarTournament,
+  tournamentHref,
+} from "@/lib/tournaments/calendar";
 
 type Props = {
   params: { ref: string };
@@ -13,7 +17,7 @@ type Props = {
  */
 export default async function EnterTournamentPage({ params }: Props) {
   const ref = decodeURIComponent(params.ref).trim();
-  const next = `/enter/${encodeURIComponent(ref)}`;
+  const next = enterHref(ref);
 
   const user = await getSessionUser();
   if (!user) {
@@ -24,14 +28,9 @@ export default async function EnterTournamentPage({ params }: Props) {
     redirect("/tournaments");
   }
 
-  const calendar = await listCalendarTournaments();
-  const event = calendar.find((row) => row.ref === ref);
+  const event = await getCalendarTournament(ref);
   if (!event?.hasDraw) {
-    redirect(
-      `/tournaments?error=${encodeURIComponent(
-        "Draw pending — entry opens when the official draw is verified."
-      )}`
-    );
+    redirect(event ? tournamentHref(event.ref) : "/tournaments");
   }
 
   const supabase = createClient();

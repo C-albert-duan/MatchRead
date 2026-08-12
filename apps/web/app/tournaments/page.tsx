@@ -4,67 +4,16 @@ import { SurfaceKey } from "@/components/tournaments/SurfaceKey";
 import { TournamentCard } from "@/components/tournaments/TournamentCard";
 import { getSessionUser } from "@/lib/auth";
 import { getLocale, t } from "@/lib/i18n";
-import { createClient } from "@/lib/supabase/server";
 import {
+  calendarStatus,
+  calendarStatusMessageKey,
   formatTournamentDate,
   isOnCourt,
   listCalendarTournaments,
   surfaceClass,
+  tournamentHref,
 } from "@/lib/tournaments/calendar";
 import { lockWhenLabel } from "@/lib/tournaments/when";
-
-type LeagueRow = {
-  slug: string;
-  format: "single" | "season";
-  tournament_label: string | null;
-  is_solo: boolean;
-};
-
-function hrefForTournament(
-  tournamentName: string,
-  tournamentRef: string,
-  signedIn: boolean,
-  leagues: LeagueRow[],
-  hasDraw: boolean
-): string {
-  const enterHref = `/enter/${encodeURIComponent(tournamentRef)}`;
-
-  const socialSingle = leagues.find(
-    (l) =>
-      !l.is_solo &&
-      l.format === "single" &&
-      l.tournament_label === tournamentName
-  );
-  if (socialSingle) {
-    return `/leagues/${socialSingle.slug}/t/${tournamentRef}`;
-  }
-
-  const season = leagues.find((l) => l.format === "season");
-  if (season) {
-    return `/leagues/${season.slug}/t/${tournamentRef}`;
-  }
-
-  const solo = leagues.find(
-    (l) =>
-      l.is_solo &&
-      l.format === "single" &&
-      l.tournament_label === tournamentName
-  );
-  if (solo) {
-    return `/leagues/${solo.slug}/t/${tournamentRef}`;
-  }
-
-  // Pure-fact: no enter path until a verified provider draw exists.
-  if (!hasDraw) {
-    return "/tournaments";
-  }
-
-  if (!signedIn) {
-    return `/sign-in?next=${encodeURIComponent(enterHref)}`;
-  }
-
-  return enterHref;
-}
 
 export default async function TournamentsPage({
   searchParams,
@@ -73,30 +22,8 @@ export default async function TournamentsPage({
 }) {
   const user = await getSessionUser();
   const locale = getLocale();
-  const supabase = createClient();
   const tournaments = await listCalendarTournaments();
   const enterError = searchParams?.error?.trim() || null;
-
-  const leagues: LeagueRow[] = [];
-  if (user) {
-    const { data: memberships } = await supabase
-      .from("league_members")
-      .select("leagues ( slug, format, tournament_label, is_solo )")
-      .eq("user_id", user.id);
-
-    for (const row of memberships ?? []) {
-      const league = Array.isArray(row.leagues) ? row.leagues[0] : row.leagues;
-      if (!league?.slug) continue;
-      leagues.push({
-        slug: league.slug,
-        format: league.format as LeagueRow["format"],
-        tournament_label: league.tournament_label,
-        is_solo: Boolean(
-          (league as { is_solo?: boolean | null }).is_solo
-        ),
-      });
-    }
-  }
 
   return (
     <AppShell signedIn={Boolean(user)} email={user?.email}>
@@ -141,14 +68,9 @@ export default async function TournamentsPage({
           <div className="calendar-block">
             <ul className="calendar focus-band">
               {tournaments.map((row, index) => {
-                const href = hrefForTournament(
-                  row.name,
-                  row.ref,
-                  Boolean(user),
-                  leagues,
-                  row.hasDraw
-                );
+                const href = tournamentHref(row.ref);
                 const surface = surfaceClass(row.surface);
+                const status = calendarStatus(row);
                 const showOnCourt =
                   isOnCourt(row) &&
                   !tournaments.slice(0, index).some((prior) => isOnCourt(prior));
@@ -173,13 +95,9 @@ export default async function TournamentsPage({
                         t("calendar.dateTbc")
                       }
                       lockWhen={lockWhenLabel(row, locale)}
-                      status={
-                        row.hasDraw
-                          ? t("calendar.open")
-                          : t("league.status.drawPending")
-                      }
-                      statusPending={!row.hasDraw}
-                      soon={!row.hasDraw}
+                      status={t(calendarStatusMessageKey(status))}
+                      statusPending={status === "drawPending"}
+                      soon={status === "drawPending"}
                       chip={showOnCourt ? "onCourt" : null}
                     />
                   </li>

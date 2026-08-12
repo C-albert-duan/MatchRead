@@ -40,7 +40,7 @@ const DRAW_SIZE = 64;
 const TOURS = {
   atp: {
     tour: "atp",
-    ref: "uso-2026",
+    ref: "nbo-mtl-2026",
     provider_tournament_id: "21346",
     name: "National Bank Open Montreal 2026",
     mapFile: ".provider-map.json",

@@ -8,8 +8,10 @@ import type { TournamentOption } from "@/lib/leagues/types";
 
 export function CreateLeagueForm({
   tournaments,
+  defaultTournamentRef,
 }: {
   tournaments: TournamentOption[];
+  defaultTournamentRef?: string;
 }) {
   const t = useT();
   const [format, setFormat] = useState<"single" | "season">("single");
@@ -144,7 +146,10 @@ export function CreateLeagueForm({
               name="tournament_label"
               className="field"
               disabled={pending}
-              defaultValue={tournaments[0]?.value}
+              defaultValue={
+                tournaments.find((opt) => opt.ref === defaultTournamentRef)
+                  ?.value ?? tournaments[0]?.value
+              }
               required
             >
               {tournaments.map((opt) => (

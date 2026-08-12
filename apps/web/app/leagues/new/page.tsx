@@ -5,10 +5,17 @@ import { getSessionUser } from "@/lib/auth";
 import { listCalendarTournaments } from "@/lib/tournaments/calendar";
 import { t } from "@/lib/i18n";
 
-export default async function NewLeaguePage() {
+export default async function NewLeaguePage({
+  searchParams,
+}: {
+  searchParams?: { tournament?: string };
+}) {
   const user = await getSessionUser();
   if (!user) {
-    redirect("/sign-in?next=%2Fleagues%2Fnew");
+    const next = searchParams?.tournament
+      ? `/leagues/new?tournament=${encodeURIComponent(searchParams.tournament)}`
+      : "/leagues/new";
+    redirect(`/sign-in?next=${encodeURIComponent(next)}`);
   }
 
   const rows = await listCalendarTournaments();
@@ -28,7 +35,10 @@ export default async function NewLeaguePage() {
   return (
     <AppShell signedIn email={user.email}>
       <div className="page">
-        <CreateLeagueForm tournaments={tournaments} />
+        <CreateLeagueForm
+          tournaments={tournaments}
+          defaultTournamentRef={searchParams?.tournament}
+        />
       </div>
     </AppShell>
   );

@@ -35,6 +35,9 @@ Use **SQL Editor**. Run in order:
 12. `supabase/migrations/0014_dual_tour.sql` — ATP/WTA `tour` column + Toronto WTA row  
 13. `supabase/migrations/0015_solo_league_slug_uuid.sql` — fix solo slug entropy (`gen_random_uuid`)  
 14. `supabase/migrations/0016_pure_fact_draws.sql` — strip Toronto placeholder draw (pure-fact gate)
+15. `supabase/migrations/0017_match_schedule.sql` — per-match start times from the provider
+16. `supabase/migrations/0018_calendar_identity.sql` — Montreal `nbo-mtl-2026`, restore `uso-2026` as US Open, seed Cincinnati / Winston-Salem / US Open (ATP+WTA), lock trigger on `brackets`
+17. `supabase/migrations/0019_provider_season_ids.sql` — attach RapidAPI season ids for Cin / Winston-Salem / US Open from calendar
 
 Phase 7 (founder / void / i18n) needs **no new migration** — uses `pick_voids` + `match_results.voided` from 0004. Void writes still require commissioner RLS for that tournament.
 

@@ -9,11 +9,26 @@ External dependency for live calendar, draws, and scores.
 | Field | Value |
 |---|---|
 | Product | Tennis API - ATP WTA ITF |
+| Plan | **Mega** ($99/mo) — WebSocket + premium |
 | Host (`RAPIDAPI_HOST`) | `tennis-api-atp-wta-itf.p.rapidapi.com` |
 | Auth | `X-RapidAPI-Key` + `X-RapidAPI-Host` |
 | Example | `GET https://$RAPIDAPI_HOST/tennis/v2/atp/ranking/singles?race=true` |
+| WS token | `GET /tennis/v2/extend/api/ws-token` → Socket.IO `https://live.matchstat.com` |
+| Quota (Mega) | 3.8M req/mo · 50 req/s |
 
 **Never commit the key.** Rotate if it was pasted into chat or a screenshot. Store only in local/Railway secrets — **not** on Vercel.
+
+### Provider season ids (2026, from calendar)
+
+| MatchRead ref | Tour | Provider id | Event |
+|---|---|---|---|
+| `nbo-mtl-2026` | atp | `21346` | National Bank Open Montreal |
+| `nbo-tor-2026` | wta | `16739` | National Bank Open Toronto |
+| `cin-2026` | atp | `21347` | Cincinnati Open |
+| `cin-wta-2026` | wta | `16740` | Cincinnati Open |
+| `wsal-2026` | atp | `21348` | Winston-Salem Open |
+| `uso-2026` | atp | `21349` | US Open |
+| `uso-wta-2026` | wta | `16743` | US Open |
 
 ## Trust boundary
 
@@ -29,11 +44,11 @@ Import must **fail closed** if draw reconstruction is unverifiable.
 ## Day-one confirmation
 
 - [x] RapidAPI product name / host recorded (above)
-- [x] Basic plan subscribed (50 req/day) — upgrade before production sweep
+- [x] Mega plan subscribed (WebSocket token + high quota)
 - [ ] Terms allow commercial/public use
-- [ ] Rate limits known (Basic: hard 50/day; check Pricing for RPS)
+- [x] Rate limits known (Mega: 3.8M/mo, 50 req/s; RapidAPI may also throttle per IP)
 - [x] Key stored in gitignored `.env.provider` — never Vercel web env
-- [ ] Key rotated after any chat/screenshot exposure
+- [x] Key rotated after chat exposure (2026-08-12)
 
 ### Manual probe
 

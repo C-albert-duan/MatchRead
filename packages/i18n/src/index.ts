@@ -274,6 +274,16 @@ const en = {
     "Fill the tree, save as you go, then submit when every match has a pick.",
   "tournament.entry.locked":
     "The draw is locked. You can view your picks; they can no longer be changed.",
+  "publicTournament.pickingOpens":
+    "Picking opens when the official draw is published.",
+  "publicTournament.startsIn": "Starts {countdown}.",
+  "publicTournament.entryLocksIn": "Entry locks {countdown}.",
+  "publicTournament.entryLocked": "Entry is locked.",
+  "publicTournament.live": "This tournament is in play.",
+  "publicTournament.complete": "This tournament has finished.",
+  "publicTournament.whenPicking":
+    "You can fill a bracket once the official draw is out, until entry locks.",
+  "publicTournament.backCalendar": "All tournaments",
 
   // Official results
   "results.title": "Official results",
@@ -783,6 +793,16 @@ const es: Record<MessageKey, string> = {
     "Rellena el árbol, guarda sobre la marcha y envía cuando cada partido tenga una pick.",
   "tournament.entry.locked":
     "El sorteo está bloqueado. Puedes ver tus picks; ya no se pueden cambiar.",
+  "publicTournament.pickingOpens":
+    "Las picks se abren cuando se publique el sorteo oficial.",
+  "publicTournament.startsIn": "Empieza {countdown}.",
+  "publicTournament.entryLocksIn": "La inscripción cierra {countdown}.",
+  "publicTournament.entryLocked": "La inscripción está cerrada.",
+  "publicTournament.live": "Este torneo está en juego.",
+  "publicTournament.complete": "Este torneo ha terminado.",
+  "publicTournament.whenPicking":
+    "Podrás rellenar el cuadro cuando salga el sorteo oficial, hasta que cierre la inscripción.",
+  "publicTournament.backCalendar": "Todos los torneos",
 
   // Official results
   "results.title": "Resultados oficiales",
@@ -1010,7 +1030,7 @@ const es: Record<MessageKey, string> = {
   "calendar.starts": "empieza",
   "calendar.today": "Hoy",
   "calendar.tomorrow": "Mañana",
-  "calendar.open": "Abrir",
+  "calendar.open": "Abierto",
   "calendar.empty": "Aún no hay torneos en la base de datos.",
   "calendar.surfaceKey": "Clave de superficie",
   "calendar.dateTbc": "Por confirmar",
@@ -1287,6 +1307,16 @@ const ja: Record<MessageKey, string> = {
     "ツリーを埋め、随時保存し、すべての試合にピックが入ったら提出してください。",
   "tournament.entry.locked":
     "ドローはロックされています。ピックは閲覧のみで、変更はできません。",
+  "publicTournament.pickingOpens":
+    "公式ドローが発表されるとピックが始まります。",
+  "publicTournament.startsIn": "開始 {countdown}。",
+  "publicTournament.entryLocksIn": "エントリー締切 {countdown}。",
+  "publicTournament.entryLocked": "エントリーは締め切られています。",
+  "publicTournament.live": "この大会は進行中です。",
+  "publicTournament.complete": "この大会は終了しました。",
+  "publicTournament.whenPicking":
+    "公式ドロー発表後、締切までブラケットを埋められます。",
+  "publicTournament.backCalendar": "すべての大会",
 
   // Official results
   "results.title": "公式結果",
@@ -1503,7 +1533,7 @@ const ja: Record<MessageKey, string> = {
   "calendar.starts": "開始",
   "calendar.today": "今日",
   "calendar.tomorrow": "明日",
-  "calendar.open": "開く",
+  "calendar.open": "受付中",
   "calendar.empty": "データベースに大会がまだありません。",
   "calendar.surfaceKey": "コート面の凡例",
   "calendar.dateTbc": "未定",

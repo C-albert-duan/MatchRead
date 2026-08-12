@@ -8,7 +8,7 @@
     "start": "next start -H 0.0.0.0 -p 3001",
     "lint": "node -e \"console.log('web lint ok')\"",
     "typecheck": "tsc --noEmit",
-    "test": "node -e \"console.log('no web tests yet')\""
+    "test": "node --experimental-strip-types --test lib/tournaments/*.test.ts"
   },
   "dependencies": {
     "@matchread/core": "*",

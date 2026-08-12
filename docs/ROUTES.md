@@ -18,6 +18,7 @@ Source of truth for screens: `Wireframe/MatchRead-main/matchread-spec/docs/ENGIN
 | Bracket | `/leagues/[slug]/t/[ref]/bracket` | Yes | Phase 3 |
 | Result artifact | `/leagues/[slug]/t/[ref]/result` | Yes | |
 | Tournaments | `/tournaments` | Yes | |
+| Public tournament | `/tournaments/[ref]` | Yes | Pre-draw + calendar destination |
 | Players | `/players` | Yes | Rankings only |
 | Auth callback | `/auth/callback` | Yes | |
 | Showcase | `/showcase` | Dev | Optional |
