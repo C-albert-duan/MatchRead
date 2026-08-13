@@ -96,6 +96,7 @@ const en = {
   "leagues.solo.badge": "Solo bracket",
   "leagues.solo.caption": "Just you — invite friends anytime before lock",
   "league.solo.eyebrow": "Your bracket",
+  "league.solo.home": "My events",
   "league.grow.solo.title": "Compare it with someone",
   "league.grow.solo.lede":
     "A bracket alone is a complete entry. Invite friends and the same picks count in the league.",
@@ -614,6 +615,7 @@ const es: Record<MessageKey, string> = {
   "leagues.solo.badge": "Cuadro en solitario",
   "leagues.solo.caption": "Solo tú — invita antes del cierre",
   "league.solo.eyebrow": "Tu cuadro",
+  "league.solo.home": "Mis eventos",
   "league.grow.solo.title": "Compáralo con alguien",
   "league.grow.solo.lede":
     "Un cuadro solo es una entrada válida. Invita amigos y los mismos picks cuentan en la liga.",
@@ -1134,6 +1136,7 @@ const ja: Record<MessageKey, string> = {
   "leagues.solo.badge": "ソロブラケット",
   "leagues.solo.caption": "あなただけ——ロック前ならいつでも招待可",
   "league.solo.eyebrow": "あなたのブラケット",
+  "league.solo.home": "マイ大会",
   "league.grow.solo.title": "誰かと比べる",
   "league.grow.solo.lede":
     "ソロのブラケットも正式なエントリー。友だちを招待すれば同じピックがリーグに入る。",

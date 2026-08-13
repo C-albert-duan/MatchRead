@@ -190,6 +190,8 @@ export default async function TournamentInLeaguePage({ params }: Props) {
     league_locked_at: leagueLockedAt,
   });
   const hasDraw = Boolean(draw);
+  const announced = matchupsRes.data ?? [];
+  const canOpenBracket = hasDraw || announced.length > 0;
   const bracketHref = `/leagues/${league.slug}/t/${tournament.ref}/bracket`;
 
   let bracketLabel = t("tournament.openBracket");
@@ -242,7 +244,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
             </p>
           </div>
           <div className="page-actions">
-            {hasDraw ? (
+            {canOpenBracket ? (
               <Link
                 href={bracketHref}
                 className="act act--prominent act--prominent-size"
@@ -254,7 +256,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
               href={`/leagues/${league.slug}`}
               className="act act--standard act--standard-size"
             >
-              {solo ? t("league.solo.eyebrow") : t("tournament.leagueHome")}
+              {solo ? t("league.solo.home") : t("tournament.leagueHome")}
             </Link>
             {!solo ? (
               <Link
@@ -267,9 +269,9 @@ export default async function TournamentInLeaguePage({ params }: Props) {
           </div>
         </header>
 
-        {!hasDraw && (matchupsRes.data?.length ?? 0) > 0 ? (
+        {!hasDraw && announced.length > 0 ? (
           <AnnouncedFirstRound
-            matchups={matchupsRes.data ?? []}
+            matchups={announced}
             expectedFirst={Math.max(Math.floor(Number(tournament.draw_size || 64) / 2), 16)}
             picks={(bracket?.picks ?? {}) as Record<string, string>}
             locked={locked}

@@ -7,6 +7,7 @@ import type {
   OfficialResults,
 } from "@matchread/core";
 import { AppShell } from "@/components/shell/AppShell";
+import { AnnouncedFirstRound } from "@/components/bracket/AnnouncedFirstRound";
 import { BracketEditor } from "@/components/bracket/BracketEditor";
 import { getSessionUser } from "@/lib/auth";
 import {
@@ -80,14 +81,87 @@ export default async function BracketPage({ params }: Props) {
     notFound();
   }
 
-  const { data: draw } = await supabase
-    .from("draws")
-    .select("id")
-    .eq("tournament_id", tournament.id)
-    .maybeSingle();
+  const [{ data: draw }, { data: announcedRows }, { data: announcedBracket }, leagueLockedAt] =
+    await Promise.all([
+      supabase
+        .from("draws")
+        .select("id")
+        .eq("tournament_id", tournament.id)
+        .maybeSingle(),
+      supabase
+        .from("announced_matchups")
+        .select(
+          "match_key, player1_ref, player1_last_name, player1_seed, player2_ref, player2_last_name, player2_seed, scheduled_at, has_time"
+        )
+        .eq("tournament_id", tournament.id)
+        .order("scheduled_at", { ascending: true }),
+      supabase
+        .from("brackets")
+        .select("picks, submitted_at")
+        .eq("league_id", league.id)
+        .eq("tournament_id", tournament.id)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      loadLeagueDrawLock(supabase, league.id, tournament.id),
+    ]);
+
+  const announced = announcedRows ?? [];
+  const locked = isTournamentLocked({
+    ...tournament,
+    league_locked_at: leagueLockedAt,
+  });
 
   if (!draw) {
-    redirect(`/leagues/${league.slug}/t/${tournament.ref}`);
+    if (announced.length === 0) {
+      redirect(`/leagues/${league.slug}/t/${tournament.ref}`);
+    }
+    return (
+      <AppShell signedIn email={user.email}>
+        <div className="page">
+          <header className="page-header page-header--split">
+            <div className="page-header-copy">
+              <p className="eyebrow">
+                {solo ? t("league.solo.eyebrow") : league.name}
+              </p>
+              <h1 className="t-page-title">
+                {tf("bracket.page.title", { name: tournament.name })}
+              </h1>
+            </div>
+            <div className="page-actions">
+              <Link
+                href={`/leagues/${league.slug}/t/${tournament.ref}`}
+                className="act act--standard act--standard-size"
+              >
+                {t("common.tournament")}
+              </Link>
+              <Link
+                href={`/leagues/${league.slug}`}
+                className="act act--quiet"
+              >
+                {solo ? t("league.solo.home") : t("common.leagueHome")}
+              </Link>
+            </div>
+          </header>
+          <AnnouncedFirstRound
+            matchups={announced}
+            expectedFirst={Math.max(
+              Math.floor(Number(tournament.draw_size || 64) / 2),
+              16
+            )}
+            picks={(announcedBracket?.picks ?? {}) as BracketPicks}
+            locked={locked}
+            leagueId={league.id}
+            leagueSlug={league.slug}
+            tournamentId={tournament.id}
+            tournamentRef={tournament.ref}
+            venueTz={
+              (tournament as { venue_tz?: string | null }).venue_tz || "UTC"
+            }
+            locale={getLocale()}
+          />
+        </div>
+      </AppShell>
+    );
   }
 
   const [
@@ -95,7 +169,6 @@ export default async function BracketPage({ params }: Props) {
     { data: bracket },
     { data: resultRows },
     { data: scheduleRows },
-    leagueLockedAt,
   ] = await Promise.all([
       supabase
         .from("draw_seats")
@@ -119,16 +192,11 @@ export default async function BracketPage({ params }: Props) {
         .from("match_schedule")
         .select("match_key, scheduled_at, has_time")
         .eq("tournament_id", tournament.id),
-      loadLeagueDrawLock(supabase, league.id, tournament.id),
     ]);
 
   const seats = (seatRows ?? []) as DrawSeat[];
   const picks = (bracket?.picks ?? {}) as BracketPicks;
   const confidence = (bracket?.confidence ?? {}) as BracketConfidence;
-  const locked = isTournamentLocked({
-    ...tournament,
-    league_locked_at: leagueLockedAt,
-  });
   const platformLocked = isPlatformLocked(tournament);
 
   const officialResults: OfficialResults = {};
@@ -187,7 +255,7 @@ export default async function BracketPage({ params }: Props) {
               {t("common.tournament")}
             </Link>
             <Link href={`/leagues/${league.slug}`} className="act act--quiet">
-              {t("common.leagueHome")}
+              {solo ? t("league.solo.home") : t("common.leagueHome")}
             </Link>
           </div>
         </header>
