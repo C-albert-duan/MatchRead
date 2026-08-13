@@ -445,7 +445,6 @@ async function importTour(client, cfg, env, dryRun) {
       tour: cfg.tour,
       surface: "hard",
       starts_on: "2026-08-03",
-      lock_at: "2026-08-02T15:00:00+00",
     },
     delete_tournament_refs: cfg.delete_tournament_refs ?? [],
     montreal_name_labels: cfg.montreal_name_labels ?? [],

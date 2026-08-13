@@ -240,6 +240,63 @@ export function parseFixtureInstant(row) {
   return { scheduled_at: d.toISOString(), has_time: false };
 }
 
+/** @param {Record<string, unknown>|null|undefined} row */
+export function fixtureRoundLabel(row) {
+  if (!row || typeof row !== "object") return "";
+  const r = row.round;
+  if (typeof r === "string") return r;
+  if (r && typeof r === "object") {
+    return String(
+      r.name ?? r.roundName ?? r.title ?? r.shortName ?? ""
+    );
+  }
+  return String(row.roundName ?? row.round_name ?? "");
+}
+
+/** Qualifying / pre-qual — never the main-draw first ball. */
+export function isQualifyingRound(row) {
+  return /qualif|pre[-\s]?qual|^q\s*[1-4]\b|lucky\s*loser/i.test(
+    fixtureRoundLabel(row)
+  );
+}
+
+export function isMainDrawFirstRound(row) {
+  if (isQualifyingRound(row)) return false;
+  const name = fixtureRoundLabel(row).trim();
+  return (
+    /^(first|1st|r1|r32|r64|r128)$/i.test(name) ||
+    /^round of (32|64|96|128)$/i.test(name) ||
+    /^(1st|first) round$/i.test(name) ||
+    /^round 1$/i.test(name)
+  );
+}
+
+/**
+ * Earliest timed main-draw first-round start.
+ * Date-only fixtures are ignored (no invented kickoff).
+ * @param {unknown[]} fixtures
+ * @returns {{ scheduled_at: string, has_time: true } | null}
+ */
+export function firstMainDrawBall(fixtures) {
+  const rows = Array.isArray(fixtures) ? fixtures : [];
+  /** @type {Array<{ scheduled_at: string, first: boolean }>} */
+  const timed = [];
+  for (const f of rows) {
+    if (!f || typeof f !== "object") continue;
+    if (isQualifyingRound(f)) continue;
+    const parsed = parseFixtureInstant(f);
+    if (!parsed?.has_time) continue;
+    timed.push({
+      scheduled_at: parsed.scheduled_at,
+      first: isMainDrawFirstRound(f),
+    });
+  }
+  const pool = timed.filter((x) => x.first);
+  if (pool.length === 0) return null;
+  pool.sort((a, b) => a.scheduled_at.localeCompare(b.scheduled_at));
+  return { scheduled_at: pool[0].scheduled_at, has_time: true };
+}
+
 /**
  * Find National Bank Open week events: Montreal (ATP) + Toronto (WTA).
  * @param {{ atp: { tournaments: any[] }, wta: { tournaments: any[] } }} dual

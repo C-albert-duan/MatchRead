@@ -33,6 +33,8 @@ type Props = {
   initialConfidence: BracketConfidence;
   submittedAt: string | null;
   locked: boolean;
+  /** First-ball / founder lock — commissioner cannot unlock past this. */
+  platformLocked?: boolean;
   isCommissioner: boolean;
   officialResults?: OfficialResults;
   schedule?: Record<string, MatchScheduleRow>;
@@ -62,6 +64,7 @@ export function BracketEditor({
   initialConfidence,
   submittedAt,
   locked,
+  platformLocked = false,
   isCommissioner,
   officialResults = {},
   schedule = {},
@@ -245,7 +248,7 @@ export function BracketEditor({
               {t("bracket.locked")}
             </span>
           )}
-          {isCommissioner ? (
+          {isCommissioner && !platformLocked ? (
             <button
               type="button"
               className="act act--standard act--standard-size"

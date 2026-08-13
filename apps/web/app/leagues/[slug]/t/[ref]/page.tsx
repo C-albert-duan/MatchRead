@@ -8,7 +8,7 @@ import { StandingsTable } from "@/components/league/StandingsTable";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { isFounderEmail } from "@/lib/auth/founder";
-import { isTournamentLocked } from "@/lib/brackets/types";
+import { isTournamentLocked, loadLeagueDrawLock } from "@/lib/brackets/types";
 import { getLocale, t } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
 import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
@@ -99,7 +99,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
   // Manual Official Results UI only for fixture tournaments without a provider.
   const showManualResults = isCommissioner && !liveFeed;
 
-  const [bracketRes, snapshotsRes, seatsRes, resultsRes, scheduleRes] =
+  const [bracketRes, snapshotsRes, seatsRes, resultsRes, scheduleRes, leagueLockedAt] =
     await Promise.all([
     supabase
       .from("brackets")
@@ -156,6 +156,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
             has_time: boolean;
           }>,
         }),
+    loadLeagueDrawLock(supabase, league.id, tournament.id),
   ]);
 
   const bracket = bracketRes.data;
@@ -176,7 +177,10 @@ export default async function TournamentInLeaguePage({ params }: Props) {
     };
   }
 
-  const locked = isTournamentLocked(tournament);
+  const locked = isTournamentLocked({
+    ...tournament,
+    league_locked_at: leagueLockedAt,
+  });
   const hasDraw = Boolean(draw);
   const bracketHref = `/leagues/${league.slug}/t/${tournament.ref}/bracket`;
 

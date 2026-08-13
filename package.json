@@ -19,6 +19,7 @@
     "reconcile:results": "node scripts/reconcile-results.mjs",
     "import:montreal-draw": "node scripts/import-montreal-draw.mjs",
     "import:nbo-draw": "node scripts/import-nbo-draw.mjs",
+    "sync:lock-at": "node scripts/sync-lock-at.mjs",
     "test:provider": "npm run test -w @matchread/provider-rapidapi"
   }
 }

@@ -38,6 +38,7 @@ Use **SQL Editor**. Run in order:
 15. `supabase/migrations/0017_match_schedule.sql` — per-match start times from the provider
 16. `supabase/migrations/0018_calendar_identity.sql` — Montreal `nbo-mtl-2026`, restore `uso-2026` as US Open, seed Cincinnati / Winston-Salem / US Open (ATP+WTA), lock trigger on `brackets`
 17. `supabase/migrations/0019_provider_season_ids.sql` — attach RapidAPI season ids for Cin / Winston-Salem / US Open from calendar
+18. `supabase/migrations/0020_first_ball_and_league_lock.sql` — `lock_at` from first timed main-draw ball; commissioner lock is per league (`league_draw_locks`)
 
 Phase 7 (founder / void / i18n) needs **no new migration** — uses `pick_voids` + `match_results.voided` from 0004. Void writes still require commissioner RLS for that tournament.
 

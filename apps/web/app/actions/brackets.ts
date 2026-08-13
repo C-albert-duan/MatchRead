@@ -122,6 +122,13 @@ export async function adminLockTournament(input: {
     if (/commissioner/i.test(msg)) {
       return { ok: false, error: "Only the commissioner can lock.", code: "role" };
     }
+    if (/tournament locked/i.test(msg)) {
+      return {
+        ok: false,
+        error: "First ball has started. This league cannot reopen.",
+        code: "locked",
+      };
+    }
     return { ok: false, error: msg || "Could not update lock." };
   }
 

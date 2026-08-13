@@ -373,8 +373,8 @@ const en = {
   "bracket.saving": "Saving your bracket",
   "bracket.saved": "Bracket saved",
   "bracket.autosave": "Changes save automatically",
-  "bracket.lock": "Lock draw now",
-  "bracket.unlock": "Unlock (fixture)",
+  "bracket.lock": "Lock this league's draw",
+  "bracket.unlock": "Unlock this league",
   "bracket.offline":
     "You are offline. Bracket edits stay on this page until you reconnect.",
   "bracket.fail":
@@ -389,8 +389,8 @@ const en = {
     "Pick a winner in each match. Changes save automatically.",
   "bracket.page.title": "{name} bracket",
   "bracket.entrySubmitted": "Entry submitted for this league.",
-  "bracket.lockedMsg": "Draw locked. Brackets are read-only.",
-  "bracket.unlockedMsg": "Lock cleared. Brackets are editable again.",
+  "bracket.lockedMsg": "This league's draw is locked. Brackets are read-only.",
+  "bracket.unlockedMsg": "League lock cleared. Brackets are editable again.",
   "bracket.gradedHint":
     "Locked — green is a correct pick, red is a miss; official winners are marked.",
   "bracket.lockedHint": "This draw is locked.",
@@ -894,8 +894,8 @@ const es: Record<MessageKey, string> = {
   "bracket.saving": "Guardando tu cuadro",
   "bracket.saved": "Cuadro guardado",
   "bracket.autosave": "Los cambios se guardan automáticamente",
-  "bracket.lock": "Bloquear sorteo ahora",
-  "bracket.unlock": "Desbloquear (fixture)",
+  "bracket.lock": "Bloquear el sorteo de esta liga",
+  "bracket.unlock": "Desbloquear esta liga",
   "bracket.offline":
     "Estás sin conexión. Las ediciones del cuadro se quedan en esta página hasta que reconectes.",
   "bracket.fail":
@@ -910,8 +910,8 @@ const es: Record<MessageKey, string> = {
     "Elige un ganador en cada partido. Los cambios se guardan automáticamente.",
   "bracket.page.title": "Cuadro de {name}",
   "bracket.entrySubmitted": "Inscripción enviada para esta liga.",
-  "bracket.lockedMsg": "Sorteo bloqueado. Los cuadros son de solo lectura.",
-  "bracket.unlockedMsg": "Bloqueo eliminado. Los cuadros vuelven a ser editables.",
+  "bracket.lockedMsg": "El sorteo de esta liga está bloqueado. Los cuadros son de solo lectura.",
+  "bracket.unlockedMsg": "Bloqueo de liga eliminado. Los cuadros vuelven a ser editables.",
   "bracket.gradedHint":
     "Bloqueado — verde es un acierto, rojo es un fallo; los ganadores oficiales están marcados.",
   "bracket.lockedHint": "Este sorteo está bloqueado.",
@@ -1403,8 +1403,8 @@ const ja: Record<MessageKey, string> = {
   "bracket.saving": "ブラケットを保存中",
   "bracket.saved": "ブラケットを保存しました",
   "bracket.autosave": "変更は自動的に保存されます",
-  "bracket.lock": "今すぐドローをロック",
-  "bracket.unlock": "ロック解除（フィクスチャ）",
+  "bracket.lock": "このリーグのドローをロック",
+  "bracket.unlock": "このリーグのロックを解除",
   "bracket.offline":
     "オフラインです。再接続するまでブラケットの編集はこのページに保持されます。",
   "bracket.fail": "ブラケットが保存されませんでした。何も失われていません — もう一度お試しください。",
@@ -1416,8 +1416,8 @@ const ja: Record<MessageKey, string> = {
   "bracket.page.editLede": "各試合の勝者を選んでください。変更は自動的に保存されます。",
   "bracket.page.title": "{name} ブラケット",
   "bracket.entrySubmitted": "このリーグへのエントリーを提出しました。",
-  "bracket.lockedMsg": "ドローをロックしました。ブラケットは読み取り専用です。",
-  "bracket.unlockedMsg": "ロックを解除しました。ブラケットは再び編集可能です。",
+  "bracket.lockedMsg": "このリーグのドローをロックしました。ブラケットは読み取り専用です。",
+  "bracket.unlockedMsg": "リーグのロックを解除しました。ブラケットは再び編集可能です。",
   "bracket.gradedHint":
     "ロック済み — 緑は正解、赤はミスです。公式の勝者にマークが付きます。",
   "bracket.lockedHint": "このドローはロックされています。",

@@ -251,6 +251,14 @@ Deno.serve(async (req) => {
     log.push(`upserted ${rows.length} match_schedule`);
   }
 
+  const { data: firstBall, error: lockErr } = await admin.rpc(
+    "refresh_tournament_lock_from_schedule",
+    { p_tournament_id: tournamentId }
+  );
+  if (lockErr) return jsonError(400, `lock_at: ${lockErr.message}`, log);
+  if (firstBall) log.push(`lock_at ← first ball ${firstBall}`);
+  else log.push("lock_at unchanged (no timed main-draw schedule)");
+
   return new Response(
     JSON.stringify({
       ok: true,
@@ -259,6 +267,7 @@ Deno.serve(async (req) => {
       seats: seatRows.length,
       results: results.length,
       schedule: schedule.length,
+      lock_at: firstBall ?? null,
       log,
     }),
     {

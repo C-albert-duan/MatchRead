@@ -41,6 +41,7 @@ function tournamentListStatus(input: {
   starts_on: string | null;
   lock_at: string | null;
   admin_locked_at?: string | null;
+  league_locked_at?: string | null;
 }): string {
   const cal = calendarStatus({
     hasDraw: input.hasDraw,
@@ -48,8 +49,11 @@ function tournamentListStatus(input: {
     lock_at: input.lock_at,
     admin_locked_at: input.admin_locked_at,
   });
-  if (cal === "live" || cal === "locked" || cal === "drawPending") {
+  if (cal === "live" || cal === "drawPending") {
     return t(calendarStatusMessageKey(cal));
+  }
+  if (input.league_locked_at || cal === "locked") {
+    return t("tournament.locked");
   }
   if (!input.hasDraw) return t("league.status.drawPending");
   const expected = Math.max(input.drawSize - 1, 0);
@@ -157,7 +161,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
   });
 
   const tournamentIds = leagueTournaments.map((t) => t.id);
-  const [{ data: resultRows }, { data: snapRows }] =
+  const [{ data: resultRows }, { data: snapRows }, { data: leagueLockRows }] =
     tournamentIds.length > 0
       ? await Promise.all([
           supabase
@@ -169,11 +173,21 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
             .select("tournament_id")
             .eq("league_id", league.id)
             .in("tournament_id", tournamentIds),
+          supabase
+            .from("league_draw_locks")
+            .select("tournament_id, locked_at")
+            .eq("league_id", league.id)
+            .in("tournament_id", tournamentIds),
         ])
       : [
           { data: [] as Array<{ tournament_id: string; winner_ref: string | null; voided: boolean }> },
           { data: [] as Array<{ tournament_id: string }> },
+          { data: [] as Array<{ tournament_id: string; locked_at: string }> },
         ];
+
+  const leagueLockedAt = new Map(
+    (leagueLockRows ?? []).map((row) => [row.tournament_id, row.locked_at])
+  );
 
   const decidedByTournament = new Map<string, number>();
   for (const row of resultRows ?? []) {
@@ -312,6 +326,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                   lock_at: t.lock_at,
                   admin_locked_at: (t as { admin_locked_at?: string | null })
                     .admin_locked_at,
+                  league_locked_at: leagueLockedAt.get(t.id) ?? null,
                 });
                 const start =
                   formatTournamentDate(t.starts_on, locale) ?? t.starts_on;

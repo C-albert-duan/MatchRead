@@ -9,7 +9,11 @@ import type {
 import { AppShell } from "@/components/shell/AppShell";
 import { BracketEditor } from "@/components/bracket/BracketEditor";
 import { getSessionUser } from "@/lib/auth";
-import { isTournamentLocked } from "@/lib/brackets/types";
+import {
+  isPlatformLocked,
+  isTournamentLocked,
+  loadLeagueDrawLock,
+} from "@/lib/brackets/types";
 import { getLocale, t, tf } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
 import { createClient } from "@/lib/supabase/server";
@@ -86,8 +90,13 @@ export default async function BracketPage({ params }: Props) {
     redirect(`/leagues/${league.slug}/t/${tournament.ref}`);
   }
 
-  const [{ data: seatRows }, { data: bracket }, { data: resultRows }, { data: scheduleRows }] =
-    await Promise.all([
+  const [
+    { data: seatRows },
+    { data: bracket },
+    { data: resultRows },
+    { data: scheduleRows },
+    leagueLockedAt,
+  ] = await Promise.all([
       supabase
         .from("draw_seats")
         .select(
@@ -110,12 +119,17 @@ export default async function BracketPage({ params }: Props) {
         .from("match_schedule")
         .select("match_key, scheduled_at, has_time")
         .eq("tournament_id", tournament.id),
+      loadLeagueDrawLock(supabase, league.id, tournament.id),
     ]);
 
   const seats = (seatRows ?? []) as DrawSeat[];
   const picks = (bracket?.picks ?? {}) as BracketPicks;
   const confidence = (bracket?.confidence ?? {}) as BracketConfidence;
-  const locked = isTournamentLocked(tournament);
+  const locked = isTournamentLocked({
+    ...tournament,
+    league_locked_at: leagueLockedAt,
+  });
+  const platformLocked = isPlatformLocked(tournament);
 
   const officialResults: OfficialResults = {};
   for (const row of resultRows ?? []) {
@@ -190,6 +204,7 @@ export default async function BracketPage({ params }: Props) {
             initialConfidence={confidence}
             submittedAt={bracket?.submitted_at ?? null}
             locked={locked}
+            platformLocked={platformLocked}
             isCommissioner={membership.role === "commissioner"}
             officialResults={officialResults}
             schedule={schedule}

@@ -7,7 +7,7 @@ import {
   type StandingPulseRow,
 } from "@matchread/core";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isTournamentLocked } from "@/lib/brackets/types";
+import { isTournamentLocked, loadLeagueDrawLock } from "@/lib/brackets/types";
 import {
   buildLeagueEngagement,
   EMPTY_ENGAGEMENT,
@@ -101,6 +101,7 @@ export async function loadDailyCheck(input: {
     snapsRes,
     resultsRes,
     myBracketRes,
+    leagueLockedAt,
   ] = await Promise.all([
     supabase
       .from("draws")
@@ -131,11 +132,15 @@ export async function loadDailyCheck(input: {
       .eq("tournament_id", tournament.id)
       .eq("user_id", userId)
       .maybeSingle(),
+    loadLeagueDrawLock(supabase, league.id, tournament.id),
   ]);
 
   const draw = drawRes.data;
   const hasDraw = Boolean(draw);
-  const locked = isTournamentLocked(tournament);
+  const locked = isTournamentLocked({
+    ...tournament,
+    league_locked_at: leagueLockedAt,
+  });
   const brackets = bracketsRes.data ?? [];
   const snaps = snapsRes.data ?? [];
   const results = resultsRes.data ?? [];

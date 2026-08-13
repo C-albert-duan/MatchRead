@@ -90,6 +90,22 @@ export declare function parseFixtureInstant(
   row: Record<string, unknown> | null | undefined
 ): { scheduled_at: string; has_time: boolean } | null;
 
+export declare function fixtureRoundLabel(
+  row: Record<string, unknown> | null | undefined
+): string;
+
+export declare function isQualifyingRound(
+  row: Record<string, unknown> | null | undefined
+): boolean;
+
+export declare function isMainDrawFirstRound(
+  row: Record<string, unknown> | null | undefined
+): boolean;
+
+export declare function firstMainDrawBall(
+  fixtures: unknown[]
+): { scheduled_at: string; has_time: true } | null;
+
 export declare function getTournamentResults(
   client: { get: (path: string) => Promise<any> },
   tour: Tour,

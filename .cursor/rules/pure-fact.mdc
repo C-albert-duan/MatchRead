@@ -13,6 +13,7 @@ Production tennis data is **facts from Tennis API only**. If the provider does n
 - Draw seats where every **non-bye** has `provider_player_id` + a real last name
 - Byes: `is_bye = true`, `provider_player_id` null
 - Match results / schedule whose `winner_ref` / `match_key` map to those seats
+- `lock_at` from the earliest **timed** main-draw first ball (`has_time = true`). Date-only fixtures are not a kickoff.
 - Pre-draw public pages: name, dates, tour, surface, countdown — **no empty or invented bracket**
 
 ## Forbidden
@@ -20,7 +21,7 @@ Production tennis data is **facts from Tennis API only**. If the provider does n
 - Fictional seats (`Player47`, `p-0`…`p-15`, `Player ${id}`)
 - Opening `/enter` or “draw open” without verified provider seats
 - Reconstructing a partial draw (e.g. 20 of 32 first-round matches) to look complete
-- Guessing bracket order, seeds, or byes the provider did not prove
+- Guessing bracket order, seeds, byes, or a midnight/`15:00` lock the provider did not prove
 - Hard-coding tournament URLs/refs instead of reading `tournaments.ref`
 - Odds, predictions, or any non-fact product data
 

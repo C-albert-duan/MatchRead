@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  firstMainDrawBall,
   mapResultsToIngest,
   normalizeTour,
   parseFixtureInstant,
@@ -70,6 +71,34 @@ describe("parseFixtureInstant", () => {
     const parsed = parseFixtureInstant({ date: "2026-08-11" });
     assert.equal(parsed?.has_time, false);
     assert.equal(parsed?.scheduled_at, "2026-08-11T12:00:00.000Z");
+  });
+});
+
+describe("firstMainDrawBall", () => {
+  it("uses the earliest timed First and ignores qualifying", () => {
+    const ball = firstMainDrawBall([
+      { round: { name: "Qualifying" }, date: "2026-08-09T15:00:00.000Z" },
+      { round: { name: "First" }, date: "2026-08-13T19:00:00.000Z" },
+      { round: { name: "First" }, date: "2026-08-13T17:00:00.000Z" },
+      { round: { name: "First" }, date: "2026-08-13" },
+    ]);
+    assert.equal(ball?.scheduled_at, "2026-08-13T17:00:00.000Z");
+  });
+
+  it("does not invent a lock from date-only first-round rows", () => {
+    assert.equal(
+      firstMainDrawBall([{ round: { name: "First" }, date: "2026-08-13" }]),
+      null
+    );
+  });
+
+  it("does not use a later round as first ball", () => {
+    assert.equal(
+      firstMainDrawBall([
+        { round: { name: "Quarterfinals" }, date: "2026-08-14T17:00:00.000Z" },
+      ]),
+      null
+    );
   });
 });
 
