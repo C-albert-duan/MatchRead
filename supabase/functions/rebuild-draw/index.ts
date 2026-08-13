@@ -77,6 +77,8 @@ Deno.serve(async (req) => {
       starts_on?: string;
       lock_at?: string;
     };
+    /** Replace an existing verified draw. Default: skip if verified seats exist. */
+    force?: boolean;
     delete_tournament_refs?: string[];
     seats?: SeatRow[];
     results?: ResultRow[];
@@ -143,6 +145,42 @@ Deno.serve(async (req) => {
         return jsonError(400, error.message, log);
       }
       log.push(`retargeted leagues from ${label} (count≈${count ?? "?"})`);
+    }
+  }
+
+  // Never wipe a verified public draw unless the caller opts in.
+  if (!body.force) {
+    const { data: existingDraw, error: existingErr } = await admin
+      .from("draws")
+      .select("id")
+      .eq("tournament_id", tournamentId)
+      .maybeSingle();
+    if (existingErr) return jsonError(400, existingErr.message, log);
+    if (existingDraw?.id) {
+      const { count, error: seatCountErr } = await admin
+        .from("draw_seats")
+        .select("id", { count: "exact", head: true })
+        .eq("draw_id", existingDraw.id)
+        .eq("is_bye", false)
+        .not("provider_player_id", "is", null);
+      if (seatCountErr) return jsonError(400, seatCountErr.message, log);
+      if ((count ?? 0) > 0) {
+        log.push(`skipped: verified draw already published (${count} seats)`);
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            skipped: "verified_draw_exists",
+            tournament_id: tournamentId,
+            draw_id: existingDraw.id,
+            seats: count,
+            log,
+          }),
+          {
+            status: 200,
+            headers: { ...cors, "Content-Type": "application/json" },
+          }
+        );
+      }
     }
   }
 

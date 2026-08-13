@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildDrawFromFirstRound,
   firstMainDrawBall,
   mapResultsToIngest,
   normalizeTour,
@@ -99,6 +100,64 @@ describe("firstMainDrawBall", () => {
       ]),
       null
     );
+  });
+});
+
+function firstMatch(id, a, b) {
+  return {
+    id,
+    round: { name: "First" },
+    player1Id: a.id,
+    player2Id: b.id,
+    player1: { id: a.id, name: a.name, countryAcr: "USA" },
+    player2: { id: b.id, name: b.name, countryAcr: "ESP" },
+    date: "2026-08-13T17:00:00.000Z",
+  };
+}
+
+describe("buildDrawFromFirstRound", () => {
+  it("fails closed on a partial first round", () => {
+    const fixtures = [];
+    for (let i = 0; i < 20; i++) {
+      fixtures.push(
+        firstMatch(1000 + i, { id: i * 2 + 1, name: `Ada One${i}` }, { id: i * 2 + 2, name: `Bo Two${i}` })
+      );
+    }
+    const built = buildDrawFromFirstRound(fixtures, { prefix: "atp" });
+    assert.equal(built.ok, false);
+    if (built.ok) throw new Error("expected fail");
+    assert.match(built.reason, /incomplete first round \(20/);
+  });
+
+  it("publishes a 64-draw when all 32 first-round pairs are named", () => {
+    const fixtures = [];
+    for (let i = 0; i < 32; i++) {
+      fixtures.push(
+        firstMatch(
+          2000 + i,
+          { id: 100 + i, name: `PlayerA ${i} Smith` },
+          { id: 200 + i, name: `PlayerB ${i} Jones` }
+        )
+      );
+    }
+    fixtures.push({
+      id: 9,
+      round: { name: "Qualifying" },
+      player1Id: 1,
+      player2Id: 2,
+      player1: { id: 1, name: "Qual One" },
+      player2: { id: 2, name: "Qual Two" },
+      date: "2026-08-09T15:00:00.000Z",
+    });
+    const built = buildDrawFromFirstRound(fixtures, { prefix: "atp" });
+    assert.equal(built.ok, true);
+    if (!built.ok) throw new Error(built.reason);
+    assert.equal(built.drawSize, 64);
+    assert.equal(built.seats.length, 64);
+    assert.equal(built.seats.every((s) => s.provider_player_id && s.last_name), true);
+    assert.equal(built.seats[0].player_ref, "atp-100");
+    assert.equal(built.matches["2000"], "r0-m0");
+    assert.equal(built.schedule.length, 32);
   });
 });
 

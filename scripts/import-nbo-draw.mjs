@@ -438,6 +438,7 @@ async function importTour(client, cfg, env, dryRun) {
 
   const payload = {
     tournament_ref: cfg.ref,
+    force: true,
     tournament_patch: {
       name: cfg.name,
       draw_size: DRAW_SIZE,

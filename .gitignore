@@ -13,10 +13,12 @@ apps/web/.env*.local
 
 # Provider reconcile map with real ids (example file is tracked above)
 .provider-map.json
+.provider-map-*.json
 tmp-montreal*.json
 tmp-*-results.json
 tmp-*-fixtures.json
 tmp-*-rebuild-payload.json
+tmp-*-draw.json
 
 # Next.js / Vercel
 apps/web/.next

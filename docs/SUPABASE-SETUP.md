@@ -40,6 +40,8 @@ Use **SQL Editor**. Run in order:
 17. `supabase/migrations/0019_provider_season_ids.sql` — attach RapidAPI season ids for Cin / Winston-Salem / US Open from calendar
 18. `supabase/migrations/0020_first_ball_and_league_lock.sql` — `lock_at` from first timed main-draw ball; commissioner lock is per league (`league_draw_locks`)
 
+Draw publish: when Tennis API has a complete first round, `npm run publish:draws` (GitHub Action `publish-draws.yml`) posts `rebuild-draw`. Partial fields stay pending.
+
 Phase 7 (founder / void / i18n) needs **no new migration** — uses `pick_voids` + `match_results.voided` from 0004. Void writes still require commissioner RLS for that tournament.
 
 ### Already applied / re-pasting?

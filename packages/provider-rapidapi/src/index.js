@@ -297,6 +297,189 @@ export function firstMainDrawBall(fixtures) {
   return { scheduled_at: pool[0].scheduled_at, has_time: true };
 }
 
+/** Last token of a provider display name. Empty if missing. */
+export function playerLastName(full) {
+  const parts = String(full || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return parts[parts.length - 1] || "";
+}
+
+function parseSeed(raw) {
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  if (Number.isInteger(n) && n > 0 && n < 128) return n;
+  return null;
+}
+
+function playerFromFixture(row, side) {
+  const person = side === 1 ? row.player1 : row.player2;
+  const id = String(
+    (side === 1 ? row.player1Id : row.player2Id) ?? person?.id ?? ""
+  ).trim();
+  const name = String(person?.name ?? person?.fullName ?? "").trim();
+  const last = playerLastName(name);
+  const country = String(person?.countryAcr ?? person?.country ?? "XXX")
+    .slice(0, 3)
+    .toUpperCase();
+  const seed = parseSeed(side === 1 ? row.seed1 : row.seed2);
+  const invented = !last || /^player\d*$/i.test(last);
+  if (!id || invented) return null;
+  return {
+    id,
+    last_name: last,
+    country_code: /^[A-Z]{3}$/.test(country) ? country : "XXX",
+    seed,
+  };
+}
+
+/**
+ * Named main-draw first-round pairs (both sides have provider id + last name).
+ * Sorted by provider match id — RapidAPI does not expose draw slots.
+ * @param {unknown[]} fixtures
+ */
+export function namedFirstRoundPairs(fixtures) {
+  const rows = Array.isArray(fixtures) ? fixtures : [];
+  /** @type {Array<{ id: number, p1: NonNullable<ReturnType<typeof playerFromFixture>>, p2: NonNullable<ReturnType<typeof playerFromFixture>>, instant: ReturnType<typeof parseFixtureInstant> }>} */
+  const out = [];
+  for (const raw of rows) {
+    if (!raw || typeof raw !== "object") continue;
+    if (!isMainDrawFirstRound(raw)) continue;
+    const p1 = playerFromFixture(raw, 1);
+    const p2 = playerFromFixture(raw, 2);
+    if (!p1 || !p2) continue;
+    out.push({
+      id: Number(raw.id) || 0,
+      p1,
+      p2,
+      instant: parseFixtureInstant(raw),
+    });
+  }
+  out.sort((a, b) => a.id - b.id || a.p1.id.localeCompare(b.p1.id));
+  return out;
+}
+
+export function expectedFirstRoundMatches(drawSize) {
+  const n = Number(drawSize);
+  if (n === 128) return 64;
+  if (n === 96) return 32;
+  if (n === 64) return 32;
+  if (n === 32) return 16;
+  if (n > 2 && n % 2 === 0) return n / 2;
+  return null;
+}
+
+export function inferDrawSizeFromFirstRound(pairCount) {
+  if (pairCount === 64) return 128;
+  if (pairCount === 32) return 64;
+  if (pairCount === 16) return 32;
+  return null;
+}
+
+/**
+ * Build a verified draw from a complete first-round field.
+ * Incomplete fields return `{ ok: false }` — never pad with fiction.
+ * 96-draw seed byes are not inferred (no slot map from this API).
+ * @param {unknown[]} fixtures
+ * @param {{ prefix: string, drawSize?: number }} opts
+ */
+export function buildDrawFromFirstRound(fixtures, opts) {
+  const prefix = String(opts?.prefix || "p").replace(/[^a-z0-9-]/gi, "") || "p";
+  const pairs = namedFirstRoundPairs(fixtures);
+  const drawSize =
+    opts?.drawSize && expectedFirstRoundMatches(opts.drawSize) === pairs.length
+      ? Number(opts.drawSize)
+      : inferDrawSizeFromFirstRound(pairs.length);
+
+  if (!drawSize) {
+    return {
+      ok: false,
+      reason: `incomplete first round (${pairs.length} named pairs)`,
+      pairs: pairs.length,
+    };
+  }
+
+  if (drawSize === 96) {
+    return {
+      ok: false,
+      reason:
+        "96-draw needs seed-bye slots the fixtures API does not prove",
+      pairs: pairs.length,
+    };
+  }
+
+  const need = expectedFirstRoundMatches(drawSize);
+  if (need == null || pairs.length !== need) {
+    return {
+      ok: false,
+      reason: `incomplete first round (${pairs.length}/${need ?? "?"})`,
+      pairs: pairs.length,
+    };
+  }
+
+  const ids = new Set();
+  for (const pair of pairs) {
+    if (ids.has(pair.p1.id) || ids.has(pair.p2.id) || pair.p1.id === pair.p2.id) {
+      return { ok: false, reason: "duplicate player ids in first round", pairs: pairs.length };
+    }
+    ids.add(pair.p1.id);
+    ids.add(pair.p2.id);
+  }
+
+  /** @type {Array<{position:number,player_ref:string,last_name:string,seed:number|null,country_code:string,is_bye:boolean,provider_player_id:string}>} */
+  const seats = [];
+  /** @type {Record<string,string>} */
+  const players = {};
+  /** @type {Record<string,string>} */
+  const matches = {};
+  /** @type {Array<{match_key:string,scheduled_at:string,has_time:boolean}>} */
+  const schedule = [];
+
+  for (let i = 0; i < pairs.length; i++) {
+    const pair = pairs[i];
+    const key = `r0-m${i}`;
+    const place = (pos, p) => {
+      const ref = `${prefix}-${p.id}`;
+      seats.push({
+        position: pos,
+        player_ref: ref,
+        last_name: p.last_name,
+        seed: p.seed,
+        country_code: p.country_code,
+        is_bye: false,
+        provider_player_id: p.id,
+      });
+      players[p.id] = ref;
+    };
+    place(i * 2, pair.p1);
+    place(i * 2 + 1, pair.p2);
+    if (pair.id) matches[String(pair.id)] = key;
+    if (pair.instant) {
+      schedule.push({ match_key: key, ...pair.instant });
+    }
+  }
+
+  if (seats.length !== drawSize) {
+    return { ok: false, reason: `seat count ${seats.length} != ${drawSize}`, pairs: pairs.length };
+  }
+
+  return {
+    ok: true,
+    drawSize,
+    seats,
+    players,
+    matches,
+    schedule,
+    results: [],
+    stats: {
+      firstRound: pairs.length,
+      verifiedPlayers: seats.length,
+      byes: 0,
+    },
+  };
+}
+
 /**
  * Find National Bank Open week events: Montreal (ATP) + Toronto (WTA).
  * @param {{ atp: { tournaments: any[] }, wta: { tournaments: any[] } }} dual

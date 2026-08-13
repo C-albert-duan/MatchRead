@@ -1,0 +1,29 @@
+---
+description: A complete Tennis API field must become a public MatchRead draw
+alwaysApply: true
+---
+
+# Publish complete draws (non-negotiable)
+
+MatchRead exists so people can pick a tournament. If Tennis API proves a **complete** main-draw field, we **must** publish a verified draw. If it does not, we stay draw-pending.
+
+## When to publish
+
+- Every first-round main-draw match has **both** players with `provider_player_id` + a real last name
+- Pair count matches a real draw size: 16 → 32, 32 → 64, 64 → 128
+- Qualifying is ignored
+- Date-only rows are still seats; times are optional
+
+## When not to publish
+
+- Partial first round (e.g. 20 of 32) — do not pad, invent byes, or guess remaining names
+- 96-draw seed byes the API did not place
+- Fictional `Player ${id}` names
+
+## How
+
+- `scripts/publish-draws.mjs` → `rebuild-draw`
+- Do not wipe a verified draw to replace it with a weaker one (`force` only for a proven better field)
+- `lock_at` still comes from the first timed main-draw ball
+
+This is the other half of pure-fact: fail closed on gaps, fail **open** the moment the field is complete.

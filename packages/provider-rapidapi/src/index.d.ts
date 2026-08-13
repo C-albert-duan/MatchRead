@@ -106,6 +106,62 @@ export declare function firstMainDrawBall(
   fixtures: unknown[]
 ): { scheduled_at: string; has_time: true } | null;
 
+export declare function playerLastName(full: string | null | undefined): string;
+
+export type FirstRoundPlayer = {
+  id: string;
+  last_name: string;
+  country_code: string;
+  seed: number | null;
+};
+
+export type NamedFirstRoundPair = {
+  id: number;
+  p1: FirstRoundPlayer;
+  p2: FirstRoundPlayer;
+  instant: { scheduled_at: string; has_time: boolean } | null;
+};
+
+export declare function namedFirstRoundPairs(
+  fixtures: unknown[]
+): NamedFirstRoundPair[];
+
+export declare function expectedFirstRoundMatches(
+  drawSize: number
+): number | null;
+
+export declare function inferDrawSizeFromFirstRound(
+  pairCount: number
+): 32 | 64 | 128 | null;
+
+export type BuiltDraw = {
+  ok: true;
+  drawSize: number;
+  seats: Array<{
+    position: number;
+    player_ref: string;
+    last_name: string;
+    seed: number | null;
+    country_code: string;
+    is_bye: boolean;
+    provider_player_id: string;
+  }>;
+  players: Record<string, string>;
+  matches: Record<string, string>;
+  schedule: Array<{
+    match_key: string;
+    scheduled_at: string;
+    has_time: boolean;
+  }>;
+  results: [];
+  stats: { firstRound: number; verifiedPlayers: number; byes: number };
+};
+
+export declare function buildDrawFromFirstRound(
+  fixtures: unknown[],
+  opts: { prefix: string; drawSize?: number }
+): BuiltDraw | { ok: false; reason: string; pairs: number };
+
 export declare function getTournamentResults(
   client: { get: (path: string) => Promise<any> },
   tour: Tour,

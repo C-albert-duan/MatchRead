@@ -29,6 +29,10 @@ Production tennis data is **facts from Tennis API only**. If the provider does n
 
 Keep the event **draw pending**. Fail closed. Do not wipe a verified draw to fill a gap with fiction. Do not ship a showcase/fixture draw on the live calendar.
 
+## If the API is complete
+
+Publish the draw. A full named first round is enough to open brackets — see `.cursor/rules/publish-complete-draw.mdc`.
+
 ```sql
 -- A public draw is verified only when this is true:
 -- non-bye seats > 0 AND every non-bye has provider_player_id
