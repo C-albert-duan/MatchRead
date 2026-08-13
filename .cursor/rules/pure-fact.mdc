@@ -21,6 +21,7 @@ Production tennis data is **facts from Tennis API only**. If the provider does n
 - Fictional seats (`Player47`, `p-0`…`p-15`, `Player ${id}`)
 - Opening `/enter` or “draw open” without verified provider seats
 - Reconstructing a partial draw (e.g. 20 of 32 first-round matches) to look complete
+- Hiding named first-round matches; those pairs must be listed and pickable
 - Guessing bracket order, seeds, byes, or a midnight/`15:00` lock the provider did not prove
 - Hard-coding tournament URLs/refs instead of reading `tournaments.ref`
 - Odds, predictions, or any non-fact product data

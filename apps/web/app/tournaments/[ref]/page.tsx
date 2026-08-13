@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { DrawSeat, OfficialResults } from "@matchread/core";
 import { AppShell } from "@/components/shell/AppShell";
+import { AnnouncedFirstRound } from "@/components/bracket/AnnouncedFirstRound";
 import { BracketGrid } from "@/components/bracket/BracketGrid";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
@@ -66,6 +67,14 @@ export default async function PublicTournamentPage({ params }: Props) {
   const official: OfficialResults = {};
   const schedule: Record<string, MatchScheduleRow> = {};
   let seats: DrawSeat[] = [];
+  const { data: announcedRows } = await supabase
+    .from("announced_matchups")
+    .select(
+      "match_key, player1_ref, player1_last_name, player1_seed, player2_ref, player2_last_name, player2_seed, scheduled_at, has_time"
+    )
+    .eq("tournament_id", event.id)
+    .order("scheduled_at", { ascending: true });
+  const announced = announcedRows ?? [];
 
   if (event.hasDraw) {
     const { data: draw } = await supabase
@@ -206,6 +215,16 @@ export default async function PublicTournamentPage({ params }: Props) {
             <p className="t-body">{t("publicTournament.complete")}</p>
           ) : null}
         </section>
+
+        {seats.length === 0 && announced.length > 0 ? (
+          <AnnouncedFirstRound
+            matchups={announced}
+            expectedFirst={Math.max(Math.floor(Number(event.draw_size || 64) / 2), 16)}
+            locked
+            venueTz={event.venue_tz}
+            locale={locale}
+          />
+        ) : null}
 
         {seats.length > 0 ? (
           <section className="section" aria-labelledby="official-draw">

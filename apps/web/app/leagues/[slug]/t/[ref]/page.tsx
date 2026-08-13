@@ -5,6 +5,7 @@ import { LiveRefresh } from "@/components/shell/LiveRefresh";
 import { OfficialResultsPanel } from "@/components/league/OfficialResultsPanel";
 import { SettleButton } from "@/components/league/SettleButton";
 import { StandingsTable } from "@/components/league/StandingsTable";
+import { AnnouncedFirstRound } from "@/components/bracket/AnnouncedFirstRound";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { isFounderEmail } from "@/lib/auth/founder";
@@ -99,11 +100,11 @@ export default async function TournamentInLeaguePage({ params }: Props) {
   // Manual Official Results UI only for fixture tournaments without a provider.
   const showManualResults = isCommissioner && !liveFeed;
 
-  const [bracketRes, snapshotsRes, seatsRes, resultsRes, scheduleRes, leagueLockedAt] =
+  const [bracketRes, snapshotsRes, seatsRes, resultsRes, scheduleRes, leagueLockedAt, matchupsRes] =
     await Promise.all([
     supabase
       .from("brackets")
-      .select("submitted_at, updated_at")
+      .select("submitted_at, updated_at, picks")
       .eq("league_id", league.id)
       .eq("tournament_id", tournament.id)
       .eq("user_id", user.id)
@@ -157,6 +158,13 @@ export default async function TournamentInLeaguePage({ params }: Props) {
           }>,
         }),
     loadLeagueDrawLock(supabase, league.id, tournament.id),
+    supabase
+      .from("announced_matchups")
+      .select(
+        "match_key, player1_ref, player1_last_name, player1_seed, player2_ref, player2_last_name, player2_seed, scheduled_at, has_time"
+      )
+      .eq("tournament_id", tournament.id)
+      .order("scheduled_at", { ascending: true }),
   ]);
 
   const bracket = bracketRes.data;
@@ -259,12 +267,27 @@ export default async function TournamentInLeaguePage({ params }: Props) {
           </div>
         </header>
 
-        {!hasDraw ? (
+        {!hasDraw && (matchupsRes.data?.length ?? 0) > 0 ? (
+          <AnnouncedFirstRound
+            matchups={matchupsRes.data ?? []}
+            expectedFirst={Math.max(Math.floor(Number(tournament.draw_size || 64) / 2), 16)}
+            picks={(bracket?.picks ?? {}) as Record<string, string>}
+            locked={locked}
+            leagueId={league.id}
+            leagueSlug={league.slug}
+            tournamentId={tournament.id}
+            tournamentRef={tournament.ref}
+            venueTz={
+              (tournament as { venue_tz?: string | null }).venue_tz || "UTC"
+            }
+            locale={getLocale()}
+          />
+        ) : !hasDraw ? (
           <section
             className="panel stack gap-md focus-band"
-            aria-labelledby="draw-pending"
+            aria-labelledby="draw-pending-empty"
           >
-            <h2 id="draw-pending" className="section-title">
+            <h2 id="draw-pending-empty" className="section-title">
               {t("tournament.drawPending.title")}
             </h2>
             <p className="t-body">{t("tournament.drawPending.body")}</p>

@@ -18,7 +18,25 @@ import {
   buildDrawFromFirstRound,
   createClient,
   getTournamentFixtures,
+  namedFirstRoundPairs,
 } from "@matchread/provider-rapidapi";
+
+function matchupsFromPairs(pairs, prefix) {
+  return pairs.map((p) => ({
+    provider_match_id: String(p.id),
+    match_key: `fx-${p.id}`,
+    player1_ref: `${prefix}-${p.p1.id}`,
+    player1_last_name: p.p1.last_name,
+    player1_country: p.p1.country_code,
+    player1_seed: p.p1.seed,
+    player2_ref: `${prefix}-${p.p2.id}`,
+    player2_last_name: p.p2.last_name,
+    player2_country: p.p2.country_code,
+    player2_seed: p.p2.seed,
+    scheduled_at: p.instant?.scheduled_at ?? null,
+    has_time: Boolean(p.instant?.has_time),
+  }));
+}
 
 /** Season events we always check even without a Supabase listing. */
 const SEASON = [
@@ -155,28 +173,74 @@ async function main() {
   }
 
   let published = 0;
+  let announced = 0;
   let pending = 0;
   let skipped = 0;
 
+  const ingestUrl = env.MATCHREAD_INGEST_URL;
+  const secret = env.INGEST_SECRET;
+  const rebuildUrl = ingestUrl
+    ? ingestUrl.replace(/\/ingest-events\/?$/, "/rebuild-draw")
+    : "";
+
+  async function postRebuild(label, payload) {
+    if (args.dryRun) {
+      console.log(label, "DRY RUN — not posted");
+      return;
+    }
+    if (!rebuildUrl || !secret) {
+      console.error("Need MATCHREAD_INGEST_URL and INGEST_SECRET for live write");
+      process.exit(1);
+    }
+    const res = await fetch(rebuildUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    console.log(label, "POST", res.status, text.slice(0, 400));
+    if (!res.ok) process.exit(1);
+  }
+
   for (const event of events) {
     const label = `${event.ref} (${event.tour} ${event.provider_tournament_id})`;
-    if (await alreadyVerified(env, event.ref)) {
-      console.log(label, "already has a verified draw — skip");
-      skipped += 1;
-      continue;
-    }
-
     const { fixtures } = await getTournamentFixtures(
       client,
       event.tour,
       event.provider_tournament_id
     );
+    const pairs = namedFirstRoundPairs(fixtures);
+    const matchups = matchupsFromPairs(pairs, event.tour);
+
+    if (matchups.length > 0) {
+      const payload = {
+        tournament_ref: event.ref,
+        tournament_patch: {
+          provider_tournament_id: event.provider_tournament_id,
+          tour: event.tour,
+        },
+        matchups,
+      };
+      console.log(label, `announced first round ${matchups.length}`);
+      await postRebuild(label, payload);
+      announced += 1;
+    }
+
+    if (await alreadyVerified(env, event.ref)) {
+      console.log(label, "already has a verified draw — skip full rebuild");
+      skipped += 1;
+      continue;
+    }
+
     const built = buildDrawFromFirstRound(fixtures, {
       prefix: event.tour,
       drawSize: event.draw_size,
     });
     if (!built.ok) {
-      console.log(label, "draw pending —", built.reason);
+      console.log(label, "full draw pending —", built.reason);
       pending += 1;
       continue;
     }
@@ -191,57 +255,17 @@ async function main() {
       seats: built.seats,
       results: built.results,
       schedule: built.schedule,
+      matchups,
     };
     const preview = resolve(process.cwd(), `tmp-${event.ref}-draw.json`);
     writeFileSync(preview, JSON.stringify(payload, null, 2) + "\n");
     console.log(label, `complete ${built.drawSize}-draw — wrote`, preview);
-
-    const mapPath = resolve(process.cwd(), `.provider-map-${event.ref}.json`);
-    writeFileSync(
-      mapPath,
-      JSON.stringify(
-        {
-          tournament_ref: event.ref,
-          provider_tournament_id: event.provider_tournament_id,
-          tour: event.tour,
-          comment: `First-round field from RapidAPI fixtures (${built.stats.firstRound} matches).`,
-          players: built.players,
-          matches: built.matches,
-        },
-        null,
-        2
-      ) + "\n"
-    );
-
-    if (args.dryRun) {
-      console.log(label, "DRY RUN — not posted");
-      published += 1;
-      continue;
-    }
-
-    const ingestUrl = env.MATCHREAD_INGEST_URL;
-    const secret = env.INGEST_SECRET;
-    if (!ingestUrl || !secret) {
-      console.error("Need MATCHREAD_INGEST_URL and INGEST_SECRET for live write");
-      process.exit(1);
-    }
-    const rebuildUrl = ingestUrl.replace(/\/ingest-events\/?$/, "/rebuild-draw");
-    const res = await fetch(rebuildUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${secret}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-    const text = await res.text();
-    console.log(label, "POST", res.status, text.slice(0, 400));
-    if (!res.ok) process.exit(1);
+    await postRebuild(label, payload);
     published += 1;
   }
 
   console.log(
-    `done published=${published} pending=${pending} skipped_existing=${skipped}`
+    `done announced=${announced} published=${published} pending=${pending} skipped_existing=${skipped}`
   );
 }
 

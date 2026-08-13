@@ -5,20 +5,23 @@ alwaysApply: true
 
 # Publish complete draws (non-negotiable)
 
-MatchRead exists so people can pick a tournament. If Tennis API proves a **complete** main-draw field, we **must** publish a verified draw. If it does not, we stay draw-pending.
+MatchRead exists so people can pick a tournament.
 
-## When to publish
+## Proven pairs are always public
 
-- Every first-round main-draw match has **both** players with `provider_player_id` + a real last name
-- Pair count matches a real draw size: 16 → 32, 32 → 64, 64 → 128
-- Qualifying is ignored
-- Date-only rows are still seats; times are optional
+If Tennis API names **both** players in a main-draw first-round match, users must **see that match and be able to pick a winner**. Do not wait for the rest of the field. Store it in `announced_matchups` (`fx-{provider_match_id}`).
 
-## When not to publish
+## Full bracket when the field is complete
 
-- Partial first round (e.g. 20 of 32) — do not pad, invent byes, or guess remaining names
-- 96-draw seed byes the API did not place
-- Fictional `Player ${id}` names
+If the first round is complete (16 → 32, 32 → 64, 64 → 128 named pairs), also publish a verified draw via `rebuild-draw`.
+
+## Still forbidden
+
+- Padding a partial first round to look like 32/64/96
+- Inventing qualifying winners, seed-bye slots, or `Player ${id}`
+- Hiding named first-round matches behind “draw pending” with no list
+
+Qualifying is ignored. Date-only rows are still seats; times are optional.
 
 ## How
 

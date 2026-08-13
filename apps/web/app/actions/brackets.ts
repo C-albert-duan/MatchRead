@@ -56,6 +56,7 @@ export async function saveBracketPicks(input: {
   revalidatePath(
     `/leagues/${input.leagueSlug}/t/${input.tournamentRef}/bracket`
   );
+  revalidatePath(`/leagues/${input.leagueSlug}/t/${input.tournamentRef}`);
   return { ok: true };
 }
 

@@ -266,7 +266,10 @@ const en = {
   "tournament.seeResult": "See my result",
   "tournament.drawPending.title": "Draw pending",
   "tournament.drawPending.body":
-    "The draw has not been published yet. Invite friends and come back when the bracket opens.",
+    "The full bracket is not published yet. First-round matches already named below are open to pick.",
+  "tournament.announced.title": "First round so far",
+  "tournament.announced.body":
+    "{have} of {need} first-round matches are named. Pick those now; the rest appear when qualifying finishes.",
   "tournament.locked": "Locked",
   "tournament.entry.submitted":
     "Your bracket is submitted. You can still edit until the lock.",
@@ -786,7 +789,10 @@ const es: Record<MessageKey, string> = {
   "tournament.seeResult": "Ver mi resultado",
   "tournament.drawPending.title": "Sorteo pendiente",
   "tournament.drawPending.body":
-    "El sorteo aún no se ha publicado. Invita a amigos y vuelve cuando el cuadro abra.",
+    "El cuadro completo aún no está publicado. Los partidos de primera ronda ya nombrados abajo se pueden elegir.",
+  "tournament.announced.title": "Primera ronda hasta ahora",
+  "tournament.announced.body":
+    "{have} de {need} partidos de primera ronda tienen nombre. Elige esos ahora; el resto aparece cuando termine la qualy.",
   "tournament.locked": "Bloqueado",
   "tournament.entry.submitted":
     "Tu cuadro está enviado. Puedes seguir editando hasta el bloqueo.",
@@ -1301,7 +1307,10 @@ const ja: Record<MessageKey, string> = {
   "tournament.seeResult": "自分の結果を見る",
   "tournament.drawPending.title": "ドロー待ち",
   "tournament.drawPending.body":
-    "ドローはまだ公開されていません。友達を招待して、ブラケットが開いたら戻ってきてください。",
+    "フルブラケットはまだ公開されていません。下に名前が出ている1回戦は今すぐピックできます。",
+  "tournament.announced.title": "ここまでの1回戦",
+  "tournament.announced.body":
+    "1回戦 {need} 試合中 {have} 試合が発表済みです。それらをピックしてください。残りは予選が終わり次第出ます。",
   "tournament.locked": "ロック済み",
   "tournament.entry.submitted":
     "ブラケットは提出済みです。ロックまでは編集できます。",

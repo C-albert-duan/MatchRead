@@ -34,6 +34,21 @@ type ScheduleRow = {
   has_time?: boolean;
 };
 
+type MatchupRow = {
+  provider_match_id: string;
+  match_key: string;
+  player1_ref: string;
+  player1_last_name: string;
+  player1_country?: string;
+  player1_seed?: number | null;
+  player2_ref: string;
+  player2_last_name: string;
+  player2_country?: string;
+  player2_seed?: number | null;
+  scheduled_at?: string | null;
+  has_time?: boolean;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: cors });
@@ -83,6 +98,7 @@ Deno.serve(async (req) => {
     seats?: SeatRow[];
     results?: ResultRow[];
     schedule?: ScheduleRow[];
+    matchups?: MatchupRow[];
     /** When set, retarget leagues from these old fixture labels to tournament_patch.name. */
     montreal_name_labels?: string[];
   };
@@ -96,11 +112,23 @@ Deno.serve(async (req) => {
   }
 
   const seats = body.seats ?? [];
-  if (seats.length === 0) {
-    return new Response(JSON.stringify({ error: "seats[] required" }), {
-      status: 400,
-      headers: { ...cors, "Content-Type": "application/json" },
-    });
+  const matchups = (body.matchups ?? []).filter(
+    (m) =>
+      m.provider_match_id &&
+      m.match_key &&
+      m.player1_ref &&
+      m.player1_last_name &&
+      m.player2_ref &&
+      m.player2_last_name
+  );
+  if (seats.length === 0 && matchups.length === 0) {
+    return new Response(
+      JSON.stringify({ error: "seats[] or matchups[] required" }),
+      {
+        status: 400,
+        headers: { ...cors, "Content-Type": "application/json" },
+      }
+    );
   }
 
   const admin = createClient(supabaseUrl, serviceKey);
@@ -148,6 +176,46 @@ Deno.serve(async (req) => {
     }
   }
 
+  if (matchups.length > 0) {
+    const now = new Date().toISOString();
+    const rows = matchups.map((m) => ({
+      tournament_id: tournamentId,
+      provider_match_id: String(m.provider_match_id),
+      match_key: m.match_key,
+      player1_ref: m.player1_ref,
+      player1_last_name: m.player1_last_name,
+      player1_country: (m.player1_country || "XXX").slice(0, 3).toUpperCase(),
+      player1_seed: m.player1_seed ?? null,
+      player2_ref: m.player2_ref,
+      player2_last_name: m.player2_last_name,
+      player2_country: (m.player2_country || "XXX").slice(0, 3).toUpperCase(),
+      player2_seed: m.player2_seed ?? null,
+      scheduled_at: m.scheduled_at || null,
+      has_time: Boolean(m.has_time),
+      updated_at: now,
+    }));
+    const { error } = await admin.from("announced_matchups").upsert(rows, {
+      onConflict: "tournament_id,provider_match_id",
+    });
+    if (error) return jsonError(400, `matchups: ${error.message}`, log);
+    log.push(`upserted ${rows.length} announced_matchups`);
+  }
+
+  if (seats.length === 0) {
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        tournament_id: tournamentId,
+        matchups: matchups.length,
+        log,
+      }),
+      {
+        status: 200,
+        headers: { ...cors, "Content-Type": "application/json" },
+      }
+    );
+  }
+
   // Never wipe a verified public draw unless the caller opts in.
   if (!body.force) {
     const { data: existingDraw, error: existingErr } = await admin
@@ -192,13 +260,19 @@ Deno.serve(async (req) => {
   }
 
   // Wipe dependent rows for the live tournament.
-  for (const table of [
-    "pick_voids",
-    "bracket_snapshots",
-    "brackets",
-    "match_results",
-    "provider_match_map",
-  ] as const) {
+  // Keep user picks unless this is an explicit force rebuild.
+  const wipe = (
+    body.force
+      ? [
+          "pick_voids",
+          "bracket_snapshots",
+          "brackets",
+          "match_results",
+          "provider_match_map",
+        ]
+      : ["match_results", "provider_match_map"]
+  ) as const;
+  for (const table of wipe) {
     const { error } = await admin
       .from(table)
       .delete()
