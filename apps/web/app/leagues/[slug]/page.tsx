@@ -18,6 +18,8 @@ import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
 import { redirectIfMissingDisplayName } from "@/lib/profiles/require-name";
 import { createClient } from "@/lib/supabase/server";
 import {
+  calendarStatus,
+  calendarStatusMessageKey,
   formatTournamentDate,
   listVerifiedDrawTournamentIds,
   normalizeTour,
@@ -36,7 +38,19 @@ function tournamentListStatus(input: {
   drawSize: number;
   decidedCount: number;
   settled: boolean;
+  starts_on: string | null;
+  lock_at: string | null;
+  admin_locked_at?: string | null;
 }): string {
+  const cal = calendarStatus({
+    hasDraw: input.hasDraw,
+    starts_on: input.starts_on,
+    lock_at: input.lock_at,
+    admin_locked_at: input.admin_locked_at,
+  });
+  if (cal === "live" || cal === "locked" || cal === "drawPending") {
+    return t(calendarStatusMessageKey(cal));
+  }
   if (!input.hasDraw) return t("league.status.drawPending");
   const expected = Math.max(input.drawSize - 1, 0);
   if (expected > 0 && input.decidedCount >= expected) {
@@ -121,7 +135,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
       : Promise.resolve({ data: null as { token: string } | null }),
     supabase
       .from("tournaments")
-      .select("id, ref, name, surface, starts_on, lock_at, venue_tz, draw_size, tour")
+      .select("id, ref, name, surface, starts_on, lock_at, admin_locked_at, venue_tz, draw_size, tour")
       .order("starts_on", { ascending: true }),
     listVerifiedDrawTournamentIds(),
   ]);
@@ -294,6 +308,10 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                   drawSize: t.draw_size,
                   decidedCount: decidedByTournament.get(t.id) ?? 0,
                   settled: settledTournaments.has(t.id),
+                  starts_on: t.starts_on,
+                  lock_at: t.lock_at,
+                  admin_locked_at: (t as { admin_locked_at?: string | null })
+                    .admin_locked_at,
                 });
                 const start =
                   formatTournamentDate(t.starts_on, locale) ?? t.starts_on;

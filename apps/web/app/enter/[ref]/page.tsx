@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   enterHref,
   getCalendarTournament,
+  isEntryOpen,
   tournamentHref,
 } from "@/lib/tournaments/calendar";
 
@@ -29,7 +30,7 @@ export default async function EnterTournamentPage({ params }: Props) {
   }
 
   const event = await getCalendarTournament(ref);
-  if (!event?.hasDraw) {
+  if (!event || !isEntryOpen(event)) {
     redirect(event ? tournamentHref(event.ref) : "/tournaments");
   }
 

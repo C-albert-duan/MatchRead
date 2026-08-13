@@ -284,6 +284,7 @@ const en = {
   "publicTournament.whenPicking":
     "You can fill a bracket once the official draw is out, until entry locks.",
   "publicTournament.backCalendar": "All tournaments",
+  "publicTournament.officialDraw": "Official draw",
 
   // Official results
   "results.title": "Official results",
@@ -803,6 +804,7 @@ const es: Record<MessageKey, string> = {
   "publicTournament.whenPicking":
     "Podrás rellenar el cuadro cuando salga el sorteo oficial, hasta que cierre la inscripción.",
   "publicTournament.backCalendar": "Todos los torneos",
+  "publicTournament.officialDraw": "Cuadro oficial",
 
   // Official results
   "results.title": "Resultados oficiales",
@@ -1317,6 +1319,7 @@ const ja: Record<MessageKey, string> = {
   "publicTournament.whenPicking":
     "公式ドロー発表後、締切までブラケットを埋められます。",
   "publicTournament.backCalendar": "すべての大会",
+  "publicTournament.officialDraw": "公式ドロー",
 
   // Official results
   "results.title": "公式結果",

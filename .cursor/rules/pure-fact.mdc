@@ -1,0 +1,34 @@
+---
+description: MatchRead production data must stay 100% provider-backed facts
+alwaysApply: true
+---
+
+# Pure-fact data (non-negotiable)
+
+Production tennis data is **facts from Tennis API only**. If the provider does not prove it, MatchRead does not store or show it.
+
+## Allowed
+
+- Tournament rows with a real `provider_tournament_id` (calendar metadata is ok before a draw exists)
+- Draw seats where every **non-bye** has `provider_player_id` + a real last name
+- Byes: `is_bye = true`, `provider_player_id` null
+- Match results / schedule whose `winner_ref` / `match_key` map to those seats
+- Pre-draw public pages: name, dates, tour, surface, countdown — **no empty or invented bracket**
+
+## Forbidden
+
+- Fictional seats (`Player47`, `p-0`…`p-15`, `Player ${id}`)
+- Opening `/enter` or “draw open” without verified provider seats
+- Reconstructing a partial draw (e.g. 20 of 32 first-round matches) to look complete
+- Guessing bracket order, seeds, or byes the provider did not prove
+- Hard-coding tournament URLs/refs instead of reading `tournaments.ref`
+- Odds, predictions, or any non-fact product data
+
+## If the API is incomplete
+
+Keep the event **draw pending**. Fail closed. Do not wipe a verified draw to fill a gap with fiction. Do not ship a showcase/fixture draw on the live calendar.
+
+```sql
+-- A public draw is verified only when this is true:
+-- non-bye seats > 0 AND every non-bye has provider_player_id
+```

@@ -2,7 +2,11 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/AppShell";
 import { CreateLeagueForm } from "@/components/league/CreateLeagueForm";
 import { getSessionUser } from "@/lib/auth";
-import { listCalendarTournaments } from "@/lib/tournaments/calendar";
+import {
+  calendarStatus,
+  calendarStatusMessageKey,
+  listCalendarTournaments,
+} from "@/lib/tournaments/calendar";
 import { t } from "@/lib/i18n";
 
 export default async function NewLeaguePage({
@@ -22,9 +26,7 @@ export default async function NewLeaguePage({
   const tournaments = rows.map((row) => {
     const tour =
       row.tour === "wta" ? t("tour.wta") : t("tour.atp");
-    const status = row.hasDraw
-      ? t("calendar.drawOpen")
-      : t("calendar.drawPending");
+    const status = t(calendarStatusMessageKey(calendarStatus(row)));
     return {
       value: row.name,
       ref: row.ref,

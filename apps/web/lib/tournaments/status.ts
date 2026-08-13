@@ -47,6 +47,14 @@ export function isEntryLocked(
   return new Date(row.lock_at).getTime() <= now.getTime();
 }
 
+/** Entry is fillable: verified draw exists and the lock has not passed. */
+export function isEntryOpen(
+  row: StatusTournament,
+  now: Date = new Date()
+) {
+  return row.hasDraw && !isEntryLocked(row, now);
+}
+
 /** Matches are being played — date window only, independent of draw. */
 export function isInPlay(
   row: Pick<StatusTournament, "starts_on" | "lock_at">,

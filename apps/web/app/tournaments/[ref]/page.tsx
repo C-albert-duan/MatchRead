@@ -1,20 +1,25 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { DrawSeat, OfficialResults } from "@matchread/core";
 import { AppShell } from "@/components/shell/AppShell";
+import { BracketGrid } from "@/components/bracket/BracketGrid";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { getLocale, t, tf } from "@/lib/i18n";
+import { createClient } from "@/lib/supabase/server";
 import {
   calendarStatus,
   calendarStatusMessageKey,
   formatCountdown,
   formatTournamentDate,
   getCalendarTournament,
+  isEntryOpen,
   leagueNewHref,
   signInNextHref,
   startInstant,
   surfaceClass,
+  type MatchScheduleRow,
 } from "@/lib/tournaments/calendar";
 import { lockWhenLabel } from "@/lib/tournaments/when";
 
@@ -36,6 +41,7 @@ export default async function PublicTournamentPage({ params }: Props) {
   const user = await getSessionUser();
   const locale = getLocale();
   const status = calendarStatus(event);
+  const entryOpen = isEntryOpen(event);
   const surface = surfaceClass(event.surface);
   const surfaceKey =
     surface === "clay"
@@ -56,8 +62,55 @@ export default async function PublicTournamentPage({ params }: Props) {
     formatTournamentDate(event.starts_on, locale) ?? t("calendar.dateTbc");
   const lockWhen = lockWhenLabel(event, locale);
 
+  const supabase = createClient();
+  const official: OfficialResults = {};
+  const schedule: Record<string, MatchScheduleRow> = {};
+  let seats: DrawSeat[] = [];
+
+  if (event.hasDraw) {
+    const { data: draw } = await supabase
+      .from("draws")
+      .select("id")
+      .eq("tournament_id", event.id)
+      .maybeSingle();
+    if (draw) {
+      const [{ data: seatRows }, { data: resultRows }, { data: scheduleRows }] =
+        await Promise.all([
+          supabase
+            .from("draw_seats")
+            .select(
+              "position, player_ref, last_name, seed, country_code, is_bye"
+            )
+            .eq("draw_id", draw.id)
+            .order("position", { ascending: true }),
+          supabase
+            .from("match_results")
+            .select("match_key, winner_ref, voided")
+            .eq("tournament_id", event.id),
+          supabase
+            .from("match_schedule")
+            .select("match_key, scheduled_at, has_time")
+            .eq("tournament_id", event.id),
+        ]);
+      seats = (seatRows ?? []) as DrawSeat[];
+      for (const row of resultRows ?? []) {
+        official[row.match_key] = {
+          winnerRef: row.winner_ref,
+          voided: row.voided,
+        };
+      }
+      for (const row of scheduleRows ?? []) {
+        if (!row.match_key || !row.scheduled_at) continue;
+        schedule[row.match_key] = {
+          scheduled_at: row.scheduled_at,
+          has_time: Boolean(row.has_time),
+        };
+      }
+    }
+  }
+
   return (
-    <AppShell signedIn={Boolean(user)} email={user?.email}>
+    <AppShell signedIn={Boolean(user)} email={user?.email} arena={event.hasDraw}>
       <div className={`page page--court page--court-${surface}`}>
         <header className="page-header page-header--split page-header--court">
           <div className="page-header-copy">
@@ -80,15 +133,29 @@ export default async function PublicTournamentPage({ params }: Props) {
             </p>
           </div>
           <div className="page-actions">
-            <Link
-              href={leagueCta}
-              className="act act--prominent act--prominent-size"
-            >
-              {t("cta.startLeague")}
-            </Link>
-            <Link href={leagueCta} className="act act--standard act--standard-size">
-              {t("invite.cta")}
-            </Link>
+            {entryOpen ? (
+              <>
+                <Link
+                  href={leagueCta}
+                  className="act act--prominent act--prominent-size"
+                >
+                  {t("cta.startLeague")}
+                </Link>
+                <Link
+                  href={leagueCta}
+                  className="act act--standard act--standard-size"
+                >
+                  {t("invite.cta")}
+                </Link>
+              </>
+            ) : (
+              <Link
+                href={leagueCta}
+                className="act act--standard act--standard-size"
+              >
+                {t("cta.startLeague")}
+              </Link>
+            )}
             <Link href="/tournaments" className="act act--quiet">
               {t("publicTournament.backCalendar")}
             </Link>
@@ -103,11 +170,15 @@ export default async function PublicTournamentPage({ params }: Props) {
             <>
               <p className="t-body">{t("publicTournament.pickingOpens")}</p>
               {startCountdown ? (
-                <p className="t-lead numeral">{tf("publicTournament.startsIn", { countdown: startCountdown })}</p>
+                <p className="t-lead numeral">
+                  {tf("publicTournament.startsIn", { countdown: startCountdown })}
+                </p>
               ) : null}
               {lockCountdown ? (
                 <p className="t-body numeral">
-                  {tf("publicTournament.entryLocksIn", { countdown: lockCountdown })}
+                  {tf("publicTournament.entryLocksIn", {
+                    countdown: lockCountdown,
+                  })}
                 </p>
               ) : null}
               <p className="t-caption">{t("publicTournament.whenPicking")}</p>
@@ -117,7 +188,9 @@ export default async function PublicTournamentPage({ params }: Props) {
             <>
               {lockCountdown ? (
                 <p className="t-lead numeral">
-                  {tf("publicTournament.entryLocksIn", { countdown: lockCountdown })}
+                  {tf("publicTournament.entryLocksIn", {
+                    countdown: lockCountdown,
+                  })}
                 </p>
               ) : null}
               <p className="t-body">{t("publicTournament.whenPicking")}</p>
@@ -133,6 +206,25 @@ export default async function PublicTournamentPage({ params }: Props) {
             <p className="t-body">{t("publicTournament.complete")}</p>
           ) : null}
         </section>
+
+        {seats.length > 0 ? (
+          <section className="section" aria-labelledby="official-draw">
+            <h2 id="official-draw" className="section-title">
+              {t("publicTournament.officialDraw")}
+            </h2>
+            <BracketGrid
+              drawSize={event.draw_size}
+              seats={seats}
+              picks={{}}
+              confidence={{}}
+              locked
+              official={official}
+              schedule={schedule}
+              venueTz={event.venue_tz}
+              locale={locale}
+            />
+          </section>
+        ) : null}
       </div>
     </AppShell>
   );

@@ -6,19 +6,25 @@ import { t, tf } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
 import { createClient } from "@/lib/supabase/server";
 import type { LeagueListItem, MemberRole } from "@/lib/leagues/types";
-import { listVerifiedDrawTournamentIds } from "@/lib/tournaments/calendar";
+import {
+  calendarStatus,
+  calendarStatusMessageKey,
+  listCalendarTournaments,
+  type CalendarTournament,
+} from "@/lib/tournaments/calendar";
 
 function leagueStatus(
   league: LeagueListItem,
-  drawByTournamentName: Map<string, boolean>
+  byName: Map<string, CalendarTournament[]>
 ): string {
   if (league.format === "season") return t("leagues.status.season");
   const label = league.tournament_label;
   if (!label) return t("league.format.single");
-  const hasDraw = drawByTournamentName.get(label);
-  if (hasDraw === true) return t("leagues.status.bracketOpen");
-  if (hasDraw === false) return t("leagues.status.awaitingDraw");
-  return t("league.format.single");
+  const matches = byName.get(label) ?? [];
+  if (matches.length === 0) return t("league.format.single");
+  const statuses = matches.map((row) => calendarStatus(row));
+  if (statuses.some((s) => s === "open")) return t("leagues.status.bracketOpen");
+  return t(calendarStatusMessageKey(statuses[0]));
 }
 
 export default async function LeaguesPage() {
@@ -88,14 +94,13 @@ export default async function LeaguesPage() {
     }
   }
 
-  const drawByTournamentName = new Map<string, boolean>();
+  const byName = new Map<string, CalendarTournament[]>();
   if (leagues.length > 0) {
-    const [tournamentsRes, verifiedIds] = await Promise.all([
-      supabase.from("tournaments").select("id, name"),
-      listVerifiedDrawTournamentIds(),
-    ]);
-    for (const t of tournamentsRes.data ?? []) {
-      drawByTournamentName.set(t.name, verifiedIds.has(t.id));
+    const calendar = await listCalendarTournaments();
+    for (const row of calendar) {
+      const list = byName.get(row.name) ?? [];
+      list.push(row);
+      byName.set(row.name, list);
     }
   }
 
@@ -206,7 +211,7 @@ export default async function LeaguesPage() {
                       </span>
                     </span>
                     <span className="league-card-status">
-                      {leagueStatus(league, drawByTournamentName)}
+                      {leagueStatus(league, byName)}
                     </span>
                   </Link>
                 </li>

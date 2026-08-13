@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   calendarStatus,
   formatCountdown,
+  isEntryOpen,
   isInPlay,
 } from "./status.ts";
 
@@ -30,6 +31,8 @@ test("Montreal and Toronto are live on 12 Aug, not Open", () => {
   assert.equal(calendarStatus(montreal, rehearsal), "live");
   assert.equal(calendarStatus(torontoNoDraw, rehearsal), "live");
   assert.equal(isInPlay(montreal, rehearsal), true);
+  assert.equal(isEntryOpen(montreal, rehearsal), false);
+  assert.equal(isEntryOpen(torontoNoDraw, rehearsal), false);
 });
 
 test("US Open with no draw is draw-pending before it starts", () => {

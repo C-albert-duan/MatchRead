@@ -5,6 +5,7 @@ import {
   daysFromStart,
   eventMoment,
   isEntryLocked,
+  isEntryOpen,
   isInPlay,
 } from "@/lib/tournaments/status";
 
@@ -15,6 +16,7 @@ export {
   calendarStatusMessageKey,
   formatCountdown,
   isEntryLocked,
+  isEntryOpen,
   isInPlay,
   startInstant,
   IN_PLAY_DAYS,
@@ -38,6 +40,7 @@ export type CalendarTournament = {
   admin_locked_at: string | null;
   venue_tz: string;
   tour: Tour;
+  draw_size: number;
   hasDraw: boolean;
 };
 
@@ -217,16 +220,12 @@ export function formatUpcomingAction(
   return parts.join(" · ");
 }
 
-/** Fillable now, or draw is live and the tournament week is still current. */
+/** Homepage "Open now" — only when a person can still fill a bracket. */
 export function isOpenNow(
   row: CalendarTournament,
   now: Date = new Date()
 ): boolean {
-  if (!row.hasDraw) return false;
-  if (!isEntryLocked(row, now)) return true;
-  const age = daysFromStart(row, now);
-  if (age == null) return false;
-  return age >= -2 && age <= IN_PLAY_DAYS;
+  return isEntryOpen(row, now);
 }
 
 export type LandingCalendar = {
@@ -238,8 +237,8 @@ export type LandingCalendar = {
 
 /**
  * Split the calendar for the landing strip.
- * - Open now: entry open, or the current tournament week (both tours).
- * - Upcoming: not yet current, within the horizon.
+ * - Open now: a verified draw that is still unlocked.
+ * - Upcoming: not fillable yet, or live this week, within the horizon.
  * - nextNamed: soonest later event per tour when Upcoming is empty.
  */
 export function partitionLandingCalendar(
@@ -253,6 +252,7 @@ export function partitionLandingCalendar(
 
   const upcoming = events.filter((e) => {
     if (openIds.has(e.id)) return false;
+    if (isInPlay(e, now)) return true;
     const age = daysFromStart(e, now);
     if (age != null && age > IN_PLAY_DAYS) return false;
     if (isEntryLocked(e, now) && e.hasDraw) return false;
@@ -318,7 +318,7 @@ export async function listCalendarTournaments(): Promise<CalendarTournament[]> {
     supabase
       .from("tournaments")
       .select(
-        "id, ref, name, surface, starts_on, lock_at, admin_locked_at, venue_tz, tour"
+        "id, ref, name, surface, starts_on, lock_at, admin_locked_at, venue_tz, tour, draw_size"
       )
       .order("starts_on", { ascending: true }),
     listVerifiedDrawTournamentIds(),
@@ -336,7 +336,7 @@ export async function getCalendarTournament(
   const { data: row } = await supabase
     .from("tournaments")
     .select(
-      "id, ref, name, surface, starts_on, lock_at, admin_locked_at, venue_tz, tour"
+      "id, ref, name, surface, starts_on, lock_at, admin_locked_at, venue_tz, tour, draw_size"
     )
     .eq("ref", trimmed)
     .maybeSingle();
@@ -355,6 +355,7 @@ type TournamentQueryRow = {
   admin_locked_at: string | null;
   venue_tz: string | null;
   tour?: string | null;
+  draw_size?: number | null;
 };
 
 function mapCalendarRow(
@@ -371,6 +372,7 @@ function mapCalendarRow(
     admin_locked_at: row.admin_locked_at ?? null,
     venue_tz: row.venue_tz || "UTC",
     tour: normalizeTour(row.tour),
+    draw_size: row.draw_size && row.draw_size > 0 ? row.draw_size : 64,
     hasDraw: verifiedIds.has(row.id),
   };
 }

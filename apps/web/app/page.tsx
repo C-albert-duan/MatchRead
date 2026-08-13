@@ -87,9 +87,9 @@ function TournamentRows({
   return (
     <ul className="calendar">
       {events.map((event) => {
-        const onCourt = variant === "open" && isOnCourt(event);
-        const surface = surfaceClass(event.surface);
         const status = calendarStatus(event);
+        const live = status === "live" || isOnCourt(event);
+        const surface = surfaceClass(event.surface);
         return (
           <li key={event.ref}>
             <TournamentCard
@@ -102,12 +102,12 @@ function TournamentRows({
               lockWhen={lockWhenLabel(event, locale)}
               status={t(calendarStatusMessageKey(status))}
               statusPending={status === "drawPending"}
-              soon={variant === "upcoming"}
+              soon={variant === "upcoming" && !live}
               chip={
-                variant === "upcoming"
-                  ? "upcoming"
-                  : onCourt
-                    ? "onCourt"
+                live
+                  ? "onCourt"
+                  : variant === "upcoming"
+                    ? "upcoming"
                     : null
               }
             />
@@ -130,7 +130,7 @@ export default async function HomePage() {
   const locale = getLocale();
   const calendar = await listCalendarTournaments();
   const { openNow, upcoming, nextNamed } = partitionLandingCalendar(calendar);
-  const onCourtCount = openNow.filter((event) => isOnCourt(event)).length;
+  const onCourtCount = calendar.filter((event) => isOnCourt(event)).length;
 
   return (
     <AppShell signedIn={signedIn} email={user?.email} arena>
@@ -155,9 +155,7 @@ export default async function HomePage() {
                 <li>
                   <span className="chip chip--live">
                     <i className="live-dot" aria-hidden />
-                    {onCourtCount === 1
-                      ? t("landing.chip.drawOpenOne")
-                      : tf("landing.chip.drawsOpen", { n: onCourtCount })}
+                    {t("chip.onCourt")}
                   </span>
                 </li>
               </>
