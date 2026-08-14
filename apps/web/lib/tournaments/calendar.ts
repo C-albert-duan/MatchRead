@@ -1,15 +1,7 @@
 import { isOfficialPublicDraw, type DrawSeat } from "@matchread/core";
 import { createClient } from "@/lib/supabase/server";
 import { mapDrawSeat } from "@/lib/brackets/types";
-import {
-  DAY_MS,
-  IN_PLAY_DAYS,
-  daysFromStart,
-  eventMoment,
-  isEntryLocked,
-  isEntryOpen,
-  isInPlay,
-} from "@/lib/tournaments/status";
+import { DAY_MS, isEntryLocked, isInPlay } from "@/lib/tournaments/status";
 
 export type { MatchScheduleRow } from "@/lib/tournaments/format";
 export { formatMatchWhen } from "@/lib/tournaments/format";
@@ -23,6 +15,12 @@ export {
   startInstant,
   IN_PLAY_DAYS,
 } from "@/lib/tournaments/status";
+export {
+  isOpenNow,
+  partitionLandingCalendar,
+  UPCOMING_HORIZON_DAYS,
+} from "@/lib/tournaments/landing";
+export type { LandingCalendar } from "@/lib/tournaments/landing";
 export {
   enterHref,
   leagueNewHref,
@@ -45,9 +43,6 @@ export type CalendarTournament = {
   draw_size: number;
   hasDraw: boolean;
 };
-
-/** Landing "Upcoming" looks ahead this many days — not one event, not the full season. */
-export const UPCOMING_HORIZON_DAYS = 28;
 
 export function normalizeTour(value: string | null | undefined): Tour {
   return value === "wta" ? "wta" : "atp";
@@ -220,74 +215,6 @@ export function formatUpcomingAction(
     parts.push(`${labels.starts} ${row.starts_on}`);
   }
   return parts.join(" · ");
-}
-
-/** Homepage "Open now" — only when a person can still fill a bracket. */
-export function isOpenNow(
-  row: CalendarTournament,
-  now: Date = new Date()
-): boolean {
-  return isEntryOpen(row, now);
-}
-
-export type LandingCalendar = {
-  openNow: CalendarTournament[];
-  upcoming: CalendarTournament[];
-  /** Next event per tour beyond the upcoming list — for fact empty states. */
-  nextNamed: Partial<Record<Tour, CalendarTournament>>;
-};
-
-/**
- * Split the calendar for the landing strip.
- * - Open now: a verified draw that is still unlocked.
- * - Upcoming: not fillable yet, or live this week, within the horizon.
- * - nextNamed: soonest later event per tour when Upcoming is empty.
- */
-export function partitionLandingCalendar(
-  events: CalendarTournament[],
-  now: Date = new Date()
-): LandingCalendar {
-  const horizonEnd = new Date(now.getTime() + UPCOMING_HORIZON_DAYS * DAY_MS);
-
-  const openNow = events.filter((e) => isOpenNow(e, now));
-  const openIds = new Set(openNow.map((e) => e.id));
-
-  const upcoming = events.filter((e) => {
-    if (openIds.has(e.id)) return false;
-    if (isInPlay(e, now)) return true;
-    const age = daysFromStart(e, now);
-    if (age != null && age > IN_PLAY_DAYS) return false;
-    if (isEntryLocked(e, now) && e.hasDraw) return false;
-    const moment = eventMoment(e);
-    if (!moment) return !e.hasDraw;
-    return moment.getTime() <= horizonEnd.getTime();
-  });
-
-  const shownIds = new Set([
-    ...openNow.map((e) => e.id),
-    ...upcoming.map((e) => e.id),
-  ]);
-  const nextNamed: Partial<Record<Tour, CalendarTournament>> = {};
-
-  for (const tour of ["atp", "wta"] as const) {
-    const later = events
-      .filter((e) => {
-        if (e.tour !== tour) return false;
-        if (shownIds.has(e.id)) return false;
-        const age = daysFromStart(e, now);
-        if (age != null && age > IN_PLAY_DAYS) return false;
-        if (isEntryLocked(e, now) && e.hasDraw) return false;
-        return true;
-      })
-      .sort((a, b) => {
-        const am = eventMoment(a)?.getTime() ?? Number.POSITIVE_INFINITY;
-        const bm = eventMoment(b)?.getTime() ?? Number.POSITIVE_INFINITY;
-        return am - bm;
-      });
-    if (later[0]) nextNamed[tour] = later[0];
-  }
-
-  return { openNow, upcoming, nextNamed };
 }
 
 /**

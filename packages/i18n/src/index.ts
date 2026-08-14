@@ -42,9 +42,11 @@ const en = {
   "landing.calendar.heading.openOne": "One draw is open right now.",
   "landing.calendar.heading.openMany": "{n} draws are open right now.",
   "landing.calendar.heading.none": "No draws are open right now.",
+  "landing.calendar.heading.onCourt": "Events are on court.",
   "landing.calendar.openNow": "Open now",
   "landing.calendar.openNow.empty":
     "No draws open right now — brackets unlock when the next draw lands.",
+  "landing.calendar.onCourt": "On court",
   "landing.calendar.upcoming": "Upcoming",
   "landing.calendar.upcoming.empty.next":
     "Between events. Next up for {tour}: {name}.",
@@ -563,9 +565,11 @@ const es: Record<MessageKey, string> = {
   "landing.calendar.heading.openOne": "Hay un sorteo abierto ahora.",
   "landing.calendar.heading.openMany": "Hay {n} sorteos abiertos ahora.",
   "landing.calendar.heading.none": "No hay sorteos abiertos ahora.",
+  "landing.calendar.heading.onCourt": "Hay eventos en pista.",
   "landing.calendar.openNow": "Abiertos ahora",
   "landing.calendar.openNow.empty":
     "No hay sorteos abiertos ahora — los cuadros se abren cuando llegue el próximo sorteo.",
+  "landing.calendar.onCourt": "En pista",
   "landing.calendar.upcoming": "Próximos",
   "landing.calendar.upcoming.empty.next":
     "Entre eventos. Siguiente en {tour}: {name}.",
@@ -1088,9 +1092,11 @@ const ja: Record<MessageKey, string> = {
   "landing.calendar.heading.openOne": "いま1本のドローが開いている。",
   "landing.calendar.heading.openMany": "いま{n}本のドローが開いている。",
   "landing.calendar.heading.none": "いま開いているドローはない。",
+  "landing.calendar.heading.onCourt": "試合進行中の大会がある。",
   "landing.calendar.openNow": "受付中",
   "landing.calendar.openNow.empty":
     "いま公開中のドローはない——次のドローが出るとブラケットが開く。",
+  "landing.calendar.onCourt": "コート上",
   "landing.calendar.upcoming": "今後の大会",
   "landing.calendar.upcoming.empty.next":
     "大会のあいだ。{tour}の次は {name}。",

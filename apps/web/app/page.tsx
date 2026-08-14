@@ -88,7 +88,7 @@ function TournamentRows({
   locale,
 }: {
   events: CalendarTournament[];
-  variant: "open" | "upcoming";
+  variant: "open" | "onCourt" | "upcoming";
   locale: string;
 }) {
   return (
@@ -109,9 +109,9 @@ function TournamentRows({
               lockWhen={lockWhenLabel(event, locale)}
               status={t(calendarStatusMessageKey(status))}
               statusPending={status === "drawPending"}
-              soon={variant === "upcoming" && !live}
+              soon={variant === "upcoming"}
               chip={
-                live
+                variant === "onCourt" || live
                   ? "onCourt"
                   : variant === "upcoming"
                     ? "upcoming"
@@ -125,7 +125,10 @@ function TournamentRows({
   );
 }
 
-function calendarHeading(openCount: number) {
+function calendarHeading(openCount: number, onCourtCount: number) {
+  if (openCount === 0 && onCourtCount > 0) {
+    return t("landing.calendar.heading.onCourt");
+  }
   if (openCount === 0) return t("landing.calendar.heading.none");
   if (openCount === 1) return t("landing.calendar.heading.openOne");
   return tf("landing.calendar.heading.openMany", { n: openCount });
@@ -136,9 +139,11 @@ export default async function HomePage() {
   const signedIn = Boolean(user);
   const locale = getLocale();
   const calendar = await listCalendarTournaments();
-  const { openNow, upcoming, nextNamed } = partitionLandingCalendar(calendar);
-  const onCourtCount = calendar.filter((event) => isOnCourt(event)).length;
+  const { openNow, onCourt, upcoming, nextNamed } =
+    partitionLandingCalendar(calendar);
+  const onCourtCount = onCourt.length;
   const lookEvent =
+    onCourt[0] ??
     openNow[0] ??
     upcoming[0] ??
     calendar.find((event) => event.ref === "cin-2026") ??
@@ -229,7 +234,7 @@ export default async function HomePage() {
           <div className="sec-head">
             <p className="eyebrow">{t("landing.calendar.title")}</p>
             <h2 id="calendar-heading" className="section-title">
-              {calendarHeading(openNow.length)}
+              {calendarHeading(openNow.length, onCourt.length)}
             </h2>
             <p className="section-lede">{t("landing.calendar.lede")}</p>
           </div>
@@ -238,6 +243,19 @@ export default async function HomePage() {
             <p className="stub-note">{t("calendar.empty")}</p>
           ) : (
             <div className="calendar-panels">
+              {onCourt.length > 0 ? (
+                <div className="calendar-panel">
+                  <h3 className="calendar-panel-title">
+                    {t("landing.calendar.onCourt")}
+                  </h3>
+                  <TournamentRows
+                    events={onCourt}
+                    variant="onCourt"
+                    locale={locale}
+                  />
+                </div>
+              ) : null}
+
               <div className="calendar-panel">
                 <h3 className="calendar-panel-title">
                   {t("landing.calendar.openNow")}
@@ -275,6 +293,7 @@ export default async function HomePage() {
           <div className="cal-note">
             {calendar.length > 0 &&
             openNow.length === 0 &&
+            onCourt.length === 0 &&
             upcoming.length === 0 ? (
               <p className="calendar-fact">
                 {t("landing.calendar.upcoming.empty.none")}
