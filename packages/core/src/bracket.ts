@@ -70,6 +70,9 @@ export function totalMatches(drawSize: number): number {
   return drawSize - 1;
 }
 
+export type SeatKind = "player" | "bye" | "tbd";
+export type EntryStatus = "wc" | "pr";
+
 export type DrawSeat = {
   position: number;
   player_ref: string;
@@ -77,9 +80,49 @@ export type DrawSeat = {
   seed: number | null;
   country_code: string;
   is_bye: boolean;
+  seat_kind?: SeatKind;
+  entry_status?: EntryStatus | null;
 };
 
-/** A name that can appear in a slot — player, bye, dash, or unpicked. */
+export function seatKind(
+  seat: Pick<DrawSeat, "is_bye"> & { seat_kind?: SeatKind }
+): SeatKind {
+  if (seat.seat_kind) return seat.seat_kind;
+  if (seat.is_bye) return "bye";
+  return "player";
+}
+
+export function isFictionalSeatName(last: string | null | undefined): boolean {
+  const s = String(last || "").trim();
+  return !s || /^player\d*$/i.test(s) || /^player\s+\d+/i.test(s);
+}
+
+export function isNamedPlayerSeat(
+  seat: Pick<DrawSeat, "is_bye" | "last_name"> & { seat_kind?: SeatKind }
+): boolean {
+  return seatKind(seat) === "player" && !isFictionalSeatName(seat.last_name);
+}
+
+export function isPublicDrawSeat(
+  seat: Pick<DrawSeat, "is_bye" | "last_name"> & { seat_kind?: SeatKind }
+): boolean {
+  const kind = seatKind(seat);
+  if (kind === "bye" || kind === "tbd") return true;
+  return isNamedPlayerSeat(seat);
+}
+
+/** Official sheet: every slot is named, a published bye, or official TBD. */
+export function isOfficialPublicDraw(
+  seats: DrawSeat[],
+  drawSize: number
+): boolean {
+  const n = Number(drawSize);
+  if (!n || seats.length !== n) return false;
+  if ((n & (n - 1)) !== 0) return false;
+  return seats.every(isPublicDrawSeat);
+}
+
+/** A name that can appear in a slot — player, bye, TBD, dash, or unpicked. */
 export type SlotOccupant =
   | {
       kind: "player";
@@ -87,8 +130,10 @@ export type SlotOccupant =
       lastName: string;
       seed: number | null;
       countryCode: string;
+      entryStatus?: EntryStatus | null;
     }
   | { kind: "bye" }
+  | { kind: "tbd" }
   | { kind: "dash" }
   | { kind: "unpicked" };
 
@@ -96,13 +141,16 @@ export type BracketPicks = Record<string, string>;
 
 function seatToOccupant(seat: DrawSeat | undefined): SlotOccupant {
   if (!seat) return { kind: "dash" };
-  if (seat.is_bye) return { kind: "bye" };
+  const kind = seatKind(seat);
+  if (kind === "bye") return { kind: "bye" };
+  if (kind === "tbd") return { kind: "tbd" };
   return {
     kind: "player",
     ref: seat.player_ref,
     lastName: seat.last_name,
     seed: seat.seed,
     countryCode: seat.country_code,
+    entryStatus: seat.entry_status ?? null,
   };
 }
 

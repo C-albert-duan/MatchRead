@@ -4,14 +4,18 @@ import { notFound } from "next/navigation";
 import type { DrawSeat, OfficialResults } from "@matchread/core";
 import { AppShell } from "@/components/shell/AppShell";
 import { AnnouncedFirstRound } from "@/components/bracket/AnnouncedFirstRound";
-import { BracketGrid } from "@/components/bracket/BracketGrid";
+import { PublicOfficialDraw } from "@/components/bracket/PublicOfficialDraw";
+import { TrackOnMount } from "@/components/shell/Telemetry";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { getLocale, t, tf } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
+import { DRAW_SEAT_SELECT, mapDrawSeat } from "@/lib/brackets/types";
+import { publicPageMetadata } from "@/lib/seo";
 import {
   calendarStatus,
   calendarStatusMessageKey,
+  enterHref,
   formatCountdown,
   formatTournamentDate,
   getCalendarTournament,
@@ -20,6 +24,7 @@ import {
   signInNextHref,
   startInstant,
   surfaceClass,
+  tournamentHref,
   type MatchScheduleRow,
 } from "@/lib/tournaments/calendar";
 import { lockWhenLabel } from "@/lib/tournaments/when";
@@ -30,8 +35,12 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const event = await getCalendarTournament(decodeURIComponent(params.ref));
-  if (!event) return { title: "MatchRead" };
-  return { title: `${event.name} | MatchRead` };
+  if (!event) return publicPageMetadata({ title: "MatchRead", path: "/" });
+  return publicPageMetadata({
+    title: `${event.name} | MatchRead`,
+    description: `${event.name} official draw, dates, and entry on MatchRead.`,
+    path: tournamentHref(event.ref),
+  });
 }
 
 export default async function PublicTournamentPage({ params }: Props) {
@@ -59,6 +68,7 @@ export default async function PublicTournamentPage({ params }: Props) {
     : null;
   const leagueHref = leagueNewHref(event.ref);
   const leagueCta = user ? leagueHref : signInNextHref(leagueHref);
+  const pickHref = user ? enterHref(event.ref) : signInNextHref(enterHref(event.ref));
   const when =
     formatTournamentDate(event.starts_on, locale) ?? t("calendar.dateTbc");
   const lockWhen = lockWhenLabel(event, locale);
@@ -87,9 +97,7 @@ export default async function PublicTournamentPage({ params }: Props) {
         await Promise.all([
           supabase
             .from("draw_seats")
-            .select(
-              "position, player_ref, last_name, seed, country_code, is_bye"
-            )
+            .select(DRAW_SEAT_SELECT)
             .eq("draw_id", draw.id)
             .order("position", { ascending: true }),
           supabase
@@ -101,7 +109,7 @@ export default async function PublicTournamentPage({ params }: Props) {
             .select("match_key, scheduled_at, has_time")
             .eq("tournament_id", event.id),
         ]);
-      seats = (seatRows ?? []) as DrawSeat[];
+      seats = (seatRows ?? []).map(mapDrawSeat);
       for (const row of resultRows ?? []) {
         official[row.match_key] = {
           winnerRef: row.winner_ref,
@@ -120,6 +128,13 @@ export default async function PublicTournamentPage({ params }: Props) {
 
   return (
     <AppShell signedIn={Boolean(user)} email={user?.email} arena={event.hasDraw}>
+      <TrackOnMount
+        event="tournament_viewed"
+        props={{ ref: event.ref, tour: event.tour }}
+      />
+      {seats.length > 0 ? (
+        <TrackOnMount event="draw_viewed" props={{ ref: event.ref }} />
+      ) : null}
       <div className={`page page--court page--court-${surface}`}>
         <header className="page-header page-header--split page-header--court">
           <div className="page-header-copy">
@@ -220,7 +235,8 @@ export default async function PublicTournamentPage({ params }: Props) {
           <AnnouncedFirstRound
             matchups={announced}
             expectedFirst={Math.max(Math.floor(Number(event.draw_size || 64) / 2), 16)}
-            locked
+            locked={!entryOpen}
+            enterHref={pickHref}
             venueTz={event.venue_tz}
             locale={locale}
           />
@@ -231,16 +247,15 @@ export default async function PublicTournamentPage({ params }: Props) {
             <h2 id="official-draw" className="section-title">
               {t("publicTournament.officialDraw")}
             </h2>
-            <BracketGrid
+            <PublicOfficialDraw
               drawSize={event.draw_size}
               seats={seats}
-              picks={{}}
-              confidence={{}}
-              locked
               official={official}
               schedule={schedule}
               venueTz={event.venue_tz}
               locale={locale}
+              enterHref={pickHref}
+              entryOpen={entryOpen}
             />
           </section>
         ) : null}

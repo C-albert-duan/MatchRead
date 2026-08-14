@@ -1,4 +1,6 @@
+import { isOfficialPublicDraw, type DrawSeat } from "@matchread/core";
 import { createClient } from "@/lib/supabase/server";
+import { mapDrawSeat } from "@/lib/brackets/types";
 import {
   DAY_MS,
   IN_PLAY_DAYS,
@@ -289,8 +291,8 @@ export function partitionLandingCalendar(
 }
 
 /**
- * Tournament ids with a verified provider draw: at least one non-bye seat
- * carries `provider_player_id`. Placeholder / empty draws do not count.
+ * Tournament ids with an official public draw: seat count matches draw size
+ * and every seat is a named player, published bye, or Qualifier/LL TBD.
  */
 export async function listVerifiedDrawTournamentIds(): Promise<Set<string>> {
   const supabase = createClient();
@@ -298,17 +300,36 @@ export async function listVerifiedDrawTournamentIds(): Promise<Set<string>> {
   if (!draws?.length) return new Set();
 
   const drawIds = draws.map((d) => d.id);
-  const { data: seats } = await supabase
-    .from("draw_seats")
-    .select("draw_id")
-    .in("draw_id", drawIds)
-    .eq("is_bye", false)
-    .not("provider_player_id", "is", null);
+  const tournamentIds = [...new Set(draws.map((d) => d.tournament_id))];
+  const [{ data: seats }, { data: tournaments }] = await Promise.all([
+    supabase
+      .from("draw_seats")
+      .select(
+        "draw_id, position, player_ref, last_name, seed, country_code, is_bye, seat_kind, entry_status"
+      )
+      .in("draw_id", drawIds),
+    supabase.from("tournaments").select("id, draw_size").in("id", tournamentIds),
+  ]);
 
-  const verifiedDrawIds = new Set((seats ?? []).map((s) => s.draw_id));
-  return new Set(
-    draws.filter((d) => verifiedDrawIds.has(d.id)).map((d) => d.tournament_id)
+  const sizeByTournament = new Map(
+    (tournaments ?? []).map((t) => [t.id, Number(t.draw_size) || 0])
   );
+  const seatsByDraw = new Map<string, DrawSeat[]>();
+  for (const row of seats ?? []) {
+    const list = seatsByDraw.get(row.draw_id) ?? [];
+    list.push(mapDrawSeat(row));
+    seatsByDraw.set(row.draw_id, list);
+  }
+
+  const verified = new Set<string>();
+  for (const draw of draws) {
+    const drawSeats = seatsByDraw.get(draw.id) ?? [];
+    const size = sizeByTournament.get(draw.tournament_id) ?? 0;
+    if (isOfficialPublicDraw(drawSeats, size)) {
+      verified.add(draw.tournament_id);
+    }
+  }
+  return verified;
 }
 
 /** Live tournaments from Supabase — no hardcoded calendar. */

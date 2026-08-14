@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { saveBracketPicks } from "@/app/actions/brackets";
 import { useT, useTf } from "@/components/shell/LocaleProvider";
+import { track } from "@/lib/telemetry";
 import type { BracketPicks } from "@matchread/core";
 
 export type AnnouncedMatchup = {
@@ -29,6 +31,8 @@ type Props = {
   tournamentRef?: string;
   venueTz?: string;
   locale?: string;
+  /** Public page: click a named side → sign-in / enter. No anon save. */
+  enterHref?: string;
 };
 
 function seedLabel(seed: number | null) {
@@ -46,15 +50,23 @@ export function AnnouncedFirstRound({
   tournamentRef,
   venueTz = "UTC",
   locale = "en",
+  enterHref,
 }: Props) {
   const t = useT();
   const tf = useTf();
+  const router = useRouter();
   const editable = Boolean(leagueId && leagueSlug && tournamentId && tournamentRef) && !locked;
+  const gateToEnter = Boolean(enterHref) && !editable && !locked;
   const [picks, setPicks] = useState<BracketPicks>(initialPicks);
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
 
   function pick(matchKey: string, winnerRef: string) {
+    if (gateToEnter && enterHref) {
+      track("pick_started", { source: "announced" });
+      router.push(enterHref);
+      return;
+    }
     if (!editable || !leagueId || !leagueSlug || !tournamentId || !tournamentRef) {
       return;
     }
@@ -116,14 +128,14 @@ export function AnnouncedFirstRound({
                     <Side
                       name={`${m.player1_last_name}${seedLabel(m.player1_seed)}`}
                       selected={winner === m.player1_ref}
-                      disabled={!editable}
+                      disabled={!editable && !gateToEnter}
                       onClick={() => pick(m.match_key, m.player1_ref)}
                     />
                     <span className="t-caption">vs</span>
                     <Side
                       name={`${m.player2_last_name}${seedLabel(m.player2_seed)}`}
                       selected={winner === m.player2_ref}
-                      disabled={!editable}
+                      disabled={!editable && !gateToEnter}
                       onClick={() => pick(m.match_key, m.player2_ref)}
                     />
                   </div>

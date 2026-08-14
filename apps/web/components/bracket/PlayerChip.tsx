@@ -19,28 +19,46 @@ type Props = {
 
 function labelFor(
   occupant: SlotOccupant,
-  t: (key: "bracket.notPlayed") => string
+  t: (key: "bracket.notPlayed" | "draw.tbd" | "draw.entry.wc" | "draw.entry.pr") => string
 ): {
   text: string;
   seed: string;
   country: string;
+  entry: string;
   kindClass: string;
 } {
   switch (occupant.kind) {
-    case "player":
+    case "player": {
+      const tag =
+        occupant.entryStatus === "wc"
+          ? t("draw.entry.wc")
+          : occupant.entryStatus === "pr"
+            ? t("draw.entry.pr")
+            : "";
       return {
         text: occupant.lastName,
         seed: occupant.seed != null ? String(occupant.seed) : "",
         country: occupant.countryCode,
+        entry: tag,
         kindClass: "",
       };
+    }
     case "bye":
-      return { text: "Bye", seed: "", country: "", kindClass: "name--bye" };
+      return { text: "Bye", seed: "", country: "", entry: "", kindClass: "name--bye" };
+    case "tbd":
+      return {
+        text: t("draw.tbd"),
+        seed: "",
+        country: "",
+        entry: "",
+        kindClass: "name--tbd",
+      };
     case "dash":
       return {
         text: t("bracket.notPlayed"),
         seed: "",
         country: "",
+        entry: "",
         kindClass: "name--empty",
       };
     case "unpicked":
@@ -48,6 +66,7 @@ function labelFor(
         text: "Unpicked",
         seed: "",
         country: "",
+        entry: "",
         kindClass: "name--empty",
       };
   }
@@ -90,6 +109,9 @@ export function PlayerChip({
       <span className="name-text">{meta.text}</span>
       {meta.country ? (
         <span className="name-country">{meta.country}</span>
+      ) : null}
+      {meta.entry ? (
+        <span className="name-entry">{meta.entry}</span>
       ) : null}
     </>
   );

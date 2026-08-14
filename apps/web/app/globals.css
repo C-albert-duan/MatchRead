@@ -1846,7 +1846,17 @@ label.name:hover {
   font-weight: 500;
 }
 
+.name-entry {
+  flex: 0 0 auto;
+  font-family: var(--mr-font-numeral);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mr-text-muted);
+}
+
 .name--empty .name-text,
+.name--tbd .name-text,
 .name--bye .name-text {
   color: var(--mr-text-muted);
   font-size: 16px;

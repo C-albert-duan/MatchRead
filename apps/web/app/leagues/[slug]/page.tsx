@@ -14,6 +14,7 @@ import { getLocale, t, tf } from "@/lib/i18n";
 import { loadDailyCheck } from "@/lib/leagues/daily-check";
 import { isSoloPresentation } from "@/lib/leagues/solo";
 import type { LeagueVisibility } from "@/lib/leagues/types";
+import { leagueIncludesTournament } from "@/lib/leagues/covers";
 import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
 import { redirectIfMissingDisplayName } from "@/lib/profiles/require-name";
 import { createClient } from "@/lib/supabase/server";
@@ -153,12 +154,9 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
 
   const openInvite = searchParams.invite === "1" && Boolean(inviteUrl);
 
-  const leagueTournaments = (tournamentsRes.data ?? []).filter((t) => {
-    if (league.format === "single" && league.tournament_label) {
-      return t.name === league.tournament_label;
-    }
-    return league.format === "season";
-  });
+  const leagueTournaments = (tournamentsRes.data ?? []).filter((row) =>
+    leagueIncludesTournament(league, row.id)
+  );
 
   const tournamentIds = leagueTournaments.map((t) => t.id);
   const [{ data: resultRows }, { data: snapRows }, { data: leagueLockRows }] =

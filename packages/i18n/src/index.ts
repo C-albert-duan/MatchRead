@@ -18,7 +18,7 @@ const en = {
   "landing.cta.leagues": "Go to my leagues",
   "landing.cta.bracket": "Fill a bracket",
   "landing.cta.start": "Start a league",
-  "landing.cta.showcase": "See what it looks like",
+  "landing.cta.look": "See what it looks like",
   "landing.cue.tours": "ATP · WTA",
   "landing.cue.season": "2026 season",
   "landing.cue.singles": "Singles draws",
@@ -319,6 +319,9 @@ const en = {
   "results.vs": "vs",
   "results.bye": "Bye",
   "results.tbd": "TBD",
+  "draw.tbd": "Qualifier / Lucky Loser",
+  "draw.entry.wc": "WC",
+  "draw.entry.pr": "PR",
 
   // Settle
   "settle.run": "Run settlement",
@@ -536,7 +539,7 @@ const es: Record<MessageKey, string> = {
   "landing.cta.leagues": "Ir a mis ligas",
   "landing.cta.bracket": "Rellenar un cuadro",
   "landing.cta.start": "Crear una liga",
-  "landing.cta.showcase": "Ver cómo se ve",
+  "landing.cta.look": "Ver cómo se ve",
   "landing.cue.tours": "ATP · WTA",
   "landing.cue.season": "Temporada 2026",
   "landing.cue.singles": "Cuadros individuales",
@@ -844,6 +847,9 @@ const es: Record<MessageKey, string> = {
   "results.vs": "vs",
   "results.bye": "Bye",
   "results.tbd": "Por determinar",
+  "draw.tbd": "Clasificado / Lucky loser",
+  "draw.entry.wc": "WC",
+  "draw.entry.pr": "PR",
 
   // Settle
   "settle.run": "Ejecutar settlement",
@@ -1058,7 +1064,7 @@ const ja: Record<MessageKey, string> = {
   "landing.cta.leagues": "マイリーグへ",
   "landing.cta.bracket": "ブラケットを埋める",
   "landing.cta.start": "リーグを始める",
-  "landing.cta.showcase": "見た目を見る",
+  "landing.cta.look": "見た目を見る",
   "landing.cue.tours": "ATP · WTA",
   "landing.cue.season": "2026シーズン",
   "landing.cue.singles": "シングルスドロー",
@@ -1360,6 +1366,9 @@ const ja: Record<MessageKey, string> = {
   "results.vs": "vs",
   "results.bye": "不戦勝",
   "results.tbd": "未定",
+  "draw.tbd": "予選通過 / ラッキールーザー",
+  "draw.entry.wc": "WC",
+  "draw.entry.pr": "PR",
 
   // Settle
   "settle.run": "settlement を実行",

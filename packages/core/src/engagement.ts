@@ -5,6 +5,7 @@
 
 import {
   buildRoundStructure,
+  isNamedPlayerSeat,
   type BracketPicks,
   type DrawSeat,
 } from "./bracket";
@@ -129,7 +130,7 @@ export function perfectPicksRemaining(input: {
   picks: BracketPicks;
   official: OfficialResults;
   drawSize: number;
-  seats?: Pick<DrawSeat, "player_ref" | "is_bye">[];
+  seats?: Pick<DrawSeat, "player_ref" | "is_bye" | "seat_kind" | "last_name">[];
 }): number {
   const { picks, official, drawSize, seats } = input;
   const rounds = buildRoundStructure(drawSize);
@@ -149,7 +150,7 @@ export function perfectPicksRemaining(input: {
     alive = new Set();
     if (seats && seats.length > 0) {
       for (const s of seats) {
-        if (!s.is_bye) alive.add(s.player_ref);
+        if (isNamedPlayerSeat(s)) alive.add(s.player_ref);
       }
     } else {
       for (const ref of Object.values(picks)) {

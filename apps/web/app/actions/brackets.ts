@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { BracketConfidence, BracketPicks } from "@matchread/core";
+import { reportError } from "@/lib/report-error";
 import { createClient } from "@/lib/supabase/server";
 
 export type ActionResult =
@@ -92,6 +93,7 @@ export async function submitBracket(input: {
         code: "incomplete",
       };
     }
+    reportError(error, { source: "bracket_submitted" });
     return { ok: false, error: msg || "Could not submit." };
   }
 

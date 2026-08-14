@@ -9,17 +9,24 @@ export {
   buildRoundStructure,
   countPicksMade,
   isBracketComplete,
+  isFictionalSeatName,
+  isNamedPlayerSeat,
+  isOfficialPublicDraw,
+  isPublicDrawSeat,
   matchKey,
   resolveMatchEntrants,
   roundLabel,
+  seatKind,
   totalMatches,
 } from "./bracket";
 export type {
   BracketPicks,
   DrawSeat,
+  EntryStatus,
   MatchRef,
   RoundLabel,
   RoundStructure,
+  SeatKind,
   SlotOccupant,
 } from "./bracket";
 

@@ -1,5 +1,7 @@
-﻿import Link from "next/link";
+﻿import type { Metadata } from "next";
+import Link from "next/link";
 import { AppShell } from "@/components/shell/AppShell";
+import { publicPageMetadata } from "@/lib/seo";
 import { SurfaceKey } from "@/components/tournaments/SurfaceKey";
 import { TournamentCard } from "@/components/tournaments/TournamentCard";
 import { getSessionUser } from "@/lib/auth";
@@ -14,6 +16,11 @@ import {
   tournamentHref,
 } from "@/lib/tournaments/calendar";
 import { lockWhenLabel } from "@/lib/tournaments/when";
+
+export const metadata: Metadata = publicPageMetadata({
+  title: "Tournaments | MatchRead",
+  path: "/tournaments",
+});
 
 export default async function TournamentsPage({
   searchParams,

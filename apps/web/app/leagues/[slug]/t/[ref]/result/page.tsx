@@ -10,8 +10,10 @@ import { ResultPickBreakdown } from "@/components/league/ResultPickBreakdown";
 import { AppShell } from "@/components/shell/AppShell";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
+import { DRAW_SEAT_SELECT, mapDrawSeat } from "@/lib/brackets/types";
 import { getLocale, t } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
+import { leagueIncludesTournament } from "@/lib/leagues/covers";
 import { createClient } from "@/lib/supabase/server";
 import {
   formatTournamentDate,
@@ -36,7 +38,7 @@ export default async function ResultArtifactPage({ params }: Props) {
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, slug, name, format, tournament_label, is_solo")
+    .select("id, slug, name, format, tournament_label, tournament_id, is_solo")
     .eq("slug", params.slug)
     .maybeSingle();
 
@@ -72,8 +74,7 @@ export default async function ResultArtifactPage({ params }: Props) {
 
   if (
     league.format === "single" &&
-    league.tournament_label &&
-    league.tournament_label !== tournament.name
+    !leagueIncludesTournament(league, tournament.id)
   ) {
     notFound();
   }
@@ -133,10 +134,10 @@ export default async function ResultArtifactPage({ params }: Props) {
   if (draw) {
     const { data: seatRows } = await supabase
       .from("draw_seats")
-      .select("position, player_ref, last_name, seed, country_code, is_bye")
+      .select(DRAW_SEAT_SELECT)
       .eq("draw_id", draw.id)
       .order("position", { ascending: true });
-    seats = (seatRows ?? []) as DrawSeat[];
+    seats = (seatRows ?? []).map(mapDrawSeat);
   }
 
   let championName: string | null = null;

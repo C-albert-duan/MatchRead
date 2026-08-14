@@ -1,6 +1,8 @@
-﻿import Link from "next/link";
+﻿import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/AppShell";
+import { publicPageMetadata } from "@/lib/seo";
 import { getSessionUser } from "@/lib/auth";
 import { t, tf } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
@@ -15,17 +17,19 @@ import {
 
 function leagueStatus(
   league: LeagueListItem,
-  byName: Map<string, CalendarTournament[]>
+  byId: Map<string, CalendarTournament>
 ): string {
   if (league.format === "season") return t("leagues.status.season");
-  const label = league.tournament_label;
-  if (!label) return t("league.format.single");
-  const matches = byName.get(label) ?? [];
-  if (matches.length === 0) return t("league.format.single");
-  const statuses = matches.map((row) => calendarStatus(row));
-  if (statuses.some((s) => s === "open")) return t("leagues.status.bracketOpen");
-  return t(calendarStatusMessageKey(statuses[0]));
+  if (!league.tournament_id) return t("league.format.single");
+  const row = byId.get(league.tournament_id);
+  if (!row) return t("league.format.single");
+  return t(calendarStatusMessageKey(calendarStatus(row)));
 }
+
+export const metadata: Metadata = publicPageMetadata({
+  title: "My leagues | MatchRead",
+  path: "/leagues",
+});
 
 export default async function LeaguesPage() {
   const user = await getSessionUser();
@@ -37,7 +41,7 @@ export default async function LeaguesPage() {
   const { data: rows, error } = await supabase
     .from("league_members")
     .select(
-      "role, leagues ( id, slug, name, format, visibility, tournament_label, commissioner_id, created_at, is_solo )"
+      "role, leagues ( id, slug, name, format, visibility, tournament_label, tournament_id, commissioner_id, created_at, is_solo )"
     )
     .eq("user_id", user.id)
     .order("joined_at", { ascending: false });
@@ -54,6 +58,7 @@ export default async function LeaguesPage() {
         format: LeagueListItem["format"];
         visibility: LeagueListItem["visibility"];
         tournament_label: string | null;
+        tournament_id: string | null;
         commissioner_id: string;
         created_at: string;
         is_solo: boolean;
@@ -94,13 +99,11 @@ export default async function LeaguesPage() {
     }
   }
 
-  const byName = new Map<string, CalendarTournament[]>();
+  const byId = new Map<string, CalendarTournament>();
   if (leagues.length > 0) {
     const calendar = await listCalendarTournaments();
     for (const row of calendar) {
-      const list = byName.get(row.name) ?? [];
-      list.push(row);
-      byName.set(row.name, list);
+      byId.set(row.id, row);
     }
   }
 
@@ -211,7 +214,7 @@ export default async function LeaguesPage() {
                       </span>
                     </span>
                     <span className="league-card-status">
-                      {leagueStatus(league, byName)}
+                      {leagueStatus(league, byId)}
                     </span>
                   </Link>
                 </li>

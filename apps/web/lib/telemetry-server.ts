@@ -1,0 +1,35 @@
+/** Server-side PostHog capture. No-op without POSTHOG_KEY / NEXT_PUBLIC_POSTHOG_KEY. */
+
+type Props = Record<string, string | number | boolean | null | undefined>;
+
+function posthogKey(): string {
+  return (
+    process.env.POSTHOG_KEY?.trim() ||
+    process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim() ||
+    ""
+  );
+}
+
+function posthogHost(): string {
+  return (
+    process.env.POSTHOG_HOST?.trim() ||
+    process.env.NEXT_PUBLIC_POSTHOG_HOST?.trim() ||
+    "https://us.i.posthog.com"
+  ).replace(/\/$/, "");
+}
+
+export function trackServer(event: string, distinctId: string, props?: Props) {
+  const apiKey = posthogKey();
+  if (!apiKey) return;
+  void fetch(`${posthogHost()}/capture/`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      api_key: apiKey,
+      event,
+      properties: { distinct_id: distinctId, ...props },
+    }),
+  }).catch(() => {
+    /* never break a write path for analytics */
+  });
+}

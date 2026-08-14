@@ -1,4 +1,4 @@
-import type { BracketPicks, DrawSeat } from "@matchread/core";
+import type { BracketPicks, DrawSeat, EntryStatus, SeatKind } from "@matchread/core";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type TournamentSurface =
@@ -37,6 +37,32 @@ export type BracketRow = {
 };
 
 export type DrawSeatRow = DrawSeat;
+
+export const DRAW_SEAT_SELECT =
+  "position, player_ref, last_name, seed, country_code, is_bye, seat_kind, entry_status";
+
+export function mapDrawSeat(row: {
+  position: number;
+  player_ref: string;
+  last_name: string;
+  seed?: number | null;
+  country_code?: string | null;
+  is_bye?: boolean | null;
+  seat_kind?: SeatKind | null;
+  entry_status?: EntryStatus | null;
+}): DrawSeat {
+  const kind: SeatKind = row.seat_kind ?? (row.is_bye ? "bye" : "player");
+  return {
+    position: row.position,
+    player_ref: row.player_ref,
+    last_name: row.last_name,
+    seed: row.seed ?? null,
+    country_code: row.country_code || "XXX",
+    is_bye: kind === "bye",
+    seat_kind: kind,
+    entry_status: row.entry_status ?? null,
+  };
+}
 
 export function isTournamentLocked(t: {
   lock_at: string | null;

@@ -12,6 +12,8 @@ import {
 import { saveMyDisplayName } from "@/app/actions/profile";
 import { PENDING_DISPLAY_NAME_KEY } from "@/components/shell/DisplayNameBootstrap";
 import { useT, useTf } from "@/components/shell/LocaleProvider";
+import { reportError } from "@/lib/report-error";
+import { track } from "@/lib/telemetry";
 import type { MessageKey } from "@matchread/i18n";
 
 type Props = {
@@ -120,10 +122,12 @@ export function SignInForm({ nextParam, configured, authError }: Props) {
 
     setStatus("submitting");
     setErrorMessage(null);
+    track("sign_in_started");
 
     const { error } = await sendOtp(value);
 
     if (error) {
+      reportError(error, { source: "sign_in" });
       const limited = isProviderRateLimit(error);
       setStatus(limited ? "rate_limited" : "error");
       setErrorMessage(

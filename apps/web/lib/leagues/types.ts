@@ -9,6 +9,8 @@ export type League = {
   format: LeagueFormat;
   visibility: LeagueVisibility;
   tournament_label: string | null;
+  /** Single-event: the one tournament this league is for. Null on season. */
+  tournament_id: string | null;
   commissioner_id: string;
   created_at: string;
   /** True while this is still a personal league of one (solo funnel). */

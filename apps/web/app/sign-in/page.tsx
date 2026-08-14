@@ -1,9 +1,16 @@
+import type { Metadata } from "next";
 import { SignInForm } from "@/components/auth/SignInForm";
 import { AppShell } from "@/components/shell/AppShell";
 import { getSessionUser } from "@/lib/auth";
 import { hasSupabaseEnv } from "@/lib/env";
+import { publicPageMetadata } from "@/lib/seo";
 import { redirect } from "next/navigation";
 import { safeNext } from "@/lib/safe-next";
+
+export const metadata: Metadata = publicPageMetadata({
+  title: "Sign in | MatchRead",
+  path: "/sign-in",
+});
 
 type Props = {
   searchParams: { next?: string; error?: string };

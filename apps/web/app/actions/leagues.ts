@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { slugifyLeagueName } from "@/lib/leagues/slug";
 import type { LeagueFormat, LeagueVisibility } from "@/lib/leagues/types";
+import { reportError } from "@/lib/report-error";
+import { trackServer } from "@/lib/telemetry-server";
 
 export type ActionResult =
   | { ok: true }
@@ -109,6 +111,7 @@ export async function createLeague(formData: FormData): Promise<ActionResult> {
   );
 
   if (createError) {
+    reportError(createError, { source: "league_created" });
     return { ok: false, error: createError.message };
   }
 
@@ -123,6 +126,7 @@ export async function createLeague(formData: FormData): Promise<ActionResult> {
     return { ok: false, error: "Could not create the league." };
   }
 
+  trackServer("league_created", user.id, { slug: createdSlug });
   revalidatePath("/leagues");
   redirect(`/leagues/${createdSlug}?invite=1`);
 }
@@ -150,6 +154,8 @@ export async function joinLeagueWithToken(
     }
     return { ok: false, error: msg || "Could not join." };
   }
+
+  trackServer("league_joined", user.id, { token: token.slice(0, 8) });
 
   const { data: league } = await supabase
     .from("leagues")

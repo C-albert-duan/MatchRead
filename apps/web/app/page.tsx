@@ -1,4 +1,5 @@
-﻿import Link from "next/link";
+﻿import type { Metadata } from "next";
+import Link from "next/link";
 import { DailyCheckPreview } from "@/components/league/DailyCheckPreview";
 import { AppShell } from "@/components/shell/AppShell";
 import { HeroCourt } from "@/components/shell/HeroCourt";
@@ -6,6 +7,7 @@ import { SurfaceKey } from "@/components/tournaments/SurfaceKey";
 import { TournamentCard } from "@/components/tournaments/TournamentCard";
 import { getSessionUser } from "@/lib/auth";
 import { getLocale, t, tf } from "@/lib/i18n";
+import { publicPageMetadata } from "@/lib/seo";
 import {
   calendarStatus,
   calendarStatusMessageKey,
@@ -19,6 +21,11 @@ import {
   type Tour,
 } from "@/lib/tournaments/calendar";
 import { lockWhenLabel } from "@/lib/tournaments/when";
+
+export const metadata: Metadata = publicPageMetadata({
+  title: "MatchRead",
+  path: "/",
+});
 
 const HOW_STEPS = [
   ["landing.how.1.title", "landing.how.1.body"],
@@ -131,6 +138,12 @@ export default async function HomePage() {
   const calendar = await listCalendarTournaments();
   const { openNow, upcoming, nextNamed } = partitionLandingCalendar(calendar);
   const onCourtCount = calendar.filter((event) => isOnCourt(event)).length;
+  const lookEvent =
+    openNow[0] ??
+    upcoming[0] ??
+    calendar.find((event) => event.ref === "cin-2026") ??
+    calendar[0];
+  const lookHref = lookEvent ? tournamentHref(lookEvent.ref) : "/tournaments";
 
   return (
     <AppShell signedIn={signedIn} email={user?.email} arena>
@@ -196,8 +209,8 @@ export default async function HomePage() {
                 </Link>
               </>
             )}
-            <Link href="/showcase" className="act act--quiet">
-              {t("landing.cta.showcase")}
+            <Link href={lookHref} className="act act--quiet">
+              {t("landing.cta.look")}
               <svg viewBox="0 0 16 16" aria-hidden="true">
                 <path d="M2 8h11M9 4l4 4-4 4" />
               </svg>
@@ -304,8 +317,8 @@ export default async function HomePage() {
               >
                 {t("landing.cta.start")}
               </Link>
-              <Link href="/showcase" className="act act--quiet">
-                {t("landing.cta.showcase")}
+              <Link href={lookHref} className="act act--quiet">
+                {t("landing.cta.look")}
                 <svg viewBox="0 0 16 16" aria-hidden="true">
                   <path d="M2 8h11M9 4l4 4-4 4" />
                 </svg>

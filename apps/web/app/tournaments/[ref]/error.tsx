@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { reportError } from "@/lib/report-error";
 
-export default function AppError({
+export default function TournamentError({
   error,
   reset,
 }: {
@@ -11,15 +11,18 @@ export default function AppError({
   reset: () => void;
 }) {
   useEffect(() => {
-    reportError(error, { source: "app.error", digest: error.digest ?? null });
+    reportError(error, {
+      source: "tournament.page",
+      digest: error.digest ?? null,
+    });
   }, [error]);
 
   return (
     <div className="page">
       <header className="page-header">
-        <p className="eyebrow">MatchRead</p>
-        <h1 className="t-page-title">Something went wrong</h1>
-        <p className="t-lead">Reload and try again. The error was reported.</p>
+        <p className="eyebrow">Tournament</p>
+        <h1 className="t-page-title">This page failed to load</h1>
+        <p className="t-lead">The error was reported. Try again in a moment.</p>
         <div className="page-actions">
           <button
             type="button"

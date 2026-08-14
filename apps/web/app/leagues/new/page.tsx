@@ -28,7 +28,7 @@ export default async function NewLeaguePage({
       row.tour === "wta" ? t("tour.wta") : t("tour.atp");
     const status = t(calendarStatusMessageKey(calendarStatus(row)));
     return {
-      value: row.name,
+      value: row.ref,
       ref: row.ref,
       label: `${tour} · ${row.name} — ${status}`,
     };

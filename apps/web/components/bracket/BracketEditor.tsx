@@ -20,6 +20,7 @@ import {
 import { BracketFind } from "@/components/bracket/BracketFind";
 import { BracketGrid } from "@/components/bracket/BracketGrid";
 import { useLocale, useT, useTf } from "@/components/shell/LocaleProvider";
+import { track } from "@/lib/telemetry";
 import type { MatchScheduleRow } from "@/lib/tournaments/format";
 
 type Props = {
@@ -152,6 +153,10 @@ export function BracketEditor({
 
   function handlePick(matchKey: string, playerRef: string) {
     if (isLocked) return;
+    if (Object.keys(picksRef.current).length === 0) {
+      track("pick_started", { source: "editor", ref: tournamentRef });
+      track("bracket_started", { ref: tournamentRef });
+    }
     const nextRaw = clearDownstream(picksRef.current, matchKey, playerRef);
     const next = applyByeAdvances(seats, nextRaw, drawSize);
     const nextConf = pruneConfidence(confidenceRef.current, next);
@@ -183,6 +188,7 @@ export function BracketEditor({
       }
       setSubmitted(true);
       setMessage(t("tournament.entry.submitted"));
+      track("bracket_submitted", { ref: tournamentRef });
     });
   }
 

@@ -1,9 +1,10 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { publicPageMetadata } from "@/lib/seo";
 import type {
   BracketConfidence,
   BracketPicks,
-  DrawSeat,
   OfficialResults,
 } from "@matchread/core";
 import { AppShell } from "@/components/shell/AppShell";
@@ -11,12 +12,15 @@ import { AnnouncedFirstRound } from "@/components/bracket/AnnouncedFirstRound";
 import { BracketEditor } from "@/components/bracket/BracketEditor";
 import { getSessionUser } from "@/lib/auth";
 import {
+  DRAW_SEAT_SELECT,
   isPlatformLocked,
   isTournamentLocked,
   loadLeagueDrawLock,
+  mapDrawSeat,
 } from "@/lib/brackets/types";
 import { getLocale, t, tf } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
+import { leagueIncludesTournament } from "@/lib/leagues/covers";
 import { createClient } from "@/lib/supabase/server";
 import type { MatchScheduleRow } from "@/lib/tournaments/calendar";
 import { whenCaption } from "@/lib/tournaments/when";
@@ -24,6 +28,11 @@ import { whenCaption } from "@/lib/tournaments/when";
 type Props = {
   params: { slug: string; ref: string };
 };
+
+export const metadata: Metadata = publicPageMetadata({
+  title: "My Bracket | MatchRead",
+  path: "/leagues",
+});
 
 export default async function BracketPage({ params }: Props) {
   const user = await getSessionUser();
@@ -39,7 +48,7 @@ export default async function BracketPage({ params }: Props) {
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, slug, name, format, tournament_label, is_solo")
+    .select("id, slug, name, format, tournament_label, tournament_id, is_solo")
     .eq("slug", params.slug)
     .maybeSingle();
 
@@ -75,8 +84,7 @@ export default async function BracketPage({ params }: Props) {
 
   if (
     league.format === "single" &&
-    league.tournament_label &&
-    league.tournament_label !== tournament.name
+    !leagueIncludesTournament(league, tournament.id)
   ) {
     notFound();
   }
@@ -173,7 +181,7 @@ export default async function BracketPage({ params }: Props) {
       supabase
         .from("draw_seats")
         .select(
-          "position, player_ref, last_name, seed, country_code, is_bye"
+          DRAW_SEAT_SELECT
         )
         .eq("draw_id", draw.id)
         .order("position", { ascending: true }),
@@ -194,7 +202,7 @@ export default async function BracketPage({ params }: Props) {
         .eq("tournament_id", tournament.id),
     ]);
 
-  const seats = (seatRows ?? []) as DrawSeat[];
+  const seats = (seatRows ?? []).map(mapDrawSeat);
   const picks = (bracket?.picks ?? {}) as BracketPicks;
   const confidence = (bracket?.confidence ?? {}) as BracketConfidence;
   const platformLocked = isPlatformLocked(tournament);

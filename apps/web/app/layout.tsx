@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
 import { Archivo, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 import { rootStyle } from "@matchread/tokens";
+import { ErrorReporter } from "@/components/shell/ErrorReporter";
+import { TelemetryRoot } from "@/components/shell/Telemetry";
 import { getLocale } from "@/lib/i18n";
+import { publicPageMetadata } from "@/lib/seo";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = publicPageMetadata({
   title: "MatchRead",
-  description:
-    "Tennis bracket leagues for groups. Fill brackets together. Come back for the Daily Check.",
-};
+  path: "/",
+});
 
 const archivo = Archivo({
   subsets: ["latin"],
@@ -63,6 +65,8 @@ export default function RootLayout({
       </head>
       <body>
         <script dangerouslySetInnerHTML={{ __html: UNREGISTER_SW }} />
+        <ErrorReporter />
+        <TelemetryRoot />
         {children}
       </body>
     </html>

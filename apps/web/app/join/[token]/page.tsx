@@ -2,10 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { AppShell } from "@/components/shell/AppShell";
+import { TrackOnMount } from "@/components/shell/Telemetry";
 import { JoinLeagueButton } from "@/components/league/JoinLeagueButton";
 import { getSessionUser } from "@/lib/auth";
 import { t, tf } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
+import { trackServer } from "@/lib/telemetry-server";
 import type { InvitePreview } from "@/lib/leagues/types";
 
 type Props = {
@@ -65,6 +67,7 @@ export default async function JoinPage({ params }: Props) {
     });
 
     if (!joinError) {
+      trackServer("league_joined", user.id, { slug: preview.league_slug });
       revalidatePath("/leagues");
       revalidatePath(`/leagues/${preview.league_slug}`);
       redirect(`/leagues/${preview.league_slug}`);
@@ -97,6 +100,7 @@ export default async function JoinPage({ params }: Props) {
 
   return (
     <AppShell signedIn={false}>
+      <TrackOnMount event="invite_opened" props={{ token: params.token.slice(0, 8) }} />
       <div className="page">
         <header className="page-header">
           <p className="eyebrow">{t("join.eyebrow")}</p>

@@ -7,7 +7,12 @@ import {
   type StandingPulseRow,
 } from "@matchread/core";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isTournamentLocked, loadLeagueDrawLock } from "@/lib/brackets/types";
+import {
+  DRAW_SEAT_SELECT,
+  isTournamentLocked,
+  loadLeagueDrawLock,
+  mapDrawSeat,
+} from "@/lib/brackets/types";
 import {
   buildLeagueEngagement,
   EMPTY_ENGAGEMENT,
@@ -21,6 +26,7 @@ type LeagueRow = {
   name: string;
   format: string;
   tournament_label: string | null;
+  tournament_id?: string | null;
 };
 
 export type LeagueHomeBundle = {
@@ -50,11 +56,11 @@ export async function loadDailyCheck(input: {
 
   // Wave 1: tournament + season (independent)
   const [tournamentRes, seasonRes] = await Promise.all([
-    league.tournament_label
+    league.tournament_id
       ? supabase
           .from("tournaments")
           .select("id, ref, name, lock_at, admin_locked_at, draw_size")
-          .eq("name", league.tournament_label)
+          .eq("id", league.tournament_id)
           .maybeSingle()
       : Promise.resolve({ data: null as null }),
     supabase
@@ -156,11 +162,11 @@ export async function loadDailyCheck(input: {
     const { data: seatRows } = await supabase
       .from("draw_seats")
       .select(
-        "position, player_ref, last_name, seed, country_code, is_bye"
+        DRAW_SEAT_SELECT
       )
       .eq("draw_id", draw.id)
       .order("position", { ascending: true });
-    seats = (seatRows ?? []) as DrawSeat[];
+    seats = (seatRows ?? []).map(mapDrawSeat);
   }
 
   const official: OfficialResults = {};

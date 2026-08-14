@@ -9,9 +9,15 @@ import { AnnouncedFirstRound } from "@/components/bracket/AnnouncedFirstRound";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { isFounderEmail } from "@/lib/auth/founder";
-import { isTournamentLocked, loadLeagueDrawLock } from "@/lib/brackets/types";
+import {
+  DRAW_SEAT_SELECT,
+  isTournamentLocked,
+  loadLeagueDrawLock,
+  mapDrawSeat,
+} from "@/lib/brackets/types";
 import { getLocale, t } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
+import { leagueIncludesTournament } from "@/lib/leagues/covers";
 import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
 import { redirectIfMissingDisplayName } from "@/lib/profiles/require-name";
 import { createClient } from "@/lib/supabase/server";
@@ -37,7 +43,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, slug, name, format, tournament_label, is_solo")
+    .select("id, slug, name, format, tournament_label, tournament_id, is_solo")
     .eq("slug", params.slug)
     .maybeSingle();
 
@@ -79,8 +85,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
 
   if (
     league.format === "single" &&
-    league.tournament_label &&
-    league.tournament_label !== tournament.name
+    !leagueIncludesTournament(league, tournament.id)
   ) {
     notFound();
   }
@@ -120,19 +125,10 @@ export default async function TournamentInLeaguePage({ params }: Props) {
     showManualResults && draw
       ? supabase
           .from("draw_seats")
-          .select(
-            "position, player_ref, last_name, seed, country_code, is_bye"
-          )
+          .select(DRAW_SEAT_SELECT)
           .eq("draw_id", draw.id)
           .order("position", { ascending: true })
-      : Promise.resolve({ data: [] as Array<{
-          position: number;
-          player_ref: string;
-          last_name: string;
-          seed: number | null;
-          country_code: string;
-          is_bye: boolean;
-        }> }),
+      : Promise.resolve({ data: [] }),
     showManualResults
       ? supabase
           .from("match_results")
@@ -169,7 +165,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
 
   const bracket = bracketRes.data;
   const snapshots = snapshotsRes.data;
-  const seats = seatsRes.data ?? [];
+  const seats = (seatsRes.data ?? []).map(mapDrawSeat);
   const initialResults: Record<string, string> = {};
   for (const row of resultsRes.data ?? []) {
     if (!row.voided && row.winner_ref) {
