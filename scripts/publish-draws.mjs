@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Publish a verified draw the moment Tennis API has a complete first round.
+ * Publish official Mega draws (named / bye / TBD seats) via rebuild-draw.
  *
  * Usage (repo root):
  *   node scripts/publish-draws.mjs --dry-run
@@ -15,10 +15,12 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  buildDrawFromFirstRound,
   createClient,
+  fetchOfficialSeats,
   getTournamentFixtures,
+  getTournamentResults,
   namedFirstRoundPairs,
+  overlayOfficialDraw,
 } from "@matchread/provider-rapidapi";
 
 function matchupsFromPairs(pairs, prefix) {
@@ -40,13 +42,13 @@ function matchupsFromPairs(pairs, prefix) {
 
 /** Season events we always check even without a Supabase listing. */
 const SEASON = [
-  { ref: "cin-2026", tour: "atp", provider_tournament_id: "21347", draw_size: 64 },
-  { ref: "cin-wta-2026", tour: "wta", provider_tournament_id: "16740", draw_size: 64 },
-  { ref: "wsal-2026", tour: "atp", provider_tournament_id: "21348", draw_size: 64 },
-  { ref: "uso-2026", tour: "atp", provider_tournament_id: "21349", draw_size: 128 },
-  { ref: "uso-wta-2026", tour: "wta", provider_tournament_id: "16743", draw_size: 128 },
-  { ref: "nbo-mtl-2026", tour: "atp", provider_tournament_id: "21346", draw_size: 64 },
-  { ref: "nbo-tor-2026", tour: "wta", provider_tournament_id: "16739", draw_size: 64 },
+  { ref: "cin-2026", tour: "atp", provider_tournament_id: "21347", draw_size: 128, api_name: "Cincinnati Open" },
+  { ref: "cin-wta-2026", tour: "wta", provider_tournament_id: "16740", draw_size: 64, api_name: "Cincinnati Open" },
+  { ref: "wsal-2026", tour: "atp", provider_tournament_id: "21348", draw_size: 64, api_name: "Winston-Salem Open" },
+  { ref: "uso-2026", tour: "atp", provider_tournament_id: "21349", draw_size: 128, api_name: "US Open" },
+  { ref: "uso-wta-2026", tour: "wta", provider_tournament_id: "16743", draw_size: 128, api_name: "US Open" },
+  { ref: "nbo-mtl-2026", tour: "atp", provider_tournament_id: "21346", draw_size: 64, api_name: "National Bank Open - Montreal" },
+  { ref: "nbo-tor-2026", tour: "wta", provider_tournament_id: "16739", draw_size: 64, api_name: "National Bank Open - Toronto" },
 ];
 
 function loadEnvFile(path) {
@@ -116,6 +118,7 @@ async function listEvents(env, onlyRef) {
         byRef.set(row.ref, {
           ref: row.ref,
           name: row.name,
+          api_name: byRef.get(row.ref)?.api_name,
           tour: row.tour === "wta" ? "wta" : "atp",
           provider_tournament_id: String(row.provider_tournament_id),
           draw_size: Number(row.draw_size) || 64,
@@ -128,26 +131,6 @@ async function listEvents(env, onlyRef) {
   let events = [...byRef.values()];
   if (onlyRef) events = events.filter((e) => e.ref === onlyRef);
   return events;
-}
-
-async function alreadyVerified(env, ref) {
-  const sb = supabaseRest(env);
-  if (!sb) return false;
-  try {
-    const tours = await restGet(sb, `tournaments?select=id&ref=eq.${encodeURIComponent(ref)}`);
-    const id = tours[0]?.id;
-    if (!id) return false;
-    const draws = await restGet(sb, `draws?select=id&tournament_id=eq.${id}`);
-    const drawId = draws[0]?.id;
-    if (!drawId) return false;
-    const seats = await restGet(
-      sb,
-      `draw_seats?select=id&draw_id=eq.${drawId}&is_bye=eq.false&provider_player_id=not.is.null&limit=1`
-    );
-    return Array.isArray(seats) && seats.length > 0;
-  } catch {
-    return false;
-  }
 }
 
 async function main() {
@@ -212,6 +195,17 @@ async function main() {
       event.tour,
       event.provider_tournament_id
     );
+    let results = [];
+    try {
+      const archive = await getTournamentResults(
+        client,
+        event.tour,
+        event.provider_tournament_id
+      );
+      results = archive.singles ?? [];
+    } catch (err) {
+      console.warn(label, "results skipped —", err instanceof Error ? err.message : err);
+    }
     const pairs = namedFirstRoundPairs(fixtures);
     const matchups = matchupsFromPairs(pairs, event.tour);
 
@@ -229,16 +223,18 @@ async function main() {
       announced += 1;
     }
 
-    if (await alreadyVerified(env, event.ref)) {
-      console.log(label, "already has a verified draw — skip full rebuild");
-      skipped += 1;
+    const official = await fetchOfficialSeats(client, event);
+    if (!official.ok) {
+      console.log(label, "full draw pending —", official.reason);
+      pending += 1;
       continue;
     }
 
-    const built = buildDrawFromFirstRound(fixtures, {
+    const built = overlayOfficialDraw(official.seats, fixtures, {
       prefix: event.tour,
-      drawSize: event.draw_size,
+      results,
     });
+
     if (!built.ok) {
       console.log(label, "full draw pending —", built.reason);
       pending += 1;
@@ -253,8 +249,9 @@ async function main() {
         tour: event.tour,
       },
       seats: built.seats,
-      results: built.results,
-      schedule: built.schedule,
+      results: built.results ?? [],
+      schedule: built.schedule ?? [],
+      matches: built.matches ?? {},
       matchups,
     };
     const preview = resolve(process.cwd(), `tmp-${event.ref}-draw.json`);

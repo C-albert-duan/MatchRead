@@ -35,9 +35,9 @@ External dependency for live calendar, draws, and scores.
 | Provider trusted for | Never trusted for |
 |---|---|
 | Match status, score, winner | Tennis rules / scoring formula |
-| Player identity, ranking | Bracket topology (verify reconstruction) |
-| Schedule / start times | What retirement means for a pick |
-| Draw entries / seeds | Anything asserted without core verification |
+| Player identity, ranking | Invented slot order from match ids |
+| Draw entries / seeds / official slot order | Anything asserted without a published draw sheet |
+| Schedule / start times | Odds, predictions, or guessed kickoff clocks |
 
 Import must **fail closed** if draw reconstruction is unverifiable.
 
@@ -47,7 +47,7 @@ Import must **fail closed** if draw reconstruction is unverifiable.
 - [x] Mega plan subscribed (WebSocket token + high quota)
 - [ ] Terms allow commercial/public use
 - [x] Rate limits known (Mega: 3.8M/mo, 50 req/s; RapidAPI may also throttle per IP)
-- [x] Key stored in gitignored `.env.provider` — never Vercel web env
+- [x] Key stored in gitignored `.env.provider` (local) or `npx supabase secrets set RAPIDAPI_KEY` (production) — never Vercel / GitHub
 - [x] Key rotated after chat exposure (2026-08-12)
 
 ### Manual probe
@@ -61,6 +61,4 @@ curl -s -H "X-RapidAPI-Key: $RAPIDAPI_KEY" -H "X-RapidAPI-Host: $RAPIDAPI_HOST" 
 
 Use REST reconciliation sweep on an interval. Scores lag; document that to invitees.
 
-**Real-world results on Vercel:** [plans/16-rapidapi-reconcile.md](../plans/16-rapidapi-reconcile.md) — RapidAPI stays off Vercel; worker → `ingest-events` → settle → web.
-
-Live listener is [RAILWAY-WORKER.md](./RAILWAY-WORKER.md).
+**Real-world results on Vercel:** [SYNC-TENNIS.md](./SYNC-TENNIS.md) — RapidAPI key in Supabase secrets; Edge `sync-tennis` → `ingest-events` / `rebuild-draw` → settle → web.

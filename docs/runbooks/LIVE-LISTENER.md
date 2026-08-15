@@ -6,11 +6,12 @@ How MatchRead learns that official match results changed, and how the browser st
 
 | Path | Status |
 |---|---|
-| **REST poll (browser)** | **Armed for MVP** — `LiveRefresh` → `router.refresh()` ~45s |
-| Provider REST sweep / ingest | Documented; pair with settlement |
-| Railway websocket worker | **Later** — required for public launch low-latency live scores |
+| **REST poll (browser)** | **Armed** — `LiveRefresh` → `router.refresh()` ~45s |
+| Provider REST sweep / ingest | **`sync-tennis` every 5 min** — [SYNC-TENNIS.md](./SYNC-TENNIS.md) |
+| Mega live events REST | **Armed** — each sync tick reads `/extend/api/events/live` |
+| Mega Socket.IO | **Worker** (`apps/worker`) — push → reconcile; REST is the production fallback |
 
-Invited beta: REST lag is acceptable. Public US Open window: prefer socket → ingest → settle; keep poll as client fallback.
+Invited beta: 5-minute REST lag is the production path. Optional worker socket ingest finishes matches as Tennis API marks them Finished (winner id required — scores alone are not parsed into a winner). Odds updates are ignored.
 
 ## Browser (now)
 
@@ -30,9 +31,13 @@ Tune interval via the `intervalMs` prop if needed; do not drop below ~30s withou
 
 Dry-run math: `node scripts/verify-settlement-math.mjs`.
 
-## Later — Railway worker
+## REST sweep (now)
 
-Always-on process holds the provider socket and `POST`s to ingest. See [RAILWAY-WORKER.md](./RAILWAY-WORKER.md).
+`sync-tennis` pulls Tennis API on a schedule. Browser `LiveRefresh` only re-reads Postgres.
+
+## Later — socket
+
+An always-on process could hold the provider socket and `POST` to ingest. Not required for REST facts. See [RAILWAY-WORKER.md](./RAILWAY-WORKER.md) (local worker only).
 
 When the worker is live:
 

@@ -1,19 +1,19 @@
 # Architecture
 
 ```text
-RapidAPI tennis provider
-      │  socket (live) + REST (sweep)
+RapidAPI tennis provider (Mega facts)
+      │  REST every 5 min + optional Mega socket on worker
       ▼
-Listener container (Railway) ── optional for invited beta ──┐
-      │  POST only, parses nothing                          │
-      ▼                                                     │
-supabase/functions/ingest-events ◄──────────────────────────┘
+supabase/functions/sync-tennis   ← RAPIDAPI_KEY in Edge secrets
+      │  pg_cron every 5 min (Vault ingest_secret) — no GitHub
+      ├── rebuild-draw   (official seats / announced pairs)
+      └── ingest-events  (finished matches)
       │
       ▼
 Supabase Postgres — events → projections
       │
       ▼
-Settlement (packages/core + edge/cron) — MUST be scheduled for standings to move
+Settlement (settle-leagues cron, 2 min after each sync)
       │
       ▼
 Leagues · brackets · standings · daily_check
@@ -26,7 +26,7 @@ apps/web (Next.js on Vercel, Server Components)
 
 1. **Client is never the source of truth.** Locks, pick secrecy, comment timing → Postgres triggers + RLS.
 2. **`apps/web` holds only the anon key.** Never the service-role key on Vercel.
-3. **Listener holds provider credentials**, not broad DB access — authenticates to `ingest-events` only.
+3. **`sync-tennis` holds `RAPIDAPI_KEY`** (Edge secret). `pg_cron` authenticates with Vault `ingest_secret`. Vercel never sees either.
 4. **Internal UUIDs never reach the wire.** Pages use slugs / external refs; resolution is server-side.
 
 ## Packages
@@ -38,7 +38,7 @@ apps/web (Next.js on Vercel, Server Components)
 | `packages/tokens` | Colour, type, spacing CSS variables |
 | `packages/i18n` | Locale catalogues (en first) |
 | `supabase/migrations` | Schema + RLS |
-| `supabase/functions` | Edge functions (ingest, settle helpers) |
+| `supabase/functions` | Edge functions (`sync-tennis`, `rebuild-draw`, `ingest-events`) |
 
 ## Design system anchors
 

@@ -140,7 +140,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
       : Promise.resolve({ data: null as { token: string } | null }),
     supabase
       .from("tournaments")
-      .select("id, ref, name, surface, starts_on, lock_at, admin_locked_at, venue_tz, draw_size, tour")
+      .select("id, ref, name, surface, starts_on, ends_on, lock_at, admin_locked_at, venue_tz, draw_size, tour")
       .order("starts_on", { ascending: true }),
     listVerifiedDrawTournamentIds(),
   ]);
@@ -327,7 +327,11 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                   league_locked_at: leagueLockedAt.get(t.id) ?? null,
                 });
                 const start =
-                  formatTournamentDate(t.starts_on, locale) ?? t.starts_on;
+                  formatTournamentDate(
+                    t.starts_on,
+                    locale,
+                    (t as { ends_on?: string | null }).ends_on
+                  ) ?? t.starts_on;
                 const lock = lockWhenLabel(t, locale);
                 const whenBits = [start, lock, `${t.draw_size}-draw`].filter(
                   Boolean

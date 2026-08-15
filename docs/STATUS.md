@@ -50,8 +50,8 @@
 - [ ] Owner E2E Phase 10  
 - [ ] Vercel + SMTP + Preview magic link (Phase 11)  
 - [ ] Invite-wave smoke + CI green (Phase 12)  
-- [ ] Settlement cron armed + real domain (Phase 13)  
-- [ ] Railway socket (or accept REST poll for launch)  
+- [x] Deploy `sync-tennis` + `settle-leagues` + Edge `RAPIDAPI_KEY` + Vault + 5-min pg_cron  
+- [x] Observability live via `ops_events` on `/founder` (Sentry/PostHog keys still optional)  
 - [ ] CEO Tier 2–3 (optional)
 
 Also: [LAUNCH-CHECKLIST.md](./LAUNCH-CHECKLIST.md)

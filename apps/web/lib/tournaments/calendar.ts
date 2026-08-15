@@ -2,6 +2,8 @@ import { isOfficialPublicDraw, type DrawSeat } from "@matchread/core";
 import { createClient } from "@/lib/supabase/server";
 import { mapDrawSeat } from "@/lib/brackets/types";
 import { DAY_MS, isEntryLocked, isInPlay } from "@/lib/tournaments/status";
+import { formatTournamentDate } from "@/lib/tournaments/dates";
+export { formatTournamentDate };
 
 export type { MatchScheduleRow } from "@/lib/tournaments/format";
 export { formatMatchWhen } from "@/lib/tournaments/format";
@@ -42,6 +44,7 @@ export type CalendarTournament = {
   tour: Tour;
   draw_size: number;
   hasDraw: boolean;
+  ends_on: string | null;
 };
 
 export function normalizeTour(value: string | null | undefined): Tour {
@@ -74,25 +77,9 @@ export function formatTournamentWhen(
   return parts.join(" · ");
 }
 
-/** Draw-sheet date: `03 AUG 2026`. Month follows the locale; day and year stay tabular. */
-export function formatTournamentDate(
-  startsOn: string | null,
-  locale: string
-): string | null {
-  if (!startsOn) return null;
-  const d = new Date(`${startsOn}T12:00:00Z`);
-  if (Number.isNaN(d.getTime())) return startsOn;
-  const day = String(d.getUTCDate()).padStart(2, "0");
-  const month = d
-    .toLocaleString(locale, { month: "short", timeZone: "UTC" })
-    .replace(".", "")
-    .toUpperCase();
-  const year = d.getUTCFullYear();
-  return `${day} ${month} ${year}`;
-}
-
 export type TournamentTimeRow = {
   starts_on: string | null;
+  ends_on?: string | null;
   lock_at?: string | null;
   admin_locked_at?: string | null;
   venue_tz?: string | null;
@@ -113,7 +100,7 @@ export function tournamentTimeFacts(
   labels: Pick<TournamentTimeLabels, "today" | "tomorrow" | "tbc">,
   now: Date = new Date()
 ) {
-  const start = formatTournamentDate(row.starts_on, locale) ?? labels.tbc;
+  const start = formatTournamentDate(row.starts_on, locale, row.ends_on) ?? labels.tbc;
   const locked = isEntryLocked(
     { lock_at: row.lock_at ?? null, admin_locked_at: row.admin_locked_at },
     now
@@ -212,7 +199,9 @@ export function formatUpcomingAction(
       )}`
     );
   } else if (row.starts_on) {
-    parts.push(`${labels.starts} ${row.starts_on}`);
+    parts.push(
+      `${labels.starts} ${formatTournamentDate(row.starts_on, locale) ?? row.starts_on}`
+    );
   }
   return parts.join(" · ");
 }
@@ -266,7 +255,7 @@ export async function listCalendarTournaments(): Promise<CalendarTournament[]> {
     supabase
       .from("tournaments")
       .select(
-        "id, ref, name, surface, starts_on, lock_at, admin_locked_at, venue_tz, tour, draw_size"
+        "id, ref, name, surface, starts_on, ends_on, lock_at, admin_locked_at, venue_tz, tour, draw_size"
       )
       .order("starts_on", { ascending: true }),
     listVerifiedDrawTournamentIds(),
@@ -284,7 +273,7 @@ export async function getCalendarTournament(
   const { data: row } = await supabase
     .from("tournaments")
     .select(
-      "id, ref, name, surface, starts_on, lock_at, admin_locked_at, venue_tz, tour, draw_size"
+      "id, ref, name, surface, starts_on, ends_on, lock_at, admin_locked_at, venue_tz, tour, draw_size"
     )
     .eq("ref", trimmed)
     .maybeSingle();
@@ -299,6 +288,7 @@ type TournamentQueryRow = {
   name: string;
   surface: string | null;
   starts_on: string | null;
+  ends_on?: string | null;
   lock_at: string | null;
   admin_locked_at: string | null;
   venue_tz: string | null;
@@ -316,6 +306,7 @@ function mapCalendarRow(
     name: row.name,
     surface: row.surface ?? "hard",
     starts_on: row.starts_on,
+    ends_on: row.ends_on ?? null,
     lock_at: row.lock_at ?? null,
     admin_locked_at: row.admin_locked_at ?? null,
     venue_tz: row.venue_tz || "UTC",

@@ -18,6 +18,8 @@
 
 **Never** put the service-role key in the web app or Vercel.
 
+**Tennis API:** `npx supabase secrets set RAPIDAPI_KEY=...`, deploy `sync-tennis`, `db push` (pg_cron every 5 min), Vault `project_url` + `ingest_secret`. GitHub is not required. See [runbooks/SYNC-TENNIS.md](./runbooks/SYNC-TENNIS.md).
+
 ## 3. Vercel
 
 1. Import the GitHub repo.

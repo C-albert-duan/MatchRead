@@ -179,7 +179,11 @@ export default async function ResultArtifactPage({ params }: Props) {
                 <>
                   {" · "}
                   <span className="numeral">
-                    {formatTournamentDate(tournament.starts_on, getLocale())}
+                    {formatTournamentDate(
+                      tournament.starts_on,
+                      getLocale(),
+                      (tournament as { ends_on?: string | null }).ends_on
+                    )}
                   </span>
                 </>
               ) : null}

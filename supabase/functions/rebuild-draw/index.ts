@@ -5,6 +5,7 @@
 // Secrets: INGEST_SECRET, SUPABASE_SERVICE_ROLE_KEY (auto), SUPABASE_URL (auto)
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { SEASON } from "../_shared/season.js";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -19,8 +20,15 @@ type SeatRow = {
   seed: number | null;
   country_code: string;
   is_bye: boolean;
+  seat_kind?: "player" | "bye" | "tbd";
+  entry_status?: "wc" | "pr" | null;
   provider_player_id?: string | null;
 };
+
+function seatKindOf(s: SeatRow): "player" | "bye" | "tbd" {
+  if (s.seat_kind) return s.seat_kind;
+  return s.is_bye ? "bye" : "player";
+}
 
 type ResultRow = {
   match_key: string;
@@ -99,6 +107,8 @@ Deno.serve(async (req) => {
     results?: ResultRow[];
     schedule?: ScheduleRow[];
     matchups?: MatchupRow[];
+    /** provider match id → MatchRead match_key (r0-m0). */
+    matches?: Record<string, string>;
     /** When set, retarget leagues from these old fixture labels to tournament_patch.name. */
     montreal_name_labels?: string[];
   };
@@ -159,6 +169,17 @@ Deno.serve(async (req) => {
     );
   }
 
+  if (seats.length > 0) {
+    const expected = SEASON.find((s) => s.ref === tournamentRef)?.draw_size;
+    if (expected && seats.length !== expected) {
+      return jsonError(
+        400,
+        `${tournamentRef} rejects ${seats.length}-draw (need ${expected} singles)`,
+        log
+      );
+    }
+  }
+
   // Retarget leagues that pointed at deleted fixture names (ATP migration only).
   const labels = body.montreal_name_labels ?? [];
   if (labels.length > 0) {
@@ -217,30 +238,124 @@ Deno.serve(async (req) => {
   }
 
   // Never wipe a verified public draw unless the caller opts in.
+  // Same-size official sheets may overlay provider ids (better field, same slots).
   if (!body.force) {
     const { data: existingDraw, error: existingErr } = await admin
       .from("draws")
       .select("id")
       .eq("tournament_id", tournamentId)
+      .limit(1)
       .maybeSingle();
-    if (existingErr) return jsonError(400, existingErr.message, log);
+    if (existingErr) return jsonError(400, existingErr, log);
     if (existingDraw?.id) {
-      const { count, error: seatCountErr } = await admin
+      log.push(`existing draw ${existingDraw.id}`);
+      const { data: tRow, error: tSizeErr } = await admin
+        .from("tournaments")
+        .select("id, ref, draw_size")
+        .eq("id", tournamentId)
+        .maybeSingle();
+      if (tSizeErr) {
+        log.push("tournament select failed");
+        return jsonError(400, tSizeErr, log);
+      }
+      log.push(`tournament ref=${tRow?.ref} draw_size=${tRow?.draw_size}`);
+      const { data: seatRows, error: seatCountErr } = await admin
         .from("draw_seats")
-        .select("id", { count: "exact", head: true })
-        .eq("draw_id", existingDraw.id)
-        .eq("is_bye", false)
-        .not("provider_player_id", "is", null);
-      if (seatCountErr) return jsonError(400, seatCountErr.message, log);
-      if ((count ?? 0) > 0) {
-        log.push(`skipped: verified draw already published (${count} seats)`);
+        .select("position")
+        .eq("draw_id", existingDraw.id);
+      if (seatCountErr) {
+        log.push("seat select failed");
+        return jsonError(400, seatCountErr, log);
+      }
+      const existingCount = seatRows?.length ?? 0;
+      const officialSize = Number(tRow?.draw_size) || 0;
+      log.push(`seats existing=${existingCount} officialSize=${officialSize} incoming=${seats.length}`);
+      if (existingCount > 0 && existingCount === officialSize) {
+        if (seats.length === existingCount) {
+          const { data: currentSeats, error: curErr } = await admin
+            .from("draw_seats")
+            .select("position, seat_kind, last_name, is_bye")
+            .eq("draw_id", existingDraw.id);
+          if (curErr) return jsonError(400, curErr, log);
+          const currentByPos = new Map(
+            (currentSeats ?? []).map((s) => [Number(s.position), s])
+          );
+          let mapped = 0;
+          let filled = 0;
+          for (const s of seats) {
+            const existing = currentByPos.get(Number(s.position));
+            const patch: Record<string, unknown> = {};
+            if (s.provider_player_id) {
+              patch.provider_player_id = s.provider_player_id;
+              patch.country_code = s.country_code || "XXX";
+              patch.seed = s.seed ?? null;
+            }
+            if (
+              existing?.seat_kind === "tbd" &&
+              seatKindOf(s) === "player" &&
+              s.last_name
+            ) {
+              patch.last_name = s.last_name;
+              patch.seat_kind = "player";
+              patch.is_bye = false;
+              if (s.entry_status) patch.entry_status = s.entry_status;
+              filled += 1;
+            }
+            if (Object.keys(patch).length === 0) continue;
+            const { error: upErr } = await admin
+              .from("draw_seats")
+              .update(patch)
+              .eq("draw_id", existingDraw.id)
+              .eq("position", s.position);
+            if (upErr) return jsonError(400, upErr, log);
+            mapped += 1;
+          }
+          log.push(
+            `kept official ${existingCount}-draw; overlaid ${mapped} seats; filled ${filled} TBD`
+          );
+          const facts = await applyResultsScheduleAndLock(
+            admin,
+            tournamentId,
+            body.results,
+            body.schedule,
+            log
+          );
+          if (facts.error) return jsonError(400, facts.error, log);
+          const mapErr = await upsertMatchMap(
+            admin,
+            tournamentId,
+            body.matches,
+            log
+          );
+          if (mapErr) return jsonError(400, mapErr, log);
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              skipped: "verified_draw_exists",
+              overlaid: mapped,
+              filled,
+              tournament_id: tournamentId,
+              draw_id: existingDraw.id,
+              seats: existingCount,
+              results: facts.results,
+              schedule: facts.schedule,
+              lock_at: facts.lockAt,
+              log,
+            }),
+            {
+              status: 200,
+              headers: { ...cors, "Content-Type": "application/json" },
+            }
+          );
+        }
+        log.push(`skipped: verified draw already published (${existingCount} seats)`);
         return new Response(
           JSON.stringify({
             ok: true,
             skipped: "verified_draw_exists",
             tournament_id: tournamentId,
             draw_id: existingDraw.id,
-            seats: count,
+            seats: existingCount,
             log,
           }),
           {
@@ -314,62 +429,37 @@ Deno.serve(async (req) => {
     log.push("patched tournament");
   }
 
-  const seatRows = seats.map((s) => ({
-    draw_id: draw.id,
-    position: s.position,
-    player_ref: s.player_ref,
-    last_name: s.last_name,
-    seed: s.seed,
-    country_code: s.country_code || "XXX",
-    is_bye: Boolean(s.is_bye),
-    provider_player_id: s.provider_player_id ?? null,
-  }));
+  const seatRows = seats.map((s) => {
+    const kind = seatKindOf(s);
+    return {
+      draw_id: draw.id,
+      position: s.position,
+      player_ref: s.player_ref,
+      last_name: s.last_name,
+      seed: s.seed,
+      country_code: s.country_code || "XXX",
+      is_bye: kind === "bye",
+      seat_kind: kind,
+      entry_status: s.entry_status ?? null,
+      provider_player_id: s.provider_player_id ?? null,
+    };
+  });
 
   const { error: seatInsErr } = await admin.from("draw_seats").insert(seatRows);
   if (seatInsErr) return jsonError(400, seatInsErr.message, log);
   log.push(`inserted ${seatRows.length} seats`);
 
-  const results = body.results ?? [];
-  if (results.length > 0) {
-    const now = new Date().toISOString();
-    const rows = results.map((r) => ({
-      tournament_id: tournamentId,
-      match_key: r.match_key,
-      winner_ref: r.voided ? null : r.winner_ref ?? null,
-      voided: Boolean(r.voided),
-      settled_at: now,
-    }));
-    const { error } = await admin.from("match_results").upsert(rows, {
-      onConflict: "tournament_id,match_key",
-    });
-    if (error) return jsonError(400, error.message, log);
-    log.push(`upserted ${rows.length} match_results`);
-  }
-
-  const schedule = (body.schedule ?? []).filter((s) => s.match_key && s.scheduled_at);
-  if (schedule.length > 0) {
-    const now = new Date().toISOString();
-    const rows = schedule.map((s) => ({
-      tournament_id: tournamentId,
-      match_key: s.match_key,
-      scheduled_at: s.scheduled_at,
-      has_time: Boolean(s.has_time),
-      updated_at: now,
-    }));
-    const { error } = await admin.from("match_schedule").upsert(rows, {
-      onConflict: "tournament_id,match_key",
-    });
-    if (error) return jsonError(400, error.message, log);
-    log.push(`upserted ${rows.length} match_schedule`);
-  }
-
-  const { data: firstBall, error: lockErr } = await admin.rpc(
-    "refresh_tournament_lock_from_schedule",
-    { p_tournament_id: tournamentId }
+  const facts = await applyResultsScheduleAndLock(
+    admin,
+    tournamentId,
+    body.results,
+    body.schedule,
+    log
   );
-  if (lockErr) return jsonError(400, `lock_at: ${lockErr.message}`, log);
-  if (firstBall) log.push(`lock_at ← first ball ${firstBall}`);
-  else log.push("lock_at unchanged (no timed main-draw schedule)");
+  if (facts.error) return jsonError(400, facts.error, log);
+
+  const mapErr = await upsertMatchMap(admin, tournamentId, body.matches, log);
+  if (mapErr) return jsonError(400, mapErr, log);
 
   return new Response(
     JSON.stringify({
@@ -377,9 +467,9 @@ Deno.serve(async (req) => {
       tournament_id: tournamentId,
       draw_id: draw.id,
       seats: seatRows.length,
-      results: results.length,
-      schedule: schedule.length,
-      lock_at: firstBall ?? null,
+      results: facts.results,
+      schedule: facts.schedule,
+      lock_at: facts.lockAt,
       log,
     }),
     {
@@ -389,9 +479,134 @@ Deno.serve(async (req) => {
   );
 });
 
-function jsonError(status: number, message: string, log: string[]) {
-  return new Response(JSON.stringify({ error: message, log }), {
+function errText(err: unknown): string {
+  if (err == null) return "unknown error";
+  if (typeof err === "string") return err || "unknown error";
+  if (typeof err === "object") {
+    const e = err as {
+      message?: string;
+      details?: string;
+      hint?: string;
+      code?: string;
+      error?: string;
+    };
+    const parts = [e.code, e.message, e.details, e.hint, e.error].filter(
+      (p) => typeof p === "string" && p.trim()
+    );
+    if (parts.length) return parts.join(" | ");
+    try {
+      const dumped = JSON.stringify(err);
+      if (dumped && dumped !== "{}") return dumped;
+    } catch {
+      /* ignore */
+    }
+  }
+  return String(err);
+}
+
+function jsonError(status: number, error: unknown, log: string[]) {
+  return new Response(JSON.stringify({ error: errText(error), log }), {
     status,
     headers: { ...cors, "Content-Type": "application/json" },
   });
+}
+
+async function applyResultsScheduleAndLock(
+  admin: ReturnType<typeof createClient>,
+  tournamentId: string,
+  results: ResultRow[] | undefined,
+  schedule: ScheduleRow[] | undefined,
+  log: string[]
+): Promise<{
+  error: string | null;
+  results: number;
+  schedule: number;
+  lockAt: string | null;
+}> {
+  const resultRows = results ?? [];
+  if (resultRows.length > 0) {
+    const now = new Date().toISOString();
+    const rows = resultRows.map((r) => ({
+      tournament_id: tournamentId,
+      match_key: r.match_key,
+      winner_ref: r.voided ? null : r.winner_ref ?? null,
+      voided: Boolean(r.voided),
+      settled_at: now,
+    }));
+    const { error } = await admin.from("match_results").upsert(rows, {
+      onConflict: "tournament_id,match_key",
+    });
+    if (error) return { error: `results: ${error.message}`, results: 0, schedule: 0, lockAt: null };
+    log.push(`upserted ${rows.length} match_results`);
+  }
+
+  const scheduleRows = (schedule ?? []).filter((s) => s.match_key && s.scheduled_at);
+  if (scheduleRows.length > 0) {
+    const now = new Date().toISOString();
+    const rows = scheduleRows.map((s) => ({
+      tournament_id: tournamentId,
+      match_key: s.match_key,
+      scheduled_at: s.scheduled_at,
+      has_time: Boolean(s.has_time),
+      updated_at: now,
+    }));
+    const { error } = await admin.from("match_schedule").upsert(rows, {
+      onConflict: "tournament_id,match_key",
+    });
+    if (error) {
+      return { error: `schedule: ${error.message}`, results: resultRows.length, schedule: 0, lockAt: null };
+    }
+    log.push(`upserted ${rows.length} match_schedule`);
+  }
+
+  const { data: firstBall, error: lockErr } = await admin.rpc(
+    "refresh_tournament_lock_from_schedule",
+    { p_tournament_id: tournamentId }
+  );
+  if (lockErr) {
+    return {
+      error: `lock_at: ${lockErr.message}`,
+      results: resultRows.length,
+      schedule: scheduleRows.length,
+      lockAt: null,
+    };
+  }
+  if (firstBall) log.push(`lock_at ← first ball ${firstBall}`);
+  else log.push("lock_at unchanged (no timed main-draw schedule)");
+
+  return {
+    error: null,
+    results: resultRows.length,
+    schedule: scheduleRows.length,
+    lockAt: firstBall ?? null,
+  };
+}
+
+async function upsertMatchMap(
+  admin: ReturnType<typeof createClient>,
+  tournamentId: string,
+  matches: Record<string, string> | undefined,
+  log: string[]
+): Promise<string | null> {
+  if (!matches || typeof matches !== "object") return null;
+  const byMatchKey = new Map();
+  for (const [provider_match_id, match_key] of Object.entries(matches)) {
+    if (!provider_match_id || !match_key) continue;
+    const id = String(provider_match_id);
+    const key = String(match_key);
+    const prev = byMatchKey.get(key);
+    if (!prev || /^\d+$/.test(id)) byMatchKey.set(key, id);
+  }
+  const rows = [...byMatchKey.entries()].map(([match_key, provider_match_id]) => ({
+    tournament_id: tournamentId,
+    provider_match_id,
+    match_key,
+  }));
+  if (rows.length === 0) return null;
+  const { error } = await admin.from("provider_match_map").upsert(rows, {
+    onConflict: "tournament_id,provider_match_id",
+  });
+  if (error) return `matches: ${error.message}`;
+  log.push(`upserted ${rows.length} provider_match_map`);
+  return null;
 }

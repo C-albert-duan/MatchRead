@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "@matchread/provider-rapidapi": "../../packages/provider-rapidapi/src/index.js"
+  }
+}

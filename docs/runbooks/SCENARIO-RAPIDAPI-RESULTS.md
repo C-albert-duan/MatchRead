@@ -2,9 +2,9 @@
 
 **Goal:** A finished ATP/WTA match from RapidAPI appears as the official winner on **https://www.matchreadtennis.com**, then standings move after you settle.
 
-**You do not paste the RapidAPI key into Vercel.** The key stays on your laptop / GitHub Actions. The public site only reads Supabase.
+**You do not paste the RapidAPI key into Vercel or GitHub.** The key is a Supabase secret. The public site only reads Postgres.
 
-**Related:** [RECONCILE-RESULTS.md](./RECONCILE-RESULTS.md) · [INGEST.md](./INGEST.md) · [GO-LIVE-MATCHREADTENNIS.md](./GO-LIVE-MATCHREADTENNIS.md)
+**Related:** [SYNC-TENNIS.md](./SYNC-TENNIS.md) · [RECONCILE-RESULTS.md](./RECONCILE-RESULTS.md) · [INGEST.md](./INGEST.md) · [GO-LIVE-MATCHREADTENNIS.md](./GO-LIVE-MATCHREADTENNIS.md)
 
 ---
 
@@ -14,7 +14,7 @@ RapidAPI knows who won → your reconcile job maps that to MatchRead’s bracket
 
 ```text
 ┌─────────────┐     ┌──────────────────────┐     ┌─────────────────┐     ┌──────────────────────┐
-│  RapidAPI   │────▶│  reconcile script    │────▶│  ingest-events  │────▶│  match_results (DB)  │
+│  RapidAPI   │────▶│  sync-tennis         │────▶│  ingest-events  │────▶│  match_results (DB)  │
 │  (winners)  │ GET │  (RAPIDAPI_KEY here) │ POST│  (Edge Function)│     │                      │
 └─────────────┘     └──────────────────────┘     └─────────────────┘     └──────────┬───────────┘
                                                                                      │
@@ -226,21 +226,19 @@ GitHub → **MatchRead/MatchRead** → **Settings → Secrets and variables → 
 
 | Secret | Contents |
 |---|---|
-| `RAPIDAPI_KEY` | Your RapidAPI key |
-| `MATCHREAD_INGEST_URL` | `https://opugihofwvunwkpcmboq.supabase.co/functions/v1/ingest-events` |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://<ref>.supabase.co` |
 | `INGEST_SECRET` | Same as Supabase |
-| `PROVIDER_MAP_JSON` | Entire `.provider-map.json` pasted as one secret |
 
-Do **not** put these on Vercel.
+`RAPIDAPI_KEY` stays in Supabase secrets. Do **not** put it on Vercel or GitHub.
 
 ### B2 — Push workflow
 
-Ensure `.github/workflows/reconcile-results.yml` is on `main`.
+Ensure `.github/workflows/sync-tennis.yml` is on `main`. Deploy `sync-tennis` first ([SYNC-TENNIS.md](./SYNC-TENNIS.md)).
 
 ### B3 — Manual dry-run then live
 
-1. **Actions → Reconcile RapidAPI results → Run workflow**  
-2. `dry_run = true` → check logs for mapped rows  
+1. **Actions → Sync tennis facts → Run workflow**  
+2. `dry_run = true` → check logs  
 3. Run again with `dry_run = false` → ingest  
 4. Settle on https://www.matchreadtennis.com  
 

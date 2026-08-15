@@ -37,6 +37,7 @@ export default async function FounderPage() {
     snapshotsRes,
     resultsRes,
     lastSnapRes,
+    opsRes,
   ] = await Promise.all([
     supabase.from("leagues").select("*", { count: "exact", head: true }),
     supabase.from("league_members").select("*", { count: "exact", head: true }),
@@ -54,6 +55,11 @@ export default async function FounderPage() {
       .order("ranked_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
+    supabase
+      .from("ops_events")
+      .select("id, created_at, kind, name, payload")
+      .order("created_at", { ascending: false })
+      .limit(25),
   ]);
 
   const loadError =
@@ -62,7 +68,8 @@ export default async function FounderPage() {
     submittedRes.error ||
     snapshotsRes.error ||
     resultsRes.error ||
-    lastSnapRes.error;
+    lastSnapRes.error ||
+    opsRes.error;
 
   const fmt = (count: number | null | undefined, err: unknown) =>
     err || count == null ? "—" : String(count);
@@ -132,6 +139,31 @@ export default async function FounderPage() {
             </div>
           ))}
         </dl>
+
+        <section className="stack gap-md" aria-labelledby="ops-events">
+          <h2 id="ops-events" className="section-title">
+            {t("founder.ops.title")}
+          </h2>
+          {opsRes.data && opsRes.data.length > 0 ? (
+            <ul className="stack gap-sm">
+              {opsRes.data.map((row) => (
+                <li key={row.id} className="t-body">
+                  <span className="eyebrow">
+                    {row.kind === "error"
+                      ? t("founder.ops.kind.error")
+                      : t("founder.ops.kind.event")}
+                  </span>{" "}
+                  <span className="numeral">
+                    {new Date(row.created_at).toISOString()}
+                  </span>{" "}
+                  {row.name}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="t-body">{t("founder.ops.empty")}</p>
+          )}
+        </section>
 
         <p className="hint">{t("founder.note.noServiceRole")}</p>
 

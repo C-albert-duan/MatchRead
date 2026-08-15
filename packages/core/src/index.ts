@@ -10,6 +10,7 @@ export {
   countPicksMade,
   isBracketComplete,
   isFictionalSeatName,
+  isFictionalSeatRef,
   isNamedPlayerSeat,
   isOfficialPublicDraw,
   isPublicDrawSeat,

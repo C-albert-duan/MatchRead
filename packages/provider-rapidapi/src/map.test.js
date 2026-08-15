@@ -1,10 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  CIN_2026_OFFICIAL,
   buildDrawFromFirstRound,
   firstMainDrawBall,
+  mapLiveFinishedToIngest,
   mapResultsToIngest,
   normalizeTour,
+  overlayOfficialDraw,
+  parseOfficialDraw,
   parseFixtureInstant,
   resolveNationalBankOpenWeek,
 } from "./index.js";
@@ -149,7 +153,7 @@ describe("buildDrawFromFirstRound", () => {
       player2: { id: 2, name: "Qual Two" },
       date: "2026-08-09T15:00:00.000Z",
     });
-    const built = buildDrawFromFirstRound(fixtures, { prefix: "atp" });
+    const built = buildDrawFromFirstRound(fixtures, { prefix: "atp", drawSize: 64 });
     assert.equal(built.ok, true);
     if (!built.ok) throw new Error(built.reason);
     assert.equal(built.drawSize, 64);
@@ -158,6 +162,359 @@ describe("buildDrawFromFirstRound", () => {
     assert.equal(built.seats[0].player_ref, "atp-100");
     assert.equal(built.matches["2000"], "r0-m0");
     assert.equal(built.schedule.length, 32);
+  });
+
+  it("does not infer a 64-draw from 32 named pairs", () => {
+    const fixtures = [];
+    for (let i = 0; i < 32; i++) {
+      fixtures.push(
+        firstMatch(
+          3000 + i,
+          { id: 300 + i, name: `PlayerA ${i} Smith` },
+          { id: 400 + i, name: `PlayerB ${i} Jones` }
+        )
+      );
+    }
+    const built = buildDrawFromFirstRound(fixtures, { prefix: "atp" });
+    assert.equal(built.ok, false);
+    if (built.ok) throw new Error("expected fail");
+    assert.match(built.reason, /incomplete first round \(32/);
+  });
+
+  it("does not collapse 32 R128 pairs into a 128-draw", () => {
+    const fixtures = [];
+    for (let i = 0; i < 32; i++) {
+      fixtures.push(
+        firstMatch(
+          4000 + i,
+          { id: 500 + i, name: `PlayerA ${i} Smith` },
+          { id: 600 + i, name: `PlayerB ${i} Jones` }
+        )
+      );
+    }
+    const built = buildDrawFromFirstRound(fixtures, {
+      prefix: "atp",
+      drawSize: 128,
+    });
+    assert.equal(built.ok, false);
+    if (built.ok) throw new Error("expected fail");
+    assert.match(built.reason, /official slots or 64 named slam pairs/);
+  });
+});
+
+describe("overlayOfficialDraw", () => {
+  it("keeps Cincinnati as 128 with byes and TBD seats", () => {
+    assert.equal(CIN_2026_OFFICIAL.seats.length, 128);
+    const byes = CIN_2026_OFFICIAL.seats.filter((s) => s.seat_kind === "bye");
+    const tbd = CIN_2026_OFFICIAL.seats.filter((s) => s.seat_kind === "tbd");
+    const named = CIN_2026_OFFICIAL.seats.filter((s) => s.seat_kind === "player");
+    assert.equal(byes.length, 32);
+    assert.equal(tbd.length, 13);
+    assert.equal(named.length, 83);
+    assert.equal(CIN_2026_OFFICIAL.seats[0].last_name, "Zverev");
+    assert.equal(CIN_2026_OFFICIAL.seats[1].seat_kind, "bye");
+    assert.equal(CIN_2026_OFFICIAL.seats[10].seat_kind, "tbd");
+    assert.equal(CIN_2026_OFFICIAL.seats[37].entry_status, "wc");
+    assert.equal(CIN_2026_OFFICIAL.seats[85].entry_status, "pr");
+    assert.equal(CIN_2026_OFFICIAL.seats[127].last_name, "Auger-Aliassime");
+  });
+
+  it("maps provider ids onto official slots without reordering", () => {
+    const fixtures = [
+      {
+        id: 9001,
+        round: { name: "First" },
+        player1Id: 11,
+        player2Id: 22,
+        player1: { id: 11, name: "Cameron Norrie", countryAcr: "GBR" },
+        player2: { id: 22, name: "Dino Prizmic", countryAcr: "CRO" },
+        date: "2026-08-13T17:00:00.000Z",
+      },
+      {
+        id: 9002,
+        round: { name: "First" },
+        player1Id: 31,
+        player2Id: 32,
+        player1: { id: 31, name: "Marton Fucsovics", countryAcr: "HUN" },
+        player2: { id: 32, name: "Terence Atmane", countryAcr: "FRA" },
+        date: "2026-08-13T19:00:00.000Z",
+      },
+      {
+        id: 9003,
+        round: { name: "First" },
+        player1Id: 41,
+        player2Id: 42,
+        player1: { id: 41, name: "Francisco Cerundolo", countryAcr: "ARG" },
+        player2: { id: 42, name: "Juan Manuel Cerundolo", countryAcr: "ARG" },
+        date: "2026-08-14T17:00:00.000Z",
+      },
+    ];
+    const built = overlayOfficialDraw(CIN_2026_OFFICIAL.seats, fixtures, {
+      prefix: "atp",
+    });
+    assert.equal(built.ok, true);
+    if (!built.ok) throw new Error(built.reason);
+    assert.equal(built.drawSize, 128);
+    assert.equal(built.seats[2].provider_player_id, "11");
+    assert.equal(built.seats[2].player_ref, "cin-2-norrie");
+    assert.equal(built.seats[3].provider_player_id, "22");
+    assert.equal(built.seats[4].provider_player_id, "31");
+    assert.equal(built.seats[5].provider_player_id, "32");
+    assert.equal(built.seats[87].provider_player_id, "41");
+    assert.equal(built.seats[123].provider_player_id, "42");
+    assert.equal(built.matches["9001"], "r0-m1");
+    assert.equal(built.matches["9002"], "r0-m2");
+    assert.equal(built.matches["9003"], undefined);
+    assert.equal(
+      new Set(Object.values(built.matches)).size,
+      Object.values(built.matches).length
+    );
+    assert.equal(built.seats[1].seat_kind, "bye");
+    assert.equal(built.seats[10].seat_kind, "tbd");
+  });
+
+  it("does not give two Cerundolos the same provider id", () => {
+    const fixtures = [
+      {
+        id: 1,
+        player1Id: 52934,
+        player2Id: 99,
+        player1: { id: 52934, name: "Francisco Cerundolo", countryAcr: "ARG" },
+        player2: { id: 99, name: "Brandon Nakashima", countryAcr: "USA" },
+      },
+    ];
+    const built = overlayOfficialDraw(CIN_2026_OFFICIAL.seats, fixtures, {
+      prefix: "atp",
+    });
+    assert.equal(built.ok, true);
+    if (!built.ok) throw new Error(built.reason);
+    assert.equal(built.seats[87].provider_player_id, "52934");
+    assert.equal(built.seats[123].provider_player_id, null);
+  });
+
+  it("fills a TBD seat from the named opponent's published match", () => {
+    const seats = [
+      {
+        position: 0,
+        player_ref: "p-norrie",
+        last_name: "Norrie",
+        given_name: "Cameron",
+        seed: null,
+        country_code: "GBR",
+        is_bye: false,
+        seat_kind: "player",
+        entry_status: null,
+        provider_player_id: null,
+      },
+      {
+        position: 1,
+        player_ref: "tbd-1",
+        last_name: "Qualifier",
+        seed: null,
+        country_code: "XXX",
+        is_bye: false,
+        seat_kind: "tbd",
+        entry_status: null,
+        provider_player_id: null,
+      },
+    ];
+    const fixtures = [
+      {
+        id: 1,
+        player1Id: 11,
+        player2Id: 22,
+        player1: { id: 11, name: "Cameron Norrie", countryAcr: "GBR" },
+        player2: { id: 22, name: "Dino Prizmic", countryAcr: "CRO" },
+      },
+    ];
+    const built = overlayOfficialDraw(seats, fixtures, { prefix: "atp" });
+    assert.equal(built.ok, true);
+    if (!built.ok) throw new Error(built.reason);
+    assert.equal(built.seats[1].seat_kind, "player");
+    assert.equal(built.seats[1].last_name, "Prizmic");
+    assert.equal(built.seats[1].provider_player_id, "22");
+    assert.equal(built.matches["1"], "r0-m0");
+  });
+
+  it("maps a later round from official feeders + a published pair", () => {
+    const seats = [
+      {
+        position: 0,
+        player_ref: "p-a",
+        last_name: "Norrie",
+        given_name: "Cameron",
+        seed: null,
+        country_code: "GBR",
+        is_bye: false,
+        seat_kind: "player",
+        entry_status: null,
+        provider_player_id: "11",
+      },
+      {
+        position: 1,
+        player_ref: "p-b",
+        last_name: "Prizmic",
+        given_name: "Dino",
+        seed: null,
+        country_code: "CRO",
+        is_bye: false,
+        seat_kind: "player",
+        entry_status: null,
+        provider_player_id: "22",
+      },
+      {
+        position: 2,
+        player_ref: "p-c",
+        last_name: "Etcheverry",
+        given_name: "Tomas",
+        seed: 26,
+        country_code: "ARG",
+        is_bye: false,
+        seat_kind: "player",
+        entry_status: null,
+        provider_player_id: "33",
+      },
+      {
+        position: 3,
+        player_ref: "bye-3",
+        last_name: "Bye",
+        seed: null,
+        country_code: "XXX",
+        is_bye: true,
+        seat_kind: "bye",
+        entry_status: null,
+        provider_player_id: null,
+      },
+    ];
+    const fixtures = [
+      {
+        id: 10,
+        player1Id: 11,
+        player2Id: 22,
+        player1: { id: 11, name: "Cameron Norrie" },
+        player2: { id: 22, name: "Dino Prizmic" },
+        match_winner: 11,
+        result: "6-3 6-2",
+      },
+      {
+        id: 11,
+        player1Id: 11,
+        player2Id: 33,
+        player1: { id: 11, name: "Cameron Norrie" },
+        player2: { id: 33, name: "Tomas Martin Etcheverry" },
+      },
+    ];
+    const built = overlayOfficialDraw(seats, fixtures, { prefix: "atp" });
+    assert.equal(built.ok, true);
+    if (!built.ok) throw new Error(built.reason);
+    assert.equal(built.matches["10"], "r0-m0");
+    assert.equal(built.matches["11"], "r1-m0");
+    assert.equal(built.results[0].match_key, "r0-m0");
+    assert.equal(built.results[0].winner_ref, "p-a");
+  });
+});
+
+describe("parseOfficialDraw", () => {
+  it("reads ordered first-round matches including bye and TBD", () => {
+    const raw = {
+      rounds: [
+        {
+          name: "R32",
+          matches: [
+            {
+              player1: { id: 1, name: "Alexander Zverev", countryAcr: "GER", seed: 1 },
+              player2: { name: "Bye" },
+            },
+            {
+              player1: { id: 2, name: "Cameron Norrie", countryAcr: "GBR" },
+              player2: { name: "Qualifier" },
+            },
+          ],
+        },
+      ],
+    };
+    // 2 matches is not a power-of-2 first round (>=8). Use 8 matches.
+    raw.rounds[0].matches = [
+      ...raw.rounds[0].matches,
+      ...Array.from({ length: 6 }, (_, i) => ({
+        player1: { id: 10 + i, name: `Player Alpha${i}`, countryAcr: "USA" },
+        player2: { id: 20 + i, name: `Player Beta${i}`, countryAcr: "ESP" },
+      })),
+    ];
+    const parsed = parseOfficialDraw(raw, { prefix: "atp" });
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    assert.equal(parsed.drawSize, 16);
+    assert.equal(parsed.seats[0].last_name, "Zverev");
+    assert.equal(parsed.seats[1].seat_kind, "bye");
+    assert.equal(parsed.seats[3].seat_kind, "tbd");
+  });
+
+  it("prefers the expected singles size over a longer doubles array", () => {
+    const singles = Array.from({ length: 32 }, (_, i) => ({
+      player1: { id: 100 + i, name: `Alpha ${i}`, countryAcr: "USA" },
+      player2: { id: 200 + i, name: `Beta ${i}`, countryAcr: "ESP" },
+    }));
+    const doubles = Array.from({ length: 16 }, (_, i) => ({
+      player1: { id: 300 + i, name: `Townsend ${i}`, countryAcr: "USA" },
+      player2: { id: 400 + i, name: `Schuurs ${i}`, countryAcr: "NED" },
+    }));
+    const raw = { rounds: [{ name: "R64", matches: singles }, { name: "D32", matches: doubles }] };
+    const parsed = parseOfficialDraw(raw, { prefix: "wta", expectedDrawSize: 64 });
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    assert.equal(parsed.drawSize, 64);
+  });
+
+  it("rejects a doubles 32-draw when the event is a 64 singles field", () => {
+    const doubles = Array.from({ length: 16 }, (_, i) => ({
+      player1: { id: 300 + i, name: `Townsend ${i}`, countryAcr: "USA" },
+      player2: { id: 400 + i, name: `Schuurs ${i}`, countryAcr: "NED" },
+    }));
+    const parsed = parseOfficialDraw(
+      { rounds: [{ name: "D32", matches: doubles }] },
+      { prefix: "wta", expectedDrawSize: 64 }
+    );
+    assert.equal(parsed.ok, false);
+  });
+});
+
+describe("mapLiveFinishedToIngest", () => {
+  it("maps a finished live event with a winner id", () => {
+    const { results, skipped } = mapLiveFinishedToIngest(
+      [
+        {
+          id: "live-1",
+          status: "Finished",
+          matchId: "11-22-21347-12",
+          winnerId: 11,
+        },
+      ],
+      {
+        tournament_id: "t",
+        provider_tournament_id: "21347",
+        players: { "11": "p-a" },
+        matches: { "11|22": "r0-m0" },
+      }
+    );
+    assert.equal(skipped.length, 0);
+    assert.deepEqual(results, [
+      { match_key: "r0-m0", winner_ref: "p-a", voided: false },
+    ]);
+  });
+
+  it("skips finished live events without a winner id", () => {
+    const { results, skipped } = mapLiveFinishedToIngest(
+      [{ id: "live-2", status: "Finished", matchId: "11-22-21347-12" }],
+      {
+        tournament_id: "t",
+        provider_tournament_id: "21347",
+        players: { "11": "p-a" },
+        matches: { "11|22": "r0-m0" },
+      }
+    );
+    assert.equal(results.length, 0);
+    assert.match(skipped[0].reason, /without winner id/);
   });
 });
 

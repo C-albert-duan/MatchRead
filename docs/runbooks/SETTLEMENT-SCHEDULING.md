@@ -6,9 +6,12 @@ Until settlement runs, standings and Daily Check do not move.
 
 | Trigger | Who | Where |
 |---|---|---|
+| **`settle-leagues` + pg_cron** | Platform | Every 5 min at minute 2, 7, … (after sync-tennis) |
 | **Run settlement** | Commissioner | Tournament page (this league) |
 | **Settle all leagues** | Founder | Tournament page after official results |
 | Fixture seed | Dev | `0004_settlement.sql` for `uso-2026` |
+
+Deploy: `npx supabase functions deploy settle-leagues --no-verify-jwt` then `npx supabase db push`. Uses Vault `project_url` + `ingest_secret` (same as sync-tennis). `sync-tennis` also POSTs settle after reconcile.
 
 Flow:
 

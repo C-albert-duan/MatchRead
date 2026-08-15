@@ -21,6 +21,10 @@
     "import:nbo-draw": "node scripts/import-nbo-draw.mjs",
     "sync:lock-at": "node scripts/sync-lock-at.mjs",
     "publish:draws": "node scripts/publish-draws.mjs",
-    "test:provider": "npm run test -w @matchread/provider-rapidapi"
+    "test:provider": "npm run test -w @matchread/provider-rapidapi",
+    "worker": "node apps/worker/src/index.js",
+    "worker:dev": "node --watch apps/worker/src/index.js",
+    "worker:once": "node apps/worker/src/index.js --once",
+    "test:db": "npx supabase test db"
   }
 }

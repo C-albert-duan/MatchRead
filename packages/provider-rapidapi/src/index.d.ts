@@ -132,7 +132,7 @@ export declare function expectedFirstRoundMatches(
 
 export declare function inferDrawSizeFromFirstRound(
   pairCount: number
-): 32 | 64 | 128 | null;
+): 32 | 128 | null;
 
 export type BuiltDraw = {
   ok: true;
@@ -144,7 +144,9 @@ export type BuiltDraw = {
     seed: number | null;
     country_code: string;
     is_bye: boolean;
-    provider_player_id: string;
+    seat_kind?: "player" | "bye" | "tbd";
+    entry_status?: "wc" | "pr" | null;
+    provider_player_id: string | null;
   }>;
   players: Record<string, string>;
   matches: Record<string, string>;
@@ -153,8 +155,117 @@ export type BuiltDraw = {
     scheduled_at: string;
     has_time: boolean;
   }>;
-  results: [];
-  stats: { firstRound: number; verifiedPlayers: number; byes: number };
+  results: Array<{
+    match_key: string;
+    winner_ref: string | null;
+    voided: boolean;
+  }>;
+  stats: {
+    firstRound: number;
+    verifiedPlayers: number;
+    byes: number;
+    mappedPlayers?: number;
+    tbd?: number;
+  };
+};
+
+export type OfficialDrawSeat = {
+  position: number;
+  player_ref: string;
+  last_name: string;
+  given_name?: string | null;
+  seed: number | null;
+  country_code: string;
+  is_bye: boolean;
+  seat_kind: "player" | "bye" | "tbd";
+  entry_status: "wc" | "pr" | null;
+  provider_player_id: string | null;
+};
+
+export declare const CIN_2026_OFFICIAL: {
+  ref: "cin-2026";
+  tour: "atp";
+  draw_size: 128;
+  source: string;
+  seats: OfficialDrawSeat[];
+};
+
+export declare function overlayOfficialDraw(
+  officialSeats: OfficialDrawSeat[] | Array<Record<string, unknown>>,
+  fixtures: unknown[],
+  opts?: { prefix?: string; results?: unknown[] }
+): BuiltDraw | { ok: false; reason: string };
+
+export declare function parseOfficialDraw(
+  raw: unknown,
+  opts?: { prefix?: string }
+):
+  | { ok: true; drawSize: number; seats: OfficialDrawSeat[]; source: string }
+  | { ok: false; reason: string };
+
+export declare function drawNameCandidates(event: {
+  api_name?: string;
+  name?: string;
+}): string[];
+
+export declare function drawYear(event: { starts_on?: string | null }): number;
+
+export declare function getTournamentDraw(
+  client: { get: (path: string) => Promise<any> },
+  tour: Tour,
+  tournamentName: string,
+  year: number | string
+): Promise<{ tour: Tour; name: string; year: number; raw: unknown }>;
+
+export declare function getTournamentSeeds(
+  client: { get: (path: string) => Promise<any> },
+  tour: Tour,
+  tournamentName: string,
+  year: number | string
+): Promise<{ tour: Tour; name: string; year: number; raw: unknown }>;
+
+export declare function fetchOfficialSeats(
+  client: { get: (path: string) => Promise<any> },
+  event: {
+    ref?: string;
+    tour?: string;
+    name?: string;
+    api_name?: string;
+    starts_on?: string | null;
+  }
+): Promise<
+  | { ok: true; drawSize: number; seats: OfficialDrawSeat[]; source: string }
+  | { ok: false; reason: string }
+>;
+
+export declare function getLiveEvents(client: {
+  get: (path: string) => Promise<any>;
+}): Promise<{ events: unknown[]; raw: unknown }>;
+
+export declare function getWsToken(client: {
+  get: (path: string) => Promise<any>;
+}): Promise<{ token: string | null; raw: unknown }>;
+
+export declare function parseMatchId(matchId: string | null | undefined): {
+  player1Id: string;
+  player2Id: string;
+  tournamentId: string;
+  roundId: string;
+} | null;
+
+export declare function liveEventsForTournament(
+  events: unknown,
+  providerTournamentId: string | number
+): unknown[];
+
+export declare function isFinishedLiveStatus(status: unknown): boolean;
+
+export declare function mapLiveFinishedToIngest(
+  events: unknown,
+  mapping: ReconcileMapping
+): {
+  results: IngestResultRow[];
+  skipped: { id: string; reason: string }[];
 };
 
 export declare function buildDrawFromFirstRound(

@@ -166,6 +166,50 @@ export async function getTournamentResults(client, tour, providerTournamentId) {
   return { singles, doubles, raw: body };
 }
 
+export function encodeDrawName(name) {
+  return encodeURIComponent(String(name || "").trim());
+}
+
+/**
+ * Official main-draw sheet (Mega). Name path, not season id.
+ * @param {{ get: (path: string) => Promise<any> }} client
+ * @param {'atp'|'wta'} tour
+ * @param {string} tournamentName
+ * @param {number|string} year
+ */
+export async function getTournamentDraw(client, tour, tournamentName, year) {
+  const t = normalizeTour(tour);
+  const encoded = encodeDrawName(tournamentName);
+  const y = String(year).trim();
+  const paths = [
+    `/tennis/v2/tournament/${t}/${encoded}/${y}/draws?includeAll=true`,
+    `/tennis/v2/ms-api/tournament/${t}/${encoded}/${y}/draws`,
+  ];
+  let lastErr = null;
+  for (const path of paths) {
+    try {
+      const raw = await client.get(path);
+      return { tour: t, name: tournamentName, year: Number(y), raw };
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error("draw endpoint failed");
+}
+
+/**
+ * Official seeds list (Mega).
+ */
+export async function getTournamentSeeds(client, tour, tournamentName, year) {
+  const t = normalizeTour(tour);
+  const encoded = encodeDrawName(tournamentName);
+  const y = String(year).trim();
+  const raw = await client.get(
+    `/tennis/v2/tournament/${t}/${encoded}/${y}/seeds?includeAll=true`
+  );
+  return { tour: t, name: tournamentName, year: Number(y), raw };
+}
+
 /**
  * Upcoming / scheduled fixtures for a tournament season.
  * @param {{ get: (path: string) => Promise<any> }} client
@@ -372,7 +416,8 @@ export function expectedFirstRoundMatches(drawSize) {
 
 export function inferDrawSizeFromFirstRound(pairCount) {
   if (pairCount === 64) return 128;
-  if (pairCount === 32) return 64;
+  // 32 named pairs is ambiguous (true 64-draw vs 96-player / 128-slot Masters).
+  // Only an explicit drawSize of 64 may publish a 64. Never infer it.
   if (pairCount === 16) return 32;
   return null;
 }
@@ -380,31 +425,39 @@ export function inferDrawSizeFromFirstRound(pairCount) {
 /**
  * Build a verified draw from a complete first-round field.
  * Incomplete fields return `{ ok: false }` — never pad with fiction.
- * 96-draw seed byes are not inferred (no slot map from this API).
+ * 96-player / 128-slot draws need official slots (overlayOfficialDraw).
  * @param {unknown[]} fixtures
  * @param {{ prefix: string, drawSize?: number }} opts
  */
 export function buildDrawFromFirstRound(fixtures, opts) {
   const prefix = String(opts?.prefix || "p").replace(/[^a-z0-9-]/gi, "") || "p";
   const pairs = namedFirstRoundPairs(fixtures);
+  const requested = Number(opts?.drawSize) || 0;
   const drawSize =
-    opts?.drawSize && expectedFirstRoundMatches(opts.drawSize) === pairs.length
-      ? Number(opts.drawSize)
+    requested && expectedFirstRoundMatches(requested) === pairs.length
+      ? requested
       : inferDrawSizeFromFirstRound(pairs.length);
+
+  if (requested === 128 && pairs.length !== 64) {
+    return {
+      ok: false,
+      reason: `128-draw needs official slots or 64 named slam pairs (got ${pairs.length})`,
+      pairs: pairs.length,
+    };
+  }
+
+  if (requested === 96) {
+    return {
+      ok: false,
+      reason: "96-draw needs official 128-slot sheet with seed byes",
+      pairs: pairs.length,
+    };
+  }
 
   if (!drawSize) {
     return {
       ok: false,
       reason: `incomplete first round (${pairs.length} named pairs)`,
-      pairs: pairs.length,
-    };
-  }
-
-  if (drawSize === 96) {
-    return {
-      ok: false,
-      reason:
-        "96-draw needs seed-bye slots the fixtures API does not prove",
       pairs: pairs.length,
     };
   }
@@ -448,6 +501,8 @@ export function buildDrawFromFirstRound(fixtures, opts) {
         seed: p.seed,
         country_code: p.country_code,
         is_bye: false,
+        seat_kind: "player",
+        entry_status: null,
         provider_player_id: p.id,
       });
       players[p.id] = ref;
@@ -592,4 +647,64 @@ export function backoffMs(attempt) {
 /** @param {number} ms */
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+export { CIN_2026_OFFICIAL } from "./official/cin-2026.js";
+export { overlayOfficialDraw } from "./official/overlay.js";
+export {
+  drawNameCandidates,
+  drawYear,
+  parseOfficialDraw,
+} from "./official/parse-draw.js";
+export {
+  getLiveEvents,
+  getWsToken,
+  isFinishedLiveStatus,
+  liveEventList,
+  liveEventsForTournament,
+  liveWinnerId,
+  mapLiveFinishedToIngest,
+  parseMatchId,
+} from "./live.js";
+
+/**
+ * Official seats from Tennis API draws. Cincinnati MDS is fallback only
+ * when the API sheet is missing. Never invent slot order from match ids.
+ * @param {{ get: (path: string) => Promise<any> }} client
+ * @param {{ ref?: string, tour?: string, name?: string, api_name?: string, starts_on?: string|null, draw_size?: number }} event
+ */
+export async function fetchOfficialSeats(client, event) {
+  const { drawNameCandidates, drawYear, parseOfficialDraw } = await import(
+    "./official/parse-draw.js"
+  );
+  const { CIN_2026_OFFICIAL } = await import("./official/cin-2026.js");
+  // Cincinnati topology is the published MDS sheet. Do not replace slot
+  // order with a Tennis API parse of a different shape.
+  if (event?.ref === "cin-2026") {
+    return {
+      ok: true,
+      drawSize: CIN_2026_OFFICIAL.seats.length,
+      seats: CIN_2026_OFFICIAL.seats,
+      source: "mds",
+    };
+  }
+  const prefix = normalizeTour(event?.tour);
+  const year = drawYear(event);
+  const names = drawNameCandidates(event);
+  for (const name of names) {
+    try {
+      const { raw } = await getTournamentDraw(client, prefix, name, year);
+      const parsed = parseOfficialDraw(raw, {
+        prefix,
+        expectedDrawSize: Number(event?.draw_size) || 0,
+      });
+      if (parsed.ok) return parsed;
+    } catch {
+      // try the next published name
+    }
+  }
+  return {
+    ok: false,
+    reason: "no official Tennis API draw",
+  };
 }

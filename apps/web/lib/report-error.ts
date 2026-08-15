@@ -1,7 +1,4 @@
-/**
- * Sentry store (no SDK). No-op unless SENTRY_DSN or NEXT_PUBLIC_SENTRY_DSN is set.
- * Browser uses the public DSN; server uses SENTRY_DSN first.
- */
+import { captureOps } from "@/lib/ops-capture";
 
 type SentryTarget = { store: string; key: string };
 
@@ -32,9 +29,13 @@ export function reportError(
   err: unknown,
   extras?: Record<string, string | number | boolean | null>
 ) {
+  const error = err instanceof Error ? err : new Error(String(err));
+  captureOps("error", error.name || "Error", {
+    message: error.message.slice(0, 500),
+    ...(extras ?? {}),
+  });
   const target = parseDsn(dsn());
   if (!target) return;
-  const error = err instanceof Error ? err : new Error(String(err));
   const payload = {
     event_id: crypto.randomUUID?.() || String(Date.now()),
     timestamp: new Date().toISOString(),

@@ -62,10 +62,11 @@ Visual truth lives in [`../Wireframe/`](../Wireframe/) — do not edit it for pr
 | [runbooks/FIRST-PRODUCTION.md](./runbooks/FIRST-PRODUCTION.md) | First deploy |
 | [runbooks/SMTP.md](./runbooks/SMTP.md) | Custom Auth SMTP (Resend, etc.) |
 | [runbooks/INGEST.md](./runbooks/INGEST.md) | Official results → match_results |
+| [runbooks/SYNC-TENNIS.md](./runbooks/SYNC-TENNIS.md) | Auto-fetch Tennis API (Supabase secret + Edge) |
 | [runbooks/BETA-FAILURE-MODES.md](./runbooks/BETA-FAILURE-MODES.md) | Private beta support cheat-sheet |
 | [runbooks/SETTLEMENT-SCHEDULING.md](./runbooks/SETTLEMENT-SCHEDULING.md) | Arm settlement |
 | [runbooks/TENNIS-PROVIDER.md](./runbooks/TENNIS-PROVIDER.md) | RapidAPI |
-| [runbooks/RAILWAY-WORKER.md](./runbooks/RAILWAY-WORKER.md) | Live ingestion listener |
+| [runbooks/RAILWAY-WORKER.md](./runbooks/RAILWAY-WORKER.md) | Optional local worker |
 
 ### References
 

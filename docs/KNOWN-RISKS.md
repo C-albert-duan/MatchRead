@@ -2,17 +2,17 @@
 
 Carried from wireframe / engineering handoff. Update as items close.
 
-## 1. Settlement is not scheduled (blocker for standings)
+## 1. Settlement cron is armed on production
 
-Until something invokes settlement: no result freezes into a league, `previous_score` stays null, Daily Check stays quiet, season standings never move.
+`settle-leagues` + `pg_cron` (`15,45 * * * *`) grades submitted brackets after official results. Vault names `project_url` + `ingest_secret`. First live POST returned 200 (no submitted brackets yet to grade).
 
 → [runbooks/SETTLEMENT-SCHEDULING.md](./runbooks/SETTLEMENT-SCHEDULING.md)
 
-## 2. No deployable ingestion listener (deferrable for beta)
+## 2. Tennis API sync is armed — provider 522 can still stall a tick
 
-Without an always-on socket process, results arrive only via REST reconciliation — scores lag. Acceptable for invited beta; not for public live launch.
+`pg_cron` every 5 minutes POSTs `sync-tennis`. Edge `RAPIDAPI_KEY`, Vault, and cron jobs are live on `opugihofwvunwkpcmboq`. A tick still depends on Tennis API (Cloudflare 522 was seen 13 Aug). Mega quota is required for 5-minute polling.
 
-→ [runbooks/RAILWAY-WORKER.md](./runbooks/RAILWAY-WORKER.md)
+→ [runbooks/SYNC-TENNIS.md](./runbooks/SYNC-TENNIS.md)
 
 ## 3. 72-hour bracket window
 
@@ -31,3 +31,11 @@ Provider is trusted for scores and schedule — never for tennis rules or bracke
 ## 6. Email rate limits
 
 Magic link is the only auth method. Invite waves will hit Supabase default sender limits — plan SMTP.
+
+## 7. Showcase removed on purpose
+
+`/showcase` (128 fictional `Player47` rows) was a compile-time shape check. Cincinnati cleanup deleted it: a real `/tournaments/[ref]` is the public draw. Old links redirect to `/tournaments`. The type-canary warning is gone; that is accepted.
+
+## 8. First-party ops capture is the live error tool
+
+Sentry/PostHog keys are optional. Errors and the nine launch events write to `ops_events` (visible on `/founder`). Provider failures also insert from `sync-tennis`.

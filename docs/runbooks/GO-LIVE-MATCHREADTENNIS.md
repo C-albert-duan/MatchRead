@@ -127,14 +127,14 @@ Upgrade RapidAPI off **Basic** before frequent polling (50 req/day).
 ### G2 — Supabase machine path
 
 ```bash
-# Apply provider columns (SQL editor or migrate profile)
-# File: supabase/migrations/0010_provider_refs.sql
-
-supabase functions deploy ingest-events
-supabase secrets set INGEST_SECRET=<long-random>
+npx supabase secrets set RAPIDAPI_KEY=<key>
+npx supabase secrets set INGEST_SECRET=<long-random>
+npx supabase functions deploy ingest-events --no-verify-jwt
+npx supabase functions deploy rebuild-draw --no-verify-jwt
+npx supabase functions deploy sync-tennis --no-verify-jwt
 ```
 
-Smoke ingest with manual JSON once ([INGEST.md](./INGEST.md)).
+See [SYNC-TENNIS.md](./SYNC-TENNIS.md). Smoke ingest with manual JSON once ([INGEST.md](./INGEST.md)).
 
 ### G3 — Map a pilot tournament
 
@@ -154,14 +154,14 @@ npm run reconcile:results -- --map .provider-map.json
 
 On **https://matchreadtennis.com**: open that tournament → confirm Official results → **Settle** → check standings / result page.
 
-### G5 — GitHub Action (recommended vs laptop)
+### G5 — Supabase cron (every 5 min)
 
-Workflow: `.github/workflows/reconcile-results.yml` — see [RECONCILE-RESULTS.md](./RECONCILE-RESULTS.md#github-action-scheduled).
+See [SYNC-TENNIS.md](./SYNC-TENNIS.md). GitHub is not required.
 
-1. Add GitHub Actions secrets: `RAPIDAPI_KEY`, `MATCHREAD_INGEST_URL`, `INGEST_SECRET`, `PROVIDER_MAP_JSON`.
-2. Push/merge to `main`.
-3. Actions → **Reconcile RapidAPI results** → Run workflow (**dry_run** first).
-4. Schedule runs every 6 hours; Settle still happens in the app (or later cron).
+1. Deploy functions + `npx supabase db push` (migration `0025`).
+2. SQL editor: Vault `project_url` + `ingest_secret`.
+3. `select public.invoke_sync_tennis();` once to prove the POST.
+4. Settle still happens in the app.
 
 Still **not** Vercel. Optional settle cron: [SETTLEMENT-SCHEDULING.md](./SETTLEMENT-SCHEDULING.md).
 

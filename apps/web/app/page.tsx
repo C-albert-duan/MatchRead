@@ -105,7 +105,7 @@ function TournamentRows({
               tour={event.tour}
               surface={surface}
               surfaceLabel={t(surfaceKey(event.surface))}
-              when={formatTournamentDate(event.starts_on, locale) ?? t("calendar.dateTbc")}
+              when={formatTournamentDate(event.starts_on, locale, event.ends_on) ?? t("calendar.dateTbc")}
               lockWhen={lockWhenLabel(event, locale)}
               status={t(calendarStatusMessageKey(status))}
               statusPending={status === "drawPending"}

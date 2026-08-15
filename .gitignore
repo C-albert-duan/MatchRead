@@ -53,3 +53,6 @@ pnpm-debug.log*
 agent-transcripts
 
 .provider-map-toronto.json
+
+.vercel
+.env*

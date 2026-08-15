@@ -1,17 +1,21 @@
 ---
-description: MatchRead production data must stay 100% provider-backed facts
+description: MatchRead shows official tennis facts — named players, byes, and TBD seats — never fiction
 alwaysApply: true
 ---
 
 # Pure-fact data (non-negotiable)
 
-Production tennis data is **facts from Tennis API only**. If the provider does not prove it, MatchRead does not store or show it.
+Show the **official main draw as it exists**. A seat is a fact if the official draw or Tennis API published it. Fiction is names, slots, byes, or times nobody published.
 
-## Allowed
+Tennis API is the source for player identities, results, and timed schedule. Official draw structure (size, slot order, seeds, byes, WC/PR, Qualifier/LL) is also fact. If the API has no slot map, still show the official seats — do not hide them or invent a 64-draw from match ids.
+
+## Allowed (must show)
 
 - Tournament rows with a real `provider_tournament_id` (calendar metadata is ok before a draw exists)
-- Draw seats where every **non-bye** has `provider_player_id` + a real last name
-- Byes: `is_bye = true`, `provider_player_id` null
+- Named seats: `provider_player_id` + real last name
+- Byes the official draw published: `is_bye = true`, `provider_player_id` null
+- Official TBD seats (Qualifier / Lucky Loser): keep the TBD label, no invented name
+- WC / PR / seed / country when the official draw or provider proved them
 - Match results / schedule whose `winner_ref` / `match_key` map to those seats
 - `lock_at` from the earliest **timed** main-draw first ball (`has_time = true`). Date-only fixtures are not a kickoff.
 - Pre-draw public pages: name, dates, tour, surface, countdown — **no empty or invented bracket**
@@ -19,22 +23,22 @@ Production tennis data is **facts from Tennis API only**. If the provider does n
 ## Forbidden
 
 - Fictional seats (`Player47`, `p-0`…`p-15`, `Player ${id}`)
-- Opening `/enter` or “draw open” without verified provider seats
-- Reconstructing a partial draw (e.g. 20 of 32 first-round matches) to look complete
-- Hiding named first-round matches; those pairs must be listed and pickable
-- Guessing bracket order, seeds, byes, or a midnight/`15:00` lock the provider did not prove
+- Inventing a qualifier name, a bye the official draw did not publish, or a guessed slot order
+- Hiding a named match, an official bye, or an official TBD seat behind “draw pending”
+- Padding extra seats so a partial field looks like 32/64/96
 - Hard-coding tournament URLs/refs instead of reading `tournaments.ref`
 - Odds, predictions, or any non-fact product data
+- A midnight / `15:00` lock the provider did not prove
 
-## If the API is incomplete
+## Incomplete official draw
 
-Keep the event **draw pending**. Fail closed. Do not wipe a verified draw to fill a gap with fiction. Do not ship a showcase/fixture draw on the live calendar.
+Fail **closed** on fiction. Fail **open** on official seats.
 
-## If the API is complete
+If the main draw is out (including 96-player / 128-slot Masters with seed byes and Q/LL TBD), publish those seats in official order. Do not wait for every qualifier to be named. Do not collapse it to a 64-draw of named pairs only.
 
-Publish the draw. A full named first round is enough to open brackets — see `.cursor/rules/publish-complete-draw.mdc`.
+If there is no official main draw yet, keep the event **draw pending**. Do not wipe a verified draw to fill a gap with fiction. Do not ship a showcase/fixture draw on the live calendar.
 
 ```sql
--- A public draw is verified only when this is true:
--- non-bye seats > 0 AND every non-bye has provider_player_id
+-- Public draw: every seat is named OR official bye OR official TBD.
+-- No fictional last names. Slot count = official draw size (32/64/128).
 ```

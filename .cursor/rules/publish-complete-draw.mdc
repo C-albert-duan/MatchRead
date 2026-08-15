@@ -1,27 +1,30 @@
 ---
-description: A complete Tennis API field must become a public MatchRead draw
+description: Official main-draw seats (named, bye, TBD) must be public; named pairs are pickable immediately
 alwaysApply: true
 ---
 
-# Publish complete draws (non-negotiable)
+# Publish official draws (non-negotiable)
 
-MatchRead exists so people can pick a tournament.
+MatchRead exists so people can see the official tournament and pick it.
 
-## Proven pairs are always public
+## Official seats are always public
 
-If Tennis API names **both** players in a main-draw first-round match, users must **see that match and be able to pick a winner**. Do not wait for the rest of the field. Store it in `announced_matchups` (`fx-{provider_match_id}`).
+The public page shows the **official main-draw sheet**: named players, published byes, and Qualifier/LL TBD seats, in official slot order. That is the draw. Do not wait for TBD seats to be named.
 
-## Full bracket when the field is complete
+If Tennis API names **both** players in a first-round match, users must **see that match and be able to pick a winner** immediately (`announced_matchups`, `fx-{provider_match_id}`). Partial pairs (named vs Q/LL) stay visible; only the named side is pickable until the TBD is filled.
 
-If the first round is complete (16 → 32, 32 → 64, 64 → 128 named pairs), also publish a verified draw via `rebuild-draw`.
+## Full bracket when the official field exists
+
+When the official first round is published (including 16→32, 32→64, 64→128, or a 96-player Masters as **128 slots + seed byes**), publish a verified draw via `rebuild-draw`. Q/LL TBD and byes count as seats. They do not block publish.
 
 ## Still forbidden
 
-- Padding a partial first round to look like 32/64/96
-- Inventing qualifying winners, seed-bye slots, or `Player ${id}`
-- Hiding named first-round matches behind “draw pending” with no list
+- Padding seats the official draw did not publish
+- Inventing qualifying winners or bye slots
+- Hiding named matches, byes, or TBD seats behind “draw pending” with no list
+- Inferring draw size from named-pair count (32 named R128 pairs is not a 64-draw)
 
-Qualifying is ignored. Date-only rows are still seats; times are optional.
+Qualifying **matches** are ignored. Qualifier **seats in the main draw** are official and must show. Date-only rows are still seats; times are optional.
 
 ## How
 
@@ -29,4 +32,4 @@ Qualifying is ignored. Date-only rows are still seats; times are optional.
 - Do not wipe a verified draw to replace it with a weaker one (`force` only for a proven better field)
 - `lock_at` still comes from the first timed main-draw ball
 
-This is the other half of pure-fact: fail closed on gaps, fail **open** the moment the field is complete.
+This is the other half of pure-fact: fail closed on invented people; fail **open** the moment the official draw exists.

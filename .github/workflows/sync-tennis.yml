@@ -1,0 +1,81 @@
+# Optional manual trigger. Production clock is Supabase pg_cron (every 30 min).
+# See docs/runbooks/SYNC-TENNIS.md — GitHub is not required.
+#
+# Repo secrets if you use this button (no RAPIDAPI_KEY):
+#   NEXT_PUBLIC_SUPABASE_URL   https://<ref>.supabase.co
+#   INGEST_SECRET              same as supabase secrets INGEST_SECRET
+
+name: Sync tennis facts
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: "publish | reconcile | all"
+        type: choice
+        options: [all, publish, reconcile]
+        default: all
+      dry_run:
+        description: "Fetch only — do not write"
+        type: boolean
+        default: true
+      ref:
+        description: "Optional tournament ref (e.g. cin-2026)"
+        type: string
+        default: ""
+
+concurrency:
+  group: sync-tennis
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: POST sync-tennis
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Call Edge Function
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
+          EVENT_NAME: ${{ github.event_name }}
+          JOB_INPUT: ${{ inputs.job }}
+          DRY_INPUT: ${{ inputs.dry_run }}
+          REF_INPUT: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${INGEST_SECRET:-}" ]; then
+            echo "Missing NEXT_PUBLIC_SUPABASE_URL or INGEST_SECRET repo secrets."
+            exit 1
+          fi
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            JOB="${JOB_INPUT:-all}"
+            DRY="${DRY_INPUT:-false}"
+            REF="${REF_INPUT:-}"
+          else
+            JOB="all"
+            DRY="false"
+            REF=""
+          fi
+          case "${DRY}" in
+            true|True|TRUE) DRY_JSON=true ;;
+            *) DRY_JSON=false ;;
+          esac
+          URL="${SUPABASE_URL%/}/functions/v1/sync-tennis"
+          BODY=$(jq -n \
+            --arg job "${JOB}" \
+            --argjson dryRun "${DRY_JSON}" \
+            --arg ref "${REF}" \
+            '{job:$job, dryRun:$dryRun} + (if $ref == "" then {} else {ref:$ref} end)')
+          echo "POST $URL job=$JOB dryRun=$DRY_JSON"
+          CODE=$(curl -sS -o /tmp/sync-out.json -w "%{http_code}" \
+            -X POST "$URL" \
+            -H "Authorization: Bearer ${INGEST_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d "$BODY")
+          cat /tmp/sync-out.json
+          echo
+          test "$CODE" -ge 200 && test "$CODE" -lt 300

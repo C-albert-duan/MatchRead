@@ -9,10 +9,11 @@ Adapted from `Wireframe/MatchRead-main/Engineer Handoff/ENVIRONMENT-VARIABLES.md
 `SUPABASE_SERVICE_ROLE_KEY` is permitted in:
 
 1. Supabase Edge Functions (platform-injected)
-2. Railway listener (when built)
-3. A launch engineer's local shell for one-off ops
+2. A launch engineer's local shell for one-off ops
 
 **Never on Vercel. Never in committed `.env*` files. Never in the browser or any `NEXT_PUBLIC_*` variable.**
+
+`RAPIDAPI_KEY` lives in **Supabase Edge secrets** (`npx supabase secrets set RAPIDAPI_KEY=...`). The 5-minute clock is `pg_cron` inside the same project (Vault names `project_url` + `ingest_secret`). Never put the RapidAPI key on Vercel, GitHub, the domain, SQL migrations, or `NEXT_PUBLIC_*`.
 
 ## Vercel / `apps/web`
 
@@ -55,27 +56,39 @@ RAPIDAPI_HOST=tennis-api-atp-wta-itf.p.rapidapi.com
 
 Mapping for reconcile: copy `.provider-map.example.json` → `.provider-map.json` (gitignored). See [RECONCILE-RESULTS.md](./runbooks/RECONCILE-RESULTS.md).
 
-## Edge functions / listener (later)
+## Production sync (Supabase secrets + Edge)
 
 | Variable | Where |
 |---|---|
+| `RAPIDAPI_KEY` | `npx supabase secrets set` — read only by `sync-tennis` |
+| `RAPIDAPI_HOST` | Optional secret; default host is fine |
+| `INGEST_SECRET` | Edge secret **and** Vault name `ingest_secret` (same value) |
+| `project_url` | Vault — `https://<ref>.supabase.co` (no trailing path) |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Injected in Edge Functions |
-| `RAPIDAPI_KEY` | Provider worker / local probe scripts only — never Vercel |
-| `RAPIDAPI_HOST` | `tennis-api-atp-wta-itf.p.rapidapi.com` (same places as key) |
-| `MATCHREAD_INGEST_URL` / `INGEST_SECRET` | Worker → `ingest-events` |
 
-Plan: [plans/15-rapidapi-tennis-provider.md](./plans/15-rapidapi-tennis-provider.md).
+Runbook: [runbooks/SYNC-TENNIS.md](./runbooks/SYNC-TENNIS.md).
 
-## Deferred: PostHog / Sentry
+## Local worker (`apps/worker`, optional)
 
-Not required for invited beta. Do **not** add SDKs until chosen. When ready:
+Same jobs as `sync-tennis`, from `.env.provider` on a laptop. Not the production path.
 
-| Variable | Notes |
+| Variable | Where |
 |---|---|
-| `NEXT_PUBLIC_POSTHOG_KEY` / host | Client analytics — only if product opts in |
-| `SENTRY_DSN` (server) / `NEXT_PUBLIC_SENTRY_DSN` | Error reporting — only if product opts in |
+| `RAPIDAPI_KEY` | `.env.provider` — **never Vercel** |
+| `RAPIDAPI_HOST` | `tennis-api-atp-wta-itf.p.rapidapi.com` |
+| `MATCHREAD_INGEST_URL` / `INGEST_SECRET` | Worker → `ingest-events` / `rebuild-draw` |
+| `WORKER_PUBLISH_MS` / `WORKER_RECONCILE_MS` | Worker poll intervals (default 15m / 60s) |
 
-Leave unset until then; no stubs beyond this note.
+## Observability
+
+Live without third-party keys: `ops_events` (anon insert, authenticated read on `/founder`). Sentry / PostHog still fire when those keys are set.
+
+| Variable | Where |
+|---|---|
+| `NEXT_PUBLIC_SENTRY_DSN` | Optional extra browser error reports |
+| `SENTRY_DSN` | Optional extra server reports |
+| `NEXT_PUBLIC_POSTHOG_KEY` | Optional extra product events |
+| `NEXT_PUBLIC_POSTHOG_HOST` | Optional; default `https://us.i.posthog.com` |
 
 ## Rotation
 

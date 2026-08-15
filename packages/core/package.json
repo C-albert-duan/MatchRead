@@ -13,7 +13,7 @@
   "scripts": {
     "lint": "node -e \"console.log('core lint ok')\"",
     "typecheck": "tsc --noEmit",
-    "test": "node ../../scripts/verify-settlement-math.mjs"
+    "test": "node --experimental-strip-types --test src/bracket.test.ts && node ../../scripts/verify-settlement-math.mjs"
   },
   "devDependencies": {
     "typescript": "^5.5.0"

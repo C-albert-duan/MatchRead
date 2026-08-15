@@ -144,6 +144,10 @@ const en = {
   "founder.stat.results": "Match results",
   "founder.stat.lastRanked": "Last snapshot ranked_at",
   "founder.stat.none": "None yet",
+  "founder.ops.title": "Errors and events",
+  "founder.ops.empty": "Nothing captured yet. Open a public tournament page, then refresh this list.",
+  "founder.ops.kind.error": "Error",
+  "founder.ops.kind.event": "Event",
 
   "disruption.eyebrow": "Ops",
   "disruption.title": "Draw disruption",
@@ -668,6 +672,10 @@ const es: Record<MessageKey, string> = {
   "founder.stat.results": "Resultados de partido",
   "founder.stat.lastRanked": "Último ranked_at de instantánea",
   "founder.stat.none": "Todavía ninguno",
+  "founder.ops.title": "Errores y eventos",
+  "founder.ops.empty": "Aún no hay capturas. Abre una página pública de torneo y vuelve a esta lista.",
+  "founder.ops.kind.error": "Error",
+  "founder.ops.kind.event": "Evento",
 
   "disruption.eyebrow": "Ops",
   "disruption.title": "Disrupción del cuadro",
@@ -1194,6 +1202,10 @@ const ja: Record<MessageKey, string> = {
   "founder.stat.results": "試合結果",
   "founder.stat.lastRanked": "最新スナップショット ranked_at",
   "founder.stat.none": "まだなし",
+  "founder.ops.title": "エラーとイベント",
+  "founder.ops.empty": "まだ記録がありません。公開トーナメントページを開いてから、この一覧を更新してください。",
+  "founder.ops.kind.error": "エラー",
+  "founder.ops.kind.event": "イベント",
 
   "disruption.eyebrow": "Ops",
   "disruption.title": "ドロー中断",

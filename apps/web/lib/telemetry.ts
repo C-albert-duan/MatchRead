@@ -1,5 +1,7 @@
 "use client";
 
+import { captureOps } from "@/lib/ops-capture";
+
 type Props = Record<string, string | number | boolean | null | undefined>;
 
 function posthogKey(): string {
@@ -17,6 +19,7 @@ export function initTelemetry() {
 }
 
 export function track(event: string, props?: Props) {
+  captureOps("event", event, props);
   const apiKey = posthogKey();
   if (!apiKey || typeof window === "undefined") return;
   const distinct =

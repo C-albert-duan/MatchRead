@@ -1,4 +1,5 @@
-/** Server-side PostHog capture. No-op without POSTHOG_KEY / NEXT_PUBLIC_POSTHOG_KEY. */
+/** Server-side capture. PostHog when keyed; always writes ops_events. */
+import { captureOps } from "@/lib/ops-capture";
 
 type Props = Record<string, string | number | boolean | null | undefined>;
 
@@ -19,6 +20,7 @@ function posthogHost(): string {
 }
 
 export function trackServer(event: string, distinctId: string, props?: Props) {
+  captureOps("event", event, { distinct_id: distinctId, ...props });
   const apiKey = posthogKey();
   if (!apiKey) return;
   void fetch(`${posthogHost()}/capture/`, {

@@ -98,7 +98,7 @@ export default async function TournamentsPage({
                               : "surface.hard"
                       )}
                       when={
-                        formatTournamentDate(row.starts_on, locale) ??
+                        formatTournamentDate(row.starts_on, locale, row.ends_on) ??
                         t("calendar.dateTbc")
                       }
                       lockWhen={lockWhenLabel(row, locale)}

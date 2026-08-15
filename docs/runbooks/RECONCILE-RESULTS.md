@@ -5,6 +5,8 @@ Plan: [16-rapidapi-reconcile.md](../plans/16-rapidapi-reconcile.md)
 
 Bring finished ATP/WTA matches into `match_results` without putting `RAPIDAPI_*` on Vercel.
 
+**Production:** [SYNC-TENNIS.md](./SYNC-TENNIS.md) — `RAPIDAPI_KEY` in Supabase secrets, Edge Function `sync-tennis`, GitHub Action only wakes it. This page is the local / mapping reference.
+
 ## Prerequisites
 
 1. Basic (or higher) RapidAPI subscription; key in `.env.provider`
@@ -43,9 +45,9 @@ Then in the app: **Run settlement** (commissioner) or founder settle-all. Reconc
 
 ## GitHub Action (scheduled)
 
-Workflow: [`.github/workflows/reconcile-results.yml`](../../.github/workflows/reconcile-results.yml)
+Workflow: [`.github/workflows/sync-tennis.yml`](../../.github/workflows/sync-tennis.yml) — see [SYNC-TENNIS.md](./SYNC-TENNIS.md).
 
-Runs every **6 hours** (UTC) plus manual **Run workflow**. Secrets stay in GitHub — **not** on Vercel.
+Runs every **6 hours** (UTC) plus manual **Run workflow**. GitHub does **not** hold `RAPIDAPI_KEY`.
 
 ### Repo secrets
 
@@ -53,29 +55,19 @@ GitHub → repo → **Settings → Secrets and variables → Actions**:
 
 | Secret | Value |
 |---|---|
-| `RAPIDAPI_KEY` | RapidAPI key |
-| `RAPIDAPI_HOST` | Optional; defaults to `tennis-api-atp-wta-itf.p.rapidapi.com` |
-| `MATCHREAD_INGEST_URL` | `https://opugihofwvunwkpcmboq.supabase.co/functions/v1/ingest-events` |
-| `INGEST_SECRET` | Same as Supabase function secret |
-| `PROVIDER_MAP_JSON` | Full JSON of your `.provider-map.json` |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://<ref>.supabase.co` |
+| `INGEST_SECRET` | Same as Supabase `INGEST_SECRET` |
 
 ### First run
 
-1. Merge/push workflow to default branch (`main`).
-2. **Actions → Reconcile RapidAPI results → Run workflow** with **dry_run = true**.
-3. Confirm logs show mapped rows.
-4. Run again with **dry_run = false** (live ingest).
-5. On the website: **Settle** (still manual for v1).
+1. `npx supabase secrets set RAPIDAPI_KEY=... INGEST_SECRET=...`
+2. Deploy `sync-tennis`, `rebuild-draw`, `ingest-events` with `--no-verify-jwt`.
+3. Merge/push workflow to default branch (`main`).
+4. **Actions → Sync tennis facts → Run workflow** with **dry_run = true**.
+5. Run again with **dry_run = false** (live ingest).
+6. On the website: **Settle** (still manual for v1).
 
 Scheduled runs always do **live** ingest (not dry-run). Tighten cron only after upgrading off Basic.
-
-### Edge Function JWT
-
-`ingest-events` must be deployed with **`--no-verify-jwt`** because auth is the custom `INGEST_SECRET` bearer, not a Supabase JWT:
-
-```bash
-npx supabase functions deploy ingest-events --project-ref opugihofwvunwkpcmboq --use-api --no-verify-jwt
-```
 
 ## Provider endpoint used
 

@@ -8,14 +8,14 @@ How official match winners enter `match_results` before settlement.
 |---|---|---|
 | **A. Commissioner UI** | Private beta / fixtures | Tournament page → **Official results** → Save result → **Run settlement** |
 | **B. Founder settle-all** | Many leagues, same tournament | After results exist → **Settle all leagues** (founder) |
-| **C. Edge `ingest-events`** | Machine / provider / Railway | `POST` JSON with `INGEST_SECRET` (below) |
+| **C. Edge `sync-tennis`** | Production auto-update | Tennis API → `ingest-events` / `rebuild-draw`. [SYNC-TENNIS.md](./SYNC-TENNIS.md) |
 | **D. SQL seed** | Dev only | `0004_settlement.sql` fixture winners for `uso-2026` |
 
 Settlement is **always** a separate step (grades brackets → snapshots). Ingest alone does not move standings.
 
 ## RapidAPI reconcile (Plan 16)
 
-Worker/script holds `RAPIDAPI_*` → maps → `POST` ingest. See [RECONCILE-RESULTS.md](./RECONCILE-RESULTS.md).
+Production: [SYNC-TENNIS.md](./SYNC-TENNIS.md). Local mapping/scripts: [RECONCILE-RESULTS.md](./RECONCILE-RESULTS.md).
 
 ```bash
 npm run reconcile:results -- --dry-run --map .provider-map.json
@@ -50,11 +50,7 @@ Content-Type: application/json
 }
 ```
 
-Then settle (UI or future Railway cron that invokes settle logic — **not** Vercel with service-role).
-
-## Railway socket (public window)
-
-Worker holds provider socket → `POST`s to `ingest-events` → founder/cron settles. See [RAILWAY-WORKER.md](./RAILWAY-WORKER.md) + [LIVE-LISTENER.md](./LIVE-LISTENER.md).
+Then settle (UI — **not** Vercel with service-role). Auto-fetch is [SYNC-TENNIS.md](./SYNC-TENNIS.md).
 
 ## Do not
 

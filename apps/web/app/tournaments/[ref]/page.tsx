@@ -70,7 +70,7 @@ export default async function PublicTournamentPage({ params }: Props) {
   const leagueCta = user ? leagueHref : signInNextHref(leagueHref);
   const pickHref = user ? enterHref(event.ref) : signInNextHref(enterHref(event.ref));
   const when =
-    formatTournamentDate(event.starts_on, locale) ?? t("calendar.dateTbc");
+    formatTournamentDate(event.starts_on, locale, event.ends_on) ?? t("calendar.dateTbc");
   const lockWhen = lockWhenLabel(event, locale);
 
   const supabase = createClient();

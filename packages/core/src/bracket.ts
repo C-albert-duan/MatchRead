@@ -97,10 +97,21 @@ export function isFictionalSeatName(last: string | null | undefined): boolean {
   return !s || /^player\d*$/i.test(s) || /^player\s+\d+/i.test(s);
 }
 
+/** 0003 UX fixture used player_ref p-0 … p-15. Official seats never use that shape. */
+export function isFictionalSeatRef(ref: string | null | undefined): boolean {
+  return /^p-\d+$/i.test(String(ref || "").trim());
+}
+
 export function isNamedPlayerSeat(
-  seat: Pick<DrawSeat, "is_bye" | "last_name"> & { seat_kind?: SeatKind }
+  seat: Pick<DrawSeat, "is_bye" | "last_name"> & {
+    seat_kind?: SeatKind;
+    player_ref?: string;
+  }
 ): boolean {
-  return seatKind(seat) === "player" && !isFictionalSeatName(seat.last_name);
+  if (seatKind(seat) !== "player") return false;
+  if (isFictionalSeatName(seat.last_name)) return false;
+  if (isFictionalSeatRef(seat.player_ref)) return false;
+  return true;
 }
 
 export function isPublicDrawSeat(

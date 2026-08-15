@@ -1,30 +1,50 @@
-# Runbook — Railway ingestion worker
+# Runbook — Local tennis-facts worker (optional)
 
-Always-on process that holds the provider socket and forwards events.
+Always-on process in `apps/worker`. **Production live ingestion is 5-minute REST `sync-tennis`** ([SYNC-TENNIS.md](./SYNC-TENNIS.md)). That poll is the production listener: deployed, authenticated with Vault `ingest_secret`, mapped, saved, and retried every 5 minutes. Use this worker only on a laptop or Docker when you want the optional Mega socket.
 
-## Status
+Vercel stays the Next.js app only. Do not put `RAPIDAPI_*` or `INGEST_SECRET` on Vercel.
 
-**Not required for invited beta** if REST sweep is acceptable. **Required for public launch** live scores.
+## What it does
 
-## What it must do
+Same jobs as `sync-tennis`:
 
-1. Connect to provider socket with provider credentials.
-2. On each event, `POST` raw payload to `supabase/functions/ingest-events`.
-3. Authenticate with service-role bearer (or dedicated ingest secret).
-4. Parse nothing domain-critical; write nothing to DB directly.
+1. Every `WORKER_PUBLISH_MS` (default 15m): official Mega draw + fixtures → `rebuild-draw`.
+2. Every `WORKER_RECONCILE_MS` (default 60s): finished results + live events → `ingest-events`.
+3. Mega Socket.IO (`live.matchstat.com`) when `ws-token` works — finished events trigger an extra reconcile. Odds are ignored.
+4. `/health` on `PORT` (default 8080).
 
-## What it must not do
+It does **not** write Postgres with a service role. It does **not** settle brackets.
 
-- Hold broad database credentials beyond the ingest call.
-- Live inside the Next.js / Vercel app.
-- Be given to the browser.
+## Local
 
-## Deploy sketch
+```bash
+# one cycle (publish + reconcile), then exit
+npm run worker:once -- --dry-run
 
-- One Railway service, one instance.
-- Env: provider key, Supabase URL, ingest auth secret.
-- Health check / restart on socket drop.
+# live one-shot (needs MATCHREAD_INGEST_URL + INGEST_SECRET)
+npm run worker:once
 
-## Alternative hosts
+# always-on
+npm run worker
+```
 
-Railway is the planned default for this rebuild. One container; reversible.
+Compose:
+
+```bash
+docker compose --env-file .env.docker --env-file .env.provider --profile worker up --build worker
+```
+
+Env (`.env.provider`):
+
+| Variable | Required |
+|---|---|
+| `RAPIDAPI_KEY` | yes |
+| `RAPIDAPI_HOST` | default host is fine |
+| `MATCHREAD_INGEST_URL` | `https://<ref>.supabase.co/functions/v1/ingest-events` |
+| `INGEST_SECRET` | same as Edge secret |
+| `NEXT_PUBLIC_SUPABASE_URL` | anon read of calendar / seats / maps |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon read |
+
+## Production
+
+Do not deploy this to Railway unless you later need an always-on socket. REST poll is `sync-tennis`.
