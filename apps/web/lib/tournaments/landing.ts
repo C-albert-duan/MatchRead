@@ -7,7 +7,7 @@ import {
   isEntryLocked,
   isEntryOpen,
   isInPlay,
-} from "./status.ts";
+} from "./status";
 
 export const UPCOMING_HORIZON_DAYS = 28;
 
