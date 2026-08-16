@@ -13,12 +13,12 @@ type Props = {
   schedule: Record<string, MatchScheduleRow>;
   venueTz: string;
   locale: string;
-  /** /enter/[ref] or /sign-in?next=/enter/[ref] */
-  enterHref: string;
+  /** Signed-in entry path. Omit on the public calendar so names stay read-only. */
+  enterHref?: string;
   entryOpen: boolean;
 };
 
-/** Public sheet: named first-round clicks send the visitor to enter (sign-in if needed). No anon save. */
+/** Public sheet: official seats, results, and times. Picking is a separate CTA. */
 export function PublicOfficialDraw({
   drawSize,
   seats,
@@ -30,6 +30,7 @@ export function PublicOfficialDraw({
   entryOpen,
 }: Props) {
   const router = useRouter();
+  const canPick = Boolean(entryOpen && enterHref);
 
   return (
     <BracketGrid
@@ -37,13 +38,13 @@ export function PublicOfficialDraw({
       seats={seats}
       picks={{}}
       confidence={{}}
-      locked={!entryOpen}
+      locked={!canPick}
       official={official}
       schedule={schedule}
       venueTz={venueTz}
       locale={locale}
       onPick={
-        entryOpen
+        canPick && enterHref
           ? () => {
               track("pick_started", { source: "public_draw" });
               router.push(enterHref);

@@ -1,7 +1,7 @@
 import { isOfficialPublicDraw, type DrawSeat } from "@matchread/core";
 import { createClient } from "@/lib/supabase/server";
 import { mapDrawSeat } from "@/lib/brackets/types";
-import { DAY_MS, isEntryLocked, isInPlay } from "@/lib/tournaments/status";
+import { DAY_MS, isEntryLocked } from "@/lib/tournaments/status";
 import { formatTournamentDate } from "@/lib/tournaments/dates";
 export { formatTournamentDate };
 
@@ -57,14 +57,6 @@ export function surfaceClass(surface: string | null | undefined) {
   if (s.includes("grass")) return "grass";
   if (s.includes("indoor") || s.includes("carpet")) return "indoor";
   return "hard";
-}
-
-/** Matches are being played — different from “you can still enter”. */
-export function isOnCourt(
-  row: Pick<CalendarTournament, "hasDraw" | "starts_on" | "lock_at">,
-  now: Date = new Date()
-) {
-  return row.hasDraw && isInPlay(row, now);
 }
 
 export function formatTournamentWhen(

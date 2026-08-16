@@ -1,18 +1,20 @@
 ﻿import type { Metadata } from "next";
 import Link from "next/link";
-import { DailyCheckPreview } from "@/components/league/DailyCheckPreview";
+import { HomeRecentCheck } from "@/components/league/HomeRecentCheck";
 import { AppShell } from "@/components/shell/AppShell";
 import { HeroCourt } from "@/components/shell/HeroCourt";
 import { SurfaceKey } from "@/components/tournaments/SurfaceKey";
 import { TournamentCard } from "@/components/tournaments/TournamentCard";
 import { getSessionUser } from "@/lib/auth";
 import { getLocale, t, tf } from "@/lib/i18n";
+import { listMemberLeagues } from "@/lib/leagues/list";
+import { loadRecentLeagueActivity } from "@/lib/leagues/recent";
 import { publicPageMetadata } from "@/lib/seo";
+import { createClient } from "@/lib/supabase/server";
 import {
   calendarStatus,
   calendarStatusMessageKey,
   formatTournamentDate,
-  isOnCourt,
   listCalendarTournaments,
   partitionLandingCalendar,
   surfaceClass,
@@ -95,7 +97,6 @@ function TournamentRows({
     <ul className="calendar">
       {events.map((event) => {
         const status = calendarStatus(event);
-        const live = status === "live" || isOnCourt(event);
         const surface = surfaceClass(event.surface);
         return (
           <li key={event.ref}>
@@ -110,13 +111,7 @@ function TournamentRows({
               status={t(calendarStatusMessageKey(status))}
               statusPending={status === "drawPending"}
               soon={variant === "upcoming"}
-              chip={
-                variant === "onCourt" || live
-                  ? "onCourt"
-                  : variant === "upcoming"
-                    ? "upcoming"
-                    : null
-              }
+              chip={variant === "upcoming" ? "upcoming" : null}
             />
           </li>
         );
@@ -149,6 +144,15 @@ export default async function HomePage() {
     calendar.find((event) => event.ref === "cin-2026") ??
     calendar[0];
   const lookHref = lookEvent ? tournamentHref(lookEvent.ref) : "/tournaments";
+
+  const recent = signedIn && user
+    ? await (async () => {
+        const supabase = createClient();
+        const { leagues } = await listMemberLeagues(supabase, user.id);
+        if (leagues.length === 0) return null;
+        return loadRecentLeagueActivity(supabase, user.id, leagues);
+      })()
+    : null;
 
   return (
     <AppShell signedIn={signedIn} email={user?.email} arena>
@@ -201,7 +205,7 @@ export default async function HomePage() {
             ) : (
               <>
                 <Link
-                  href="/sign-in?next=%2Ftournaments"
+                  href="/tournaments"
                   className="act act--prominent act--prominent-size"
                 >
                   {t("landing.cta.bracket")}
@@ -303,7 +307,7 @@ export default async function HomePage() {
           </div>
         </section>
 
-        <DailyCheckPreview />
+        {recent ? <HomeRecentCheck activity={recent} /> : null}
 
         <section className="section" aria-labelledby="how-heading">
           <div className="sec-head">

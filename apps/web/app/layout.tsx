@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Archivo, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 import { rootStyle } from "@matchread/tokens";
 import { ErrorReporter } from "@/components/shell/ErrorReporter";
@@ -8,6 +8,10 @@ import { publicPageMetadata } from "@/lib/seo";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";
+
+export const viewport: Viewport = {
+  themeColor: "#E8F1EB",
+};
 
 export const metadata: Metadata = publicPageMetadata({
   title: "MatchRead",

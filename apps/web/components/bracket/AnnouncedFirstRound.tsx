@@ -31,7 +31,7 @@ type Props = {
   tournamentRef?: string;
   venueTz?: string;
   locale?: string;
-  /** Public page: click a named side → sign-in / enter. No anon save. */
+  /** Public page: omit so named sides stay read-only. Signed-in enter path only. */
   enterHref?: string;
 };
 

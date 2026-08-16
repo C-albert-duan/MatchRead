@@ -27,7 +27,13 @@ test("enterHref and leagueNewHref encode the same ref", () => {
   );
 });
 
-test("public pick sends anon to sign-in then enter, not a saved pick", () => {
+test("calendar href is never a sign-in URL", () => {
+  assert.equal(tournamentHref("cin-2026"), "/tournaments/cin-2026");
+  assert.ok(!tournamentHref("cin-2026").includes("sign-in"));
+  assert.ok(!tournamentHref("uso-2026").includes("sign-in"));
+});
+
+test("filling a bracket still gates anon through sign-in, not a saved pick", () => {
   const next = enterHref("cin-2026");
   assert.equal(next, "/enter/cin-2026");
   assert.equal(

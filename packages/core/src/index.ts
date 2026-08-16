@@ -51,7 +51,7 @@ export type {
   OfficialResults,
 } from "./grade";
 
-export { computeDailyCheck, ordinal } from "./pulse";
+export { computeDailyCheck, isPersonalDailyCheck, ordinal } from "./pulse";
 export type {
   DailyCheck,
   PulseAction,

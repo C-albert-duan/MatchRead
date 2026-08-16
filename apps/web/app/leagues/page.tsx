@@ -2,12 +2,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/AppShell";
+import { RecentLeagueCard } from "@/components/league/RecentLeagueCard";
 import { publicPageMetadata } from "@/lib/seo";
 import { getSessionUser } from "@/lib/auth";
 import { t, tf } from "@/lib/i18n";
+import { listMemberLeagues } from "@/lib/leagues/list";
+import { loadRecentLeagueActivity } from "@/lib/leagues/recent";
 import { isSoloPresentation } from "@/lib/leagues/solo";
 import { createClient } from "@/lib/supabase/server";
-import type { LeagueListItem, MemberRole } from "@/lib/leagues/types";
+import type { LeagueListItem } from "@/lib/leagues/types";
 import {
   calendarStatus,
   calendarStatusMessageKey,
@@ -38,66 +41,7 @@ export default async function LeaguesPage() {
   }
 
   const supabase = createClient();
-  const { data: rows, error } = await supabase
-    .from("league_members")
-    .select(
-      "role, leagues ( id, slug, name, format, visibility, tournament_label, tournament_id, commissioner_id, created_at, is_solo )"
-    )
-    .eq("user_id", user.id)
-    .order("joined_at", { ascending: false });
-
-  const leagues: LeagueListItem[] = [];
-
-  if (rows) {
-    const leagueRows: Array<{
-      role: MemberRole;
-      league: {
-        id: string;
-        slug: string;
-        name: string;
-        format: LeagueListItem["format"];
-        visibility: LeagueListItem["visibility"];
-        tournament_label: string | null;
-        tournament_id: string | null;
-        commissioner_id: string;
-        created_at: string;
-        is_solo: boolean;
-      };
-    }> = [];
-
-    for (const row of rows) {
-      const league = Array.isArray(row.leagues) ? row.leagues[0] : row.leagues;
-      if (!league) continue;
-      leagueRows.push({
-        role: row.role as MemberRole,
-        league: {
-          ...league,
-          is_solo: Boolean((league as { is_solo?: boolean }).is_solo),
-        },
-      });
-    }
-
-    const ids = leagueRows.map((r) => r.league.id);
-    const countById = new Map<string, number>();
-
-    if (ids.length > 0) {
-      const { data: allMembers } = await supabase
-        .from("league_members")
-        .select("league_id")
-        .in("league_id", ids);
-      for (const m of allMembers ?? []) {
-        countById.set(m.league_id, (countById.get(m.league_id) ?? 0) + 1);
-      }
-    }
-
-    for (const { role, league } of leagueRows) {
-      leagues.push({
-        ...league,
-        member_count: countById.get(league.id) ?? 1,
-        role,
-      });
-    }
-  }
+  const { leagues, error } = await listMemberLeagues(supabase, user.id);
 
   const byId = new Map<string, CalendarTournament>();
   if (leagues.length > 0) {
@@ -106,6 +50,11 @@ export default async function LeaguesPage() {
       byId.set(row.id, row);
     }
   }
+
+  const recent =
+    leagues.length > 0
+      ? await loadRecentLeagueActivity(supabase, user.id, leagues)
+      : null;
 
   return (
     <AppShell signedIn email={user.email}>
@@ -137,7 +86,7 @@ export default async function LeaguesPage() {
             Could not load leagues. Apply Phase 2 migrations (
             <code>docs/SUPABASE-SETUP.md</code>).
             <br />
-            <span className="t-caption">{error.message}</span>
+            <span className="t-caption">{error}</span>
           </p>
         ) : null}
 
@@ -161,6 +110,8 @@ export default async function LeaguesPage() {
             </div>
           </div>
         ) : null}
+
+        {recent ? <RecentLeagueCard activity={recent} /> : null}
 
         {leagues.length > 0 ? (
           <ul className="league-list focus-band">

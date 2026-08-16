@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   calendarStatus,
+  calendarStatusMessageKey,
   formatCountdown,
   isEntryOpen,
   isInPlay,
@@ -30,6 +31,7 @@ const rehearsal = new Date("2026-08-12T12:00:00.000Z");
 test("Montreal and Toronto are live on 12 Aug, not Open", () => {
   assert.equal(calendarStatus(montreal, rehearsal), "live");
   assert.equal(calendarStatus(torontoNoDraw, rehearsal), "live");
+  assert.equal(calendarStatusMessageKey("live"), "calendar.onCourt");
   assert.equal(isInPlay(montreal, rehearsal), true);
   assert.equal(isEntryOpen(montreal, rehearsal), false);
   assert.equal(isEntryOpen(torontoNoDraw, rehearsal), false);

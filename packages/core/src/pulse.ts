@@ -29,6 +29,26 @@ export type PulseKind =
   | "final"
   | "picks_voided";
 
+/** Kinds whose headline is this member's submitted, settled bracket. */
+const PERSONAL_DAILY_CHECK_KINDS: ReadonlySet<PulseKind> = new Set([
+  "live",
+  "quiet",
+  "champion_out",
+  "final",
+  "picks_voided",
+]);
+
+/**
+ * Daily Check is a personal fact: this viewer submitted, and settlement
+ * produced a standing. Pending-draw / missing-entry / sample copy is not.
+ */
+export function isPersonalDailyCheck(input: {
+  youSubmitted: boolean;
+  kind: PulseKind;
+}): boolean {
+  return input.youSubmitted && PERSONAL_DAILY_CHECK_KINDS.has(input.kind);
+}
+
 export type DailyCheck = {
   kind: PulseKind;
   frame: string;

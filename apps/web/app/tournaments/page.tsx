@@ -10,7 +10,6 @@ import {
   calendarStatus,
   calendarStatusMessageKey,
   formatTournamentDate,
-  isOnCourt,
   listCalendarTournaments,
   surfaceClass,
   tournamentHref,
@@ -51,15 +50,17 @@ export default async function TournamentsPage({
               </Link>
             ) : (
               <Link
-                href="/sign-in?next=%2Ftournaments"
-                className="act act--prominent act--prominent-size"
+                href="/sign-in"
+                className="act act--quiet"
               >
-                {t("cta.fillBracket")}
+                {t("nav.signIn")}
               </Link>
             )}
-            <Link href="/leagues/new" className="act act--quiet">
-              {t("cta.startLeague")}
-            </Link>
+            {user ? (
+              <Link href="/leagues/new" className="act act--quiet">
+                {t("cta.startLeague")}
+              </Link>
+            ) : null}
           </div>
         </header>
 
@@ -74,13 +75,10 @@ export default async function TournamentsPage({
         ) : (
           <div className="calendar-block">
             <ul className="calendar focus-band">
-              {tournaments.map((row, index) => {
+              {tournaments.map((row) => {
                 const href = tournamentHref(row.ref);
                 const surface = surfaceClass(row.surface);
                 const status = calendarStatus(row);
-                const showOnCourt =
-                  isOnCourt(row) &&
-                  !tournaments.slice(0, index).some((prior) => isOnCourt(prior));
                 return (
                   <li key={row.ref}>
                     <TournamentCard
@@ -105,7 +103,6 @@ export default async function TournamentsPage({
                       status={t(calendarStatusMessageKey(status))}
                       statusPending={status === "drawPending"}
                       soon={status === "drawPending"}
-                      chip={showOnCourt ? "onCourt" : null}
                     />
                   </li>
                 );

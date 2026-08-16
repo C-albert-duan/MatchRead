@@ -67,8 +67,11 @@ export default async function PublicTournamentPage({ params }: Props) {
     ? formatCountdown(event.lock_at, locale)
     : null;
   const leagueHref = leagueNewHref(event.ref);
+  const fillHref = user
+    ? enterHref(event.ref)
+    : signInNextHref(enterHref(event.ref));
   const leagueCta = user ? leagueHref : signInNextHref(leagueHref);
-  const pickHref = user ? enterHref(event.ref) : signInNextHref(enterHref(event.ref));
+  const canPick = Boolean(user) && entryOpen;
   const when =
     formatTournamentDate(event.starts_on, locale, event.ends_on) ?? t("calendar.dateTbc");
   const lockWhen = lockWhenLabel(event, locale);
@@ -160,16 +163,16 @@ export default async function PublicTournamentPage({ params }: Props) {
             {entryOpen ? (
               <>
                 <Link
-                  href={leagueCta}
+                  href={fillHref}
                   className="act act--prominent act--prominent-size"
                 >
-                  {t("cta.startLeague")}
+                  {t("cta.fillBracket")}
                 </Link>
                 <Link
                   href={leagueCta}
                   className="act act--standard act--standard-size"
                 >
-                  {t("invite.cta")}
+                  {t("cta.startLeague")}
                 </Link>
               </>
             ) : (
@@ -235,8 +238,8 @@ export default async function PublicTournamentPage({ params }: Props) {
           <AnnouncedFirstRound
             matchups={announced}
             expectedFirst={Math.max(Math.floor(Number(event.draw_size || 64) / 2), 16)}
-            locked={!entryOpen}
-            enterHref={pickHref}
+            locked={!canPick}
+            enterHref={canPick ? enterHref(event.ref) : undefined}
             venueTz={event.venue_tz}
             locale={locale}
           />
@@ -254,8 +257,8 @@ export default async function PublicTournamentPage({ params }: Props) {
               schedule={schedule}
               venueTz={event.venue_tz}
               locale={locale}
-              enterHref={pickHref}
-              entryOpen={entryOpen}
+              enterHref={canPick ? enterHref(event.ref) : undefined}
+              entryOpen={canPick}
             />
           </section>
         ) : null}

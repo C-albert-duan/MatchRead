@@ -95,7 +95,7 @@ export function calendarStatusMessageKey(
   | "league.status.drawPending"
   | "calendar.open"
   | "tournament.locked"
-  | "league.status.live"
+  | "calendar.onCourt"
   | "league.status.complete" {
   switch (status) {
     case "drawPending":
@@ -105,7 +105,7 @@ export function calendarStatusMessageKey(
     case "locked":
       return "tournament.locked";
     case "live":
-      return "league.status.live";
+      return "calendar.onCourt";
     case "complete":
       return "league.status.complete";
   }

@@ -3,7 +3,7 @@ import { TourLabel } from "@/components/tournaments/TourLabel";
 import { t } from "@/lib/i18n";
 import type { Tour } from "@/lib/tournaments/calendar";
 
-type Chip = "onCourt" | "upcoming";
+type Chip = "upcoming";
 
 type Props = {
   href: string;
@@ -44,12 +44,6 @@ export function TournamentCard({
         <TourLabel tour={tour} />
         {chip === "upcoming" ? (
           <span className="chip chip--quiet">{t("chip.upcoming")}</span>
-        ) : chip === "onCourt" ? (
-          <span className="chip chip--live">
-            <i className="live-dot" aria-hidden />
-            {t("chip.onCourt")}
-            <span className="sr-only">{t("chip.onCourt.hint")}</span>
-          </span>
         ) : null}
       </div>
       <span className="trow-name">{name}</span>

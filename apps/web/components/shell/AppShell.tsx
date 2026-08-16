@@ -7,6 +7,7 @@ import { NavigationProgressHost } from "@/components/shell/NavigationProgressHos
 import { OfflineBanner } from "@/components/shell/OfflineBanner";
 import { DisplayNameBootstrap } from "@/components/shell/DisplayNameBootstrap";
 import { LocaleProvider } from "@/components/shell/LocaleProvider";
+import { Mark } from "@/components/shell/Mark";
 import { getLocale, t } from "@/lib/i18n";
 
 type Props = {
@@ -35,6 +36,7 @@ export function AppShell({
           <div className="shell-header-inner">
             <BackButton label={t("nav.back")} />
             <Link href="/" className="wordmark">
+              <Mark className="wordmark-mark" />
               MatchRead
             </Link>
             <div className="shell-spacer" />
@@ -61,14 +63,14 @@ export function AppShell({
                 </>
               ) : (
                 <>
+                  <Link
+                    href="/tournaments"
+                    className="act act--prominent act--standard-size"
+                  >
+                    {t("nav.calendar")}
+                  </Link>
                   <Link href="/sign-in" className="act act--quiet">
                     {t("nav.signIn")}
-                  </Link>
-                  <Link
-                    href="/sign-in?next=%2Ftournaments"
-                    className="act act--prominent act--prominent-size"
-                  >
-                    {t("cta.fillBracket")}
                   </Link>
                 </>
               )}

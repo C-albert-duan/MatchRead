@@ -1,3 +1,4 @@
+import { Mark } from "@/components/shell/Mark";
 import { PageSkeleton } from "@/components/shell/PageSkeleton";
 import { t } from "@/lib/i18n";
 
@@ -7,7 +8,10 @@ export function RouteLoading() {
     <div className="shell">
       <header className="shell-header">
         <div className="shell-header-inner">
-          <span className="wordmark">MatchRead</span>
+          <span className="wordmark">
+            <Mark className="wordmark-mark" />
+            MatchRead
+          </span>
         </div>
       </header>
       <main className="shell-main">

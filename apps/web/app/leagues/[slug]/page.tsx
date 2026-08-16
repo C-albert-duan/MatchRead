@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { isPersonalDailyCheck } from "@matchread/core";
 import { AppShell } from "@/components/shell/AppShell";
 import { DailyCheckPanel } from "@/components/league/DailyCheckPanel";
 import { EngagementStrip } from "@/components/league/EngagementStrip";
@@ -61,7 +62,7 @@ function tournamentListStatus(input: {
   if (expected > 0 && input.decidedCount >= expected) {
     return input.settled ? t("league.status.settled") : t("league.status.complete");
   }
-  if (input.decidedCount > 0) return t("league.status.live");
+  if (input.decidedCount > 0) return t("calendar.onCourt");
   return t("league.status.drawOpen");
 }
 
@@ -145,7 +146,11 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
     listVerifiedDrawTournamentIds(),
   ]);
 
-  const { check, engagement, tournament } = bundle;
+  const { check, youSubmitted, engagement, tournament } = bundle;
+  const showDailyCheck = isPersonalDailyCheck({
+    youSubmitted,
+    kind: check.kind,
+  });
 
   let inviteUrl: string | null = null;
   if (inviteRes.data?.token) {
@@ -258,9 +263,9 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
           </div>
         </header>
 
-        <DailyCheckPanel check={check} />
+        {showDailyCheck ? <DailyCheckPanel check={check} /> : null}
 
-        {engagement ? (
+        {showDailyCheck && engagement ? (
           <section className="section" aria-label="Engagement">
             <EngagementStrip
               health={engagement.health}
@@ -270,7 +275,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
           </section>
         ) : null}
 
-        {engagement && !solo && engagement.highlights.length > 0 ? (
+        {showDailyCheck && engagement && !solo && engagement.highlights.length > 0 ? (
           <section className="section" aria-label="Highlights">
             <LeagueHighlights
               items={engagement.highlights.map((h) => ({

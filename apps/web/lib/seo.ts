@@ -18,6 +18,7 @@ export function publicPageMetadata(input: {
   return {
     title,
     description,
+    metadataBase: new URL(site),
     alternates: { canonical: url },
     openGraph: {
       title,

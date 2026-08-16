@@ -132,10 +132,10 @@ a {
 }
 
 .wordmark-mark {
-  width: 0.55rem;
-  height: 0.55rem;
-  border-radius: var(--r-pill);
-  background: var(--mr-data);
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  display: block;
 }
 
 @keyframes mr-pulse {
@@ -1316,6 +1316,27 @@ a.league-card:hover {
   max-width: 32rem;
 }
 
+.recent-league {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-sm);
+  margin-bottom: var(--s-3xl);
+  padding: var(--card-pad);
+  border: 1px solid var(--mr-line);
+  border-radius: var(--r-xl);
+  background: var(--mr-card);
+  max-width: 36rem;
+}
+
+.recent-league .page-actions {
+  margin-top: var(--s-md);
+}
+
+.recent-league-standing {
+  margin: var(--s-xs) 0 0;
+  font-size: 1.125rem;
+}
+
 .choice-set {
   border: 0;
   margin: 0;
@@ -2261,6 +2282,10 @@ label.name:hover {
 
 .check-stat dd[data-tone="data"] {
   color: var(--mr-data);
+}
+
+.check-stat dd[data-tone="miss"] {
+  color: var(--mr-miss-strong);
 }
 
 .beats {

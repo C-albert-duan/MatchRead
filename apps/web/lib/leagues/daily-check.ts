@@ -31,6 +31,7 @@ type LeagueRow = {
 
 export type LeagueHomeBundle = {
   check: DailyCheck;
+  youSubmitted: boolean;
   engagement: LeagueEngagement | null;
   eventComplete: boolean;
   tournament: {
@@ -94,6 +95,7 @@ export async function loadDailyCheck(input: {
     });
     return {
       check,
+      youSubmitted: false,
       engagement: null,
       eventComplete: false,
       tournament: null,
@@ -284,6 +286,7 @@ export async function loadDailyCheck(input: {
 
   return {
     check,
+    youSubmitted,
     engagement: hasDraw ? engagement : null,
     eventComplete,
     tournament: {
