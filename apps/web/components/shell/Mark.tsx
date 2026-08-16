@@ -1,4 +1,4 @@
-/** MatchRead mark — tennis ball advancing from a first-round fork. */
+/** MatchRead mark — tennis ball over a { rotated 90° clockwise. */
 export function Mark({ className }: { className?: string }) {
   return (
     <svg
@@ -10,29 +10,34 @@ export function Mark({ className }: { className?: string }) {
       focusable="false"
     >
       <rect width="32" height="32" rx="7" fill="#053D26" />
+      <circle cx="16" cy="10.5" r="7" fill="#D9F35A" />
       <path
-        d="M5.5 9.75h7.25v12.5H5.5"
-        fill="none"
-        stroke="#FBFDFA"
-        strokeWidth="2.15"
-        strokeLinecap="square"
-        strokeLinejoin="miter"
-      />
-      <circle cx="21.1" cy="16" r="8.4" fill="#D9F35A" />
-      <path
-        d="M14.55 11.13c3.53 2.18 3.53 7.56 0 9.74"
+        d="M10.55 6.4c2.95 1.8 2.95 6.4 0 8.2"
         fill="none"
         stroke="#053D26"
-        strokeWidth="1.55"
+        strokeWidth="1.45"
         strokeLinecap="round"
       />
       <path
-        d="M27.65 11.13c-3.53 2.18-3.53 7.56 0 9.74"
+        d="M21.45 6.4c-2.95 1.8-2.95 6.4 0 8.2"
         fill="none"
         stroke="#053D26"
-        strokeWidth="1.55"
+        strokeWidth="1.45"
         strokeLinecap="round"
       />
+      <text
+        x="16"
+        y="24.5"
+        fill="#FBFDFA"
+        fontFamily="Georgia, 'Times New Roman', Times, serif"
+        fontSize="17"
+        fontWeight="700"
+        textAnchor="middle"
+        dominantBaseline="middle"
+        transform="rotate(90 16 24.5)"
+      >
+        {"{"}
+      </text>
     </svg>
   );
 }
