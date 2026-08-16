@@ -7,14 +7,11 @@ RapidAPI tennis provider (Mega facts)
 supabase/functions/sync-tennis   ← RAPIDAPI_KEY in Edge secrets
       │  pg_cron every 5 min (Vault ingest_secret) — no GitHub
       ├── rebuild-draw   (official seats / announced pairs)
-      └── ingest-events  (finished matches)
+      └── ingest-events → settle-leagues (when that match is finished)
       │
       ▼
-Supabase Postgres — events → projections
-      │
-      ▼
-Settlement (settle-leagues cron, 2 min after each sync)
-      │
+Supabase Postgres — events → projections → standings / Daily Check
+      │  (settle cron only regrades due finished matches newer than last snapshot)
       ▼
 Leagues · brackets · standings · daily_check
       │

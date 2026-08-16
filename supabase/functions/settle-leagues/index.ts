@@ -3,7 +3,9 @@
 // Auth: Authorization: Bearer <INGEST_SECRET>
 //
 // POST { "tournament_ref"?: "cin-2026" }
-// Omit ref to settle every tournament that has results + submitted brackets.
+// Omit ref to settle tournaments with finished matches that still need a
+// grading pass (new/updated results since last snapshot). Prefer calling
+// with tournament_ref right after ingest when a scheduled match is done.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
@@ -90,16 +92,82 @@ function json(body: unknown, status = 200) {
 }
 
 async function listSettleRefs(admin: ReturnType<typeof createClient>) {
+  // Cron safety net: only tournaments whose official results are newer than
+  // the last graded snapshot (or never graded). Explicit tournament_ref
+  // bypasses this filter.
   const { data: results, error } = await admin
     .from("match_results")
-    .select("tournament_id");
+    .select("tournament_id, match_key, settled_at");
   if (error) throw new Error(error.message);
-  const ids = [...new Set((results ?? []).map((r) => r.tournament_id).filter(Boolean))];
-  if (ids.length === 0) return [];
+  if (!results?.length) return [];
+
+  const byTour = new Map<string, { latest: string; keys: string[] }>();
+  for (const row of results) {
+    const tid = String(row.tournament_id);
+    const at = String(row.settled_at || "");
+    const prev = byTour.get(tid);
+    if (!prev) {
+      byTour.set(tid, { latest: at, keys: [String(row.match_key)] });
+    } else {
+      if (at > prev.latest) prev.latest = at;
+      prev.keys.push(String(row.match_key));
+    }
+  }
+  const ids = [...byTour.keys()];
+  const now = Date.now();
+
+  const { data: schedule, error: sErr } = await admin
+    .from("match_schedule")
+    .select("tournament_id, match_key, scheduled_at, has_time")
+    .in("tournament_id", ids);
+  if (sErr) throw new Error(sErr.message);
+
+  const scheduleByKey = new Map<string, { scheduled_at: string; has_time: boolean }>();
+  for (const row of schedule ?? []) {
+    scheduleByKey.set(`${row.tournament_id}:${row.match_key}`, {
+      scheduled_at: String(row.scheduled_at),
+      has_time: Boolean(row.has_time),
+    });
+  }
+
+  const dueIds: string[] = [];
+  for (const [tid, info] of byTour) {
+    // Due when at least one finished match has reached its timed start
+    // (or has no timed schedule — date-only / unscheduled still settle).
+    const due = info.keys.some((key) => {
+      const sch = scheduleByKey.get(`${tid}:${key}`);
+      if (!sch || !sch.has_time) return true;
+      const t = Date.parse(sch.scheduled_at);
+      return !Number.isNaN(t) && t <= now;
+    });
+    if (due) dueIds.push(tid);
+  }
+  if (dueIds.length === 0) return [];
+
+  const { data: snaps, error: snapErr } = await admin
+    .from("bracket_snapshots")
+    .select("tournament_id, ranked_at")
+    .in("tournament_id", dueIds);
+  if (snapErr) throw new Error(snapErr.message);
+  const latestSnap = new Map<string, string>();
+  for (const row of snaps ?? []) {
+    const tid = String(row.tournament_id);
+    const at = String(row.ranked_at || "");
+    const prev = latestSnap.get(tid);
+    if (!prev || at > prev) latestSnap.set(tid, at);
+  }
+
+  const needGrade = dueIds.filter((tid) => {
+    const latestResult = byTour.get(tid)?.latest ?? "";
+    const snapAt = latestSnap.get(tid);
+    return !snapAt || latestResult > snapAt;
+  });
+  if (needGrade.length === 0) return [];
+
   const { data: tours, error: tErr } = await admin
     .from("tournaments")
     .select("ref")
-    .in("id", ids);
+    .in("id", needGrade);
   if (tErr) throw new Error(tErr.message);
   return (tours ?? []).map((t) => String(t.ref)).filter(Boolean);
 }

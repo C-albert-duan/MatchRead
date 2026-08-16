@@ -12,6 +12,7 @@ import {
   parseFixtureInstant,
   resolveNationalBankOpenWeek,
 } from "./index.js";
+import { drawNameCandidates } from "./official/parse-draw.js";
 
 describe("normalizeTour", () => {
   it("defaults unknown to atp", () => {
@@ -333,6 +334,7 @@ describe("overlayOfficialDraw", () => {
     assert.equal(built.seats[1].seat_kind, "player");
     assert.equal(built.seats[1].last_name, "Prizmic");
     assert.equal(built.seats[1].provider_player_id, "22");
+    assert.equal(built.seats[1].player_ref, "atp-22");
     assert.equal(built.matches["1"], "r0-m0");
   });
 
@@ -476,6 +478,36 @@ describe("parseOfficialDraw", () => {
       { prefix: "wta", expectedDrawSize: 64 }
     );
     assert.equal(parsed.ok, false);
+  });
+
+  it("reads a Round of 64 listed as games", () => {
+    const games = Array.from({ length: 32 }, (_, i) => ({
+      competitors: [
+        { id: 100 + i, lastName: `Alpha${i}`, countryAcr: "USA" },
+        { id: 200 + i, lastName: `Beta${i}`, countryAcr: "ESP" },
+      ],
+    }));
+    const parsed = parseOfficialDraw(
+      { singlesDraw: { rounds: [{ name: "Round of 64", games }] } },
+      { prefix: "wta", expectedDrawSize: 64 }
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    assert.equal(parsed.drawSize, 64);
+    assert.equal(parsed.seats.length, 64);
+    assert.equal(parsed.seats[0].last_name, "Alpha0");
+  });
+});
+
+describe("drawNameCandidates", () => {
+  it("adds Cincinnati aliases for the WTA Open", () => {
+    const names = drawNameCandidates({
+      ref: "cin-wta-2026",
+      api_name: "Cincinnati Open",
+    });
+    assert.ok(names.includes("Cincinnati Open"));
+    assert.ok(names.includes("Cincinnati"));
+    assert.ok(names.includes("Western & Southern Open"));
   });
 });
 

@@ -29,6 +29,8 @@ import {
 } from "@/lib/tournaments/calendar";
 import { lockWhenLabel } from "@/lib/tournaments/when";
 
+export const dynamic = "force-dynamic";
+
 type Props = {
   params: { ref: string };
 };
@@ -67,11 +69,12 @@ export default async function PublicTournamentPage({ params }: Props) {
     ? formatCountdown(event.lock_at, locale)
     : null;
   const leagueHref = leagueNewHref(event.ref);
-  const fillHref = user
-    ? enterHref(event.ref)
-    : signInNextHref(enterHref(event.ref));
+  const enterPath = enterHref(event.ref);
+  // Anyone can view the official sheet. Picking (or Fill bracket) sends
+  // signed-out users to sign-in, then back to enter.
+  const fillHref = user ? enterPath : signInNextHref(enterPath);
   const leagueCta = user ? leagueHref : signInNextHref(leagueHref);
-  const canPick = Boolean(user) && entryOpen;
+  const pickHref = entryOpen ? fillHref : undefined;
   const when =
     formatTournamentDate(event.starts_on, locale, event.ends_on) ?? t("calendar.dateTbc");
   const lockWhen = lockWhenLabel(event, locale);
@@ -89,53 +92,55 @@ export default async function PublicTournamentPage({ params }: Props) {
     .order("scheduled_at", { ascending: true });
   const announced = announcedRows ?? [];
 
-  if (event.hasDraw) {
-    const { data: draw } = await supabase
-      .from("draws")
-      .select("id")
-      .eq("tournament_id", event.id)
-      .maybeSingle();
-    if (draw) {
-      const [{ data: seatRows }, { data: resultRows }, { data: scheduleRows }] =
-        await Promise.all([
-          supabase
-            .from("draw_seats")
-            .select(DRAW_SEAT_SELECT)
-            .eq("draw_id", draw.id)
-            .order("position", { ascending: true }),
-          supabase
-            .from("match_results")
-            .select("match_key, winner_ref, voided")
-            .eq("tournament_id", event.id),
-          supabase
-            .from("match_schedule")
-            .select("match_key, scheduled_at, has_time")
-            .eq("tournament_id", event.id),
-        ]);
-      seats = (seatRows ?? []).map(mapDrawSeat);
-      for (const row of resultRows ?? []) {
-        official[row.match_key] = {
-          winnerRef: row.winner_ref,
-          voided: row.voided,
-        };
-      }
-      for (const row of scheduleRows ?? []) {
-        if (!row.match_key || !row.scheduled_at) continue;
-        schedule[row.match_key] = {
-          scheduled_at: row.scheduled_at,
-          has_time: Boolean(row.has_time),
-        };
-      }
+  // Always load seats when a draw row exists — do not hide the sheet behind
+  // hasDraw/auth. Pure-fact: official seats are public.
+  const { data: draw } = await supabase
+    .from("draws")
+    .select("id")
+    .eq("tournament_id", event.id)
+    .maybeSingle();
+  if (draw?.id) {
+    const [{ data: seatRows }, { data: resultRows }, { data: scheduleRows }] =
+      await Promise.all([
+        supabase
+          .from("draw_seats")
+          .select(DRAW_SEAT_SELECT)
+          .eq("draw_id", draw.id)
+          .order("position", { ascending: true }),
+        supabase
+          .from("match_results")
+          .select("match_key, winner_ref, voided")
+          .eq("tournament_id", event.id),
+        supabase
+          .from("match_schedule")
+          .select("match_key, scheduled_at, has_time")
+          .eq("tournament_id", event.id),
+      ]);
+    seats = (seatRows ?? []).map(mapDrawSeat);
+    for (const row of resultRows ?? []) {
+      official[row.match_key] = {
+        winnerRef: row.winner_ref,
+        voided: row.voided,
+      };
+    }
+    for (const row of scheduleRows ?? []) {
+      if (!row.match_key || !row.scheduled_at) continue;
+      schedule[row.match_key] = {
+        scheduled_at: row.scheduled_at,
+        has_time: Boolean(row.has_time),
+      };
     }
   }
 
+  const showDraw = seats.length > 0;
+
   return (
-    <AppShell signedIn={Boolean(user)} email={user?.email} arena={event.hasDraw}>
+    <AppShell signedIn={Boolean(user)} email={user?.email} arena={showDraw || event.hasDraw}>
       <TrackOnMount
         event="tournament_viewed"
         props={{ ref: event.ref, tour: event.tour }}
       />
-      {seats.length > 0 ? (
+      {showDraw ? (
         <TrackOnMount event="draw_viewed" props={{ ref: event.ref }} />
       ) : null}
       <div className={`page page--court page--court-${surface}`}>
@@ -238,14 +243,14 @@ export default async function PublicTournamentPage({ params }: Props) {
           <AnnouncedFirstRound
             matchups={announced}
             expectedFirst={Math.max(Math.floor(Number(event.draw_size || 64) / 2), 16)}
-            locked={!canPick}
-            enterHref={canPick ? enterHref(event.ref) : undefined}
+            locked={!entryOpen}
+            enterHref={pickHref}
             venueTz={event.venue_tz}
             locale={locale}
           />
         ) : null}
 
-        {seats.length > 0 ? (
+        {showDraw ? (
           <section className="section" aria-labelledby="official-draw">
             <h2 id="official-draw" className="section-title">
               {t("publicTournament.officialDraw")}
@@ -257,8 +262,8 @@ export default async function PublicTournamentPage({ params }: Props) {
               schedule={schedule}
               venueTz={event.venue_tz}
               locale={locale}
-              enterHref={canPick ? enterHref(event.ref) : undefined}
-              entryOpen={canPick}
+              enterHref={pickHref}
+              entryOpen={Boolean(pickHref)}
             />
           </section>
         ) : null}

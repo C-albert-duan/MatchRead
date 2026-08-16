@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveBracketPicks } from "@/app/actions/brackets";
 import { useT, useTf } from "@/components/shell/LocaleProvider";
+import { isTimedMatchStarted } from "@/lib/brackets/types";
 import { track } from "@/lib/telemetry";
 import type { BracketPicks } from "@matchread/core";
 
@@ -70,6 +71,10 @@ export function AnnouncedFirstRound({
     if (!editable || !leagueId || !leagueSlug || !tournamentId || !tournamentRef) {
       return;
     }
+    const matchup = matchups.find((row) => row.match_key === matchKey);
+    if (matchup && isTimedMatchStarted(matchup)) {
+      return;
+    }
     const next = { ...picks, [matchKey]: winnerRef };
     setPicks(next);
     startTransition(async () => {
@@ -96,10 +101,15 @@ export function AnnouncedFirstRound({
         {t("tournament.announced.title")}
       </h2>
       <p className="t-body">
-        {tf("tournament.announced.body", {
-          have: matchups.length,
-          need: expectedFirst,
-        })}
+        {tf(
+          locked
+            ? "tournament.announced.body.locked"
+            : "tournament.announced.body",
+          {
+            have: matchups.length,
+            need: expectedFirst,
+          }
+        )}
       </p>
       {editable ? (
         <p className="t-caption">
@@ -110,6 +120,7 @@ export function AnnouncedFirstRound({
       <ul className="league-list">
         {matchups.map((m) => {
           const winner = picks[m.match_key];
+          const started = isTimedMatchStarted(m);
           const when =
             m.scheduled_at && m.has_time
               ? new Date(m.scheduled_at).toLocaleString(locale, {
@@ -119,23 +130,29 @@ export function AnnouncedFirstRound({
                   minute: "2-digit",
                 })
               : null;
+          const sideDisabled = (!editable && !gateToEnter) || started;
           return (
             <li key={m.match_key} className="league-card">
               <div className="row wrap gap-md between">
                 <div className="stack gap-sm">
-                  {when ? <p className="t-caption numeral">{when}</p> : null}
+                  {when ? (
+                    <p className="t-caption numeral">
+                      {when}
+                      {started ? ` · ${t("tournament.announced.matchStarted")}` : ""}
+                    </p>
+                  ) : null}
                   <div className="row wrap gap-md">
                     <Side
                       name={`${m.player1_last_name}${seedLabel(m.player1_seed)}`}
                       selected={winner === m.player1_ref}
-                      disabled={!editable && !gateToEnter}
+                      disabled={sideDisabled}
                       onClick={() => pick(m.match_key, m.player1_ref)}
                     />
                     <span className="t-caption">vs</span>
                     <Side
                       name={`${m.player2_last_name}${seedLabel(m.player2_seed)}`}
                       selected={winner === m.player2_ref}
-                      disabled={!editable && !gateToEnter}
+                      disabled={sideDisabled}
                       onClick={() => pick(m.match_key, m.player2_ref)}
                     />
                   </div>

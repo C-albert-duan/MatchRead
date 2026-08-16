@@ -77,4 +77,4 @@ Mega (3.8M/mo) can sustain this. RapidAPI **Basic (50 req/day)** cannot.
 
 `apps/worker` from `.env.provider` on a laptop. Optional Mega live socket. Production REST clock is 5-minute `sync-tennis`.
 
-Settlement runs automatically after each sync tick, and again on the 5-minute settle cron.
+Settlement runs automatically after each sync tick **when finished matches were ingested**, and again on the 5-minute settle cron for any due results still newer than the last snapshot.

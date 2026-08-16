@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { ms, rebuildUrl, supabaseRest } from "./env.js";
+import { ms, rebuildUrl, settleUrl, supabaseRest } from "./env.js";
 
 describe("worker env", () => {
   it("rebuilds ingest URL to rebuild-draw", () => {
@@ -10,6 +10,16 @@ describe("worker env", () => {
           "https://example.supabase.co/functions/v1/ingest-events",
       }),
       "https://example.supabase.co/functions/v1/rebuild-draw"
+    );
+  });
+
+  it("rebuilds ingest URL to settle-leagues", () => {
+    assert.equal(
+      settleUrl({
+        MATCHREAD_INGEST_URL:
+          "https://example.supabase.co/functions/v1/ingest-events",
+      }),
+      "https://example.supabase.co/functions/v1/settle-leagues"
     );
   });
 

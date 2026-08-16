@@ -40,6 +40,10 @@ function asArray(value) {
   if (!value || typeof value !== "object") return [];
   if (Array.isArray(value.rounds)) return value.rounds;
   if (Array.isArray(value.matches)) return value.matches;
+  if (Array.isArray(value.games)) return value.games;
+  if (Array.isArray(value.ties)) return value.ties;
+  if (Array.isArray(value.encounters)) return value.encounters;
+  if (Array.isArray(value.fixtures)) return value.fixtures;
   if (Array.isArray(value.players)) return value.players;
   if (Array.isArray(value.seats)) return value.seats;
   return [];
@@ -122,20 +126,29 @@ function personFromUnknown(raw, seedHint, entryHint) {
 
 function matchSides(row) {
   if (!row || typeof row !== "object") return null;
-  const a =
+  let a =
     row.player1 ??
     row.home ??
     row.participant1 ??
     row.p1 ??
     row.a ??
-    row.top;
-  const b =
+    row.top ??
+    row.team1;
+  let b =
     row.player2 ??
     row.away ??
     row.participant2 ??
     row.p2 ??
     row.b ??
-    row.bottom;
+    row.bottom ??
+    row.team2;
+  if (a === undefined && b === undefined) {
+    const comps = row.competitors ?? row.players;
+    if (Array.isArray(comps) && comps.length === 2) {
+      a = comps[0];
+      b = comps[1];
+    }
+  }
   if (a === undefined && b === undefined) return null;
   return [
     personFromUnknown(a, row.seed1 ?? row.player1Seed, row.entry1),
@@ -143,25 +156,29 @@ function matchSides(row) {
   ];
 }
 
-function collectMatchArrays(node, out = []) {
+function collectMatchArrays(node, out = [], expected = 0) {
   if (!node) return out;
   if (Array.isArray(node)) {
     const sides = node.map(matchSides).filter(Boolean);
-    if (sides.length >= 8 && (sides.length & (sides.length - 1)) === 0) {
+    const need = expected ? expected / 2 : 0;
+    if (need && sides.length === need) {
+      out.push(sides);
+    } else if (sides.length >= 8 && (sides.length & (sides.length - 1)) === 0) {
       out.push(sides);
     } else {
-      for (const item of node) collectMatchArrays(item, out);
+      for (const item of node) collectMatchArrays(item, out, expected);
     }
     return out;
   }
   if (typeof node !== "object") return out;
-  const direct = asArray(node.matches);
-  if (direct.length) collectMatchArrays(direct, out);
+  for (const key of ["matches", "games", "ties", "encounters", "fixtures"]) {
+    if (Array.isArray(node[key])) collectMatchArrays(node[key], out, expected);
+  }
   if (Array.isArray(node.rounds)) {
-    for (const round of node.rounds) collectMatchArrays(round, out);
+    for (const round of node.rounds) collectMatchArrays(round, out, expected);
   }
   for (const value of Object.values(node)) {
-    if (value && typeof value === "object") collectMatchArrays(value, out);
+    if (value && typeof value === "object") collectMatchArrays(value, out, expected);
   }
   return out;
 }
@@ -237,7 +254,7 @@ export function parseOfficialDraw(raw, opts = {}) {
   const prefix = String(opts.prefix || "p").replace(/[^a-z0-9-]/gi, "") || "p";
   const expected = Number(opts.expectedDrawSize) || 0;
   const body = unwrap(raw);
-  const matchSets = collectMatchArrays(body);
+  const matchSets = collectMatchArrays(body, [], expected);
   const picked = pickSized(
     matchSets.map((sides) => ({ item: sides, drawSize: sides.length * 2 })),
     expected
@@ -298,6 +315,18 @@ export function drawNameCandidates(event) {
   };
   push(event?.api_name);
   push(event?.name);
+  const strippedOpen = String(event?.api_name || event?.name || "").replace(
+    /\s+Open\s*$/i,
+    ""
+  );
+  push(strippedOpen);
+  const blob = `${event?.api_name || ""} ${event?.name || ""} ${event?.ref || ""}`;
+  if (/cincinnati/i.test(blob)) {
+    push("Cincinnati Open");
+    push("Cincinnati");
+    push("Western & Southern Open");
+    push("Western and Southern Open");
+  }
   return out;
 }
 

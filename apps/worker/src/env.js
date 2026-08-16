@@ -56,3 +56,9 @@ export function rebuildUrl(env) {
   if (!ingest) return "";
   return ingest.replace(/\/ingest-events\/?$/, "/rebuild-draw");
 }
+
+export function settleUrl(env) {
+  const ingest = env.MATCHREAD_INGEST_URL || "";
+  if (!ingest) return "";
+  return ingest.replace(/\/ingest-events\/?$/, "/settle-leagues");
+}

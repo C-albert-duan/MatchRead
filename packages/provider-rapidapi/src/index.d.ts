@@ -198,7 +198,7 @@ export declare function overlayOfficialDraw(
 
 export declare function parseOfficialDraw(
   raw: unknown,
-  opts?: { prefix?: string }
+  opts?: { prefix?: string; expectedDrawSize?: number }
 ):
   | { ok: true; drawSize: number; seats: OfficialDrawSeat[]; source: string }
   | { ok: false; reason: string };
@@ -206,6 +206,7 @@ export declare function parseOfficialDraw(
 export declare function drawNameCandidates(event: {
   api_name?: string;
   name?: string;
+  ref?: string;
 }): string[];
 
 export declare function drawYear(event: { starts_on?: string | null }): number;
@@ -232,10 +233,27 @@ export declare function fetchOfficialSeats(
     name?: string;
     api_name?: string;
     starts_on?: string | null;
+    draw_size?: number;
   }
 ): Promise<
   | { ok: true; drawSize: number; seats: OfficialDrawSeat[]; source: string }
   | { ok: false; reason: string }
+>;
+
+export declare function resolveOfficialSeats(
+  client: { get: (path: string) => Promise<any> },
+  event: {
+    ref?: string;
+    tour?: string;
+    name?: string;
+    api_name?: string;
+    starts_on?: string | null;
+    draw_size?: number;
+  },
+  fixtures?: unknown[]
+): Promise<
+  | { ok: true; drawSize: number; seats: OfficialDrawSeat[]; source: string }
+  | { ok: false; reason: string; firstRound?: string; pairs?: number }
 >;
 
 export declare function getLiveEvents(client: {

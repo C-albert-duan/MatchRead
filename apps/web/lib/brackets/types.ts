@@ -68,10 +68,13 @@ export function isTournamentLocked(t: {
   lock_at: string | null;
   admin_locked_at: string | null;
   league_locked_at?: string | null;
+  /** First-ball lock_at only applies once the official sheet exists. */
+  hasOfficialDraw?: boolean;
   now?: Date;
 }): boolean {
   if (t.admin_locked_at) return true;
   if (t.league_locked_at) return true;
+  if (t.hasOfficialDraw === false) return false;
   if (!t.lock_at) return false;
   const now = t.now ?? new Date();
   return new Date(t.lock_at).getTime() <= now.getTime();
@@ -81,13 +84,26 @@ export function isTournamentLocked(t: {
 export function isPlatformLocked(t: {
   lock_at: string | null;
   admin_locked_at: string | null;
+  hasOfficialDraw?: boolean;
   now?: Date;
 }): boolean {
   return isTournamentLocked({
     lock_at: t.lock_at,
     admin_locked_at: t.admin_locked_at,
+    hasOfficialDraw: t.hasOfficialDraw,
     now: t.now,
   });
+}
+
+/** Timed first ball has been played. Date-only rows are not a start. */
+export function isTimedMatchStarted(
+  row: { scheduled_at?: string | null; has_time?: boolean | null },
+  now: Date = new Date()
+): boolean {
+  if (!row.has_time || !row.scheduled_at) return false;
+  const at = new Date(row.scheduled_at);
+  if (Number.isNaN(at.getTime())) return false;
+  return at.getTime() <= now.getTime();
 }
 
 export async function loadLeagueDrawLock(

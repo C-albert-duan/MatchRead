@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isPlatformLocked, isTournamentLocked, mapDrawSeat } from "./types.ts";
+import {
+  isPlatformLocked,
+  isTimedMatchStarted,
+  isTournamentLocked,
+  mapDrawSeat,
+} from "./types.ts";
 
 const now = new Date("2026-08-12T12:00:00.000Z");
 
@@ -31,6 +36,73 @@ test("a league lock does not make isPlatformLocked true", () => {
       admin_locked_at: null,
       now,
     }),
+    false
+  );
+});
+
+test("lock_at without an official sheet does not lock picks", () => {
+  const pastLock = "2026-08-11T17:00:00.000Z";
+  assert.equal(
+    isTournamentLocked({
+      lock_at: pastLock,
+      admin_locked_at: null,
+      hasOfficialDraw: false,
+      now,
+    }),
+    false
+  );
+  assert.equal(
+    isTournamentLocked({
+      lock_at: pastLock,
+      admin_locked_at: null,
+      hasOfficialDraw: true,
+      now,
+    }),
+    true
+  );
+  assert.equal(
+    isPlatformLocked({
+      lock_at: pastLock,
+      admin_locked_at: null,
+      hasOfficialDraw: false,
+      now,
+    }),
+    false
+  );
+});
+
+test("a founder lock still holds without an official sheet", () => {
+  assert.equal(
+    isTournamentLocked({
+      lock_at: null,
+      admin_locked_at: "2026-08-13T12:00:00.000Z",
+      hasOfficialDraw: false,
+      now,
+    }),
+    true
+  );
+});
+
+test("timed matches start only when the provider published a clock", () => {
+  assert.equal(
+    isTimedMatchStarted(
+      { scheduled_at: "2026-08-12T11:00:00.000Z", has_time: true },
+      now
+    ),
+    true
+  );
+  assert.equal(
+    isTimedMatchStarted(
+      { scheduled_at: "2026-08-12T11:00:00.000Z", has_time: false },
+      now
+    ),
+    false
+  );
+  assert.equal(
+    isTimedMatchStarted(
+      { scheduled_at: "2026-08-13T17:00:00.000Z", has_time: true },
+      now
+    ),
     false
   );
 });

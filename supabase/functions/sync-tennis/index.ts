@@ -14,7 +14,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import {
   createClient as createRapid,
-  fetchOfficialSeats,
   getLiveEvents,
   getTournamentFixtures,
   getTournamentResults,
@@ -22,6 +21,7 @@ import {
   mapResultsToIngest,
   namedFirstRoundPairs,
   overlayOfficialDraw,
+  resolveOfficialSeats,
 } from "../_shared/rapidapi.js";
 import { SEASON } from "../_shared/season.js";
 
@@ -94,15 +94,20 @@ Deno.serve(async (req) => {
       out.publish = await runPublish(admin, rapid, env, log);
     }
     if (job === "reconcile" || job === "all") {
-      out.reconcile = await runReconcile(admin, rapid, env, log);
-    }
-    if (!env.dryRun && (job === "reconcile" || job === "all")) {
-      await postEdge(
-        env,
-        "settle-leagues",
-        env.onlyRef ? { tournament_ref: env.onlyRef } : {},
-        log
-      );
+      const reconcile = await runReconcile(admin, rapid, env, log);
+      out.reconcile = reconcile;
+      // Settle only tournaments that just got finished match facts
+      // (same tick as the scheduled fetch / live reconcile).
+      if (!env.dryRun) {
+        const refs = reconcile.ingestedRefs ?? [];
+        if (refs.length === 0) {
+          log.push("settle-leagues skipped — no new finished matches");
+        } else {
+          for (const ref of refs) {
+            await postEdge(env, "settle-leagues", { tournament_ref: ref }, log);
+          }
+        }
+      }
     }
     return json({ ok: true, ...out, log });
   } catch (err) {
@@ -271,9 +276,13 @@ async function runPublish(
         summary.announced += 1;
       }
 
-      const official = await fetchOfficialSeats(rapid, event);
+      const official = await resolveOfficialSeats(rapid, event, fixtures);
       if (!official.ok) {
-        log.push(`${label} pending — ${official.reason}`);
+        log.push(
+          `${label} pending — ${official.reason}${
+            official.firstRound ? ` (${official.firstRound})` : ""
+          }`
+        );
         summary.pending += 1;
         continue;
       }
@@ -329,7 +338,13 @@ async function runReconcile(
   log: string[]
 ) {
   const events = (await listEvents(admin, env.onlyRef)).filter((e) => e.id);
-  const summary = { events: events.length, ingested: 0, skipped: 0, errors: 0 };
+  const summary = {
+    events: events.length,
+    ingested: 0,
+    skipped: 0,
+    errors: 0,
+    ingestedRefs: [] as string[],
+  };
   let liveEvents: unknown[] = [];
   try {
     const live = await getLiveEvents(rapid);
@@ -380,7 +395,7 @@ async function runReconcile(
         event.tour as "atp" | "wta",
         event.provider_tournament_id
       );
-      const official = await fetchOfficialSeats(rapid, event);
+      const official = await resolveOfficialSeats(rapid, event, fixtures);
       if (official.ok) {
         const built = overlayOfficialDraw(official.seats, fixtures, {
           prefix: event.tour,
@@ -439,6 +454,7 @@ async function runReconcile(
         log
       );
       summary.ingested += results.length;
+      summary.ingestedRefs.push(event.ref);
     } catch (err) {
       summary.errors += 1;
       log.push(

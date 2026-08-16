@@ -290,6 +290,9 @@ const en = {
   "tournament.announced.title": "First round so far",
   "tournament.announced.body":
     "{have} of {need} first-round matches are named. Pick those now; the rest appear when qualifying finishes.",
+  "tournament.announced.body.locked":
+    "{have} of {need} first-round matches are named. Entry is locked — you can look, not pick.",
+  "tournament.announced.matchStarted": "Started",
   "tournament.locked": "Locked",
   "tournament.entry.submitted":
     "Your bracket is submitted. You can still edit until the lock.",
@@ -837,6 +840,9 @@ const es: Record<MessageKey, string> = {
   "tournament.announced.title": "Primera ronda hasta ahora",
   "tournament.announced.body":
     "{have} de {need} partidos de primera ronda tienen nombre. Elige esos ahora; el resto aparece cuando termine la qualy.",
+  "tournament.announced.body.locked":
+    "{have} de {need} partidos de primera ronda tienen nombre. La inscripción está bloqueada — puedes mirar, no elegir.",
+  "tournament.announced.matchStarted": "En juego",
   "tournament.locked": "Bloqueado",
   "tournament.entry.submitted":
     "Tu cuadro está enviado. Puedes seguir editando hasta el bloqueo.",
@@ -1379,6 +1385,9 @@ const ja: Record<MessageKey, string> = {
   "tournament.announced.title": "ここまでの1回戦",
   "tournament.announced.body":
     "1回戦 {need} 試合中 {have} 試合が発表済みです。それらをピックしてください。残りは予選が終わり次第出ます。",
+  "tournament.announced.body.locked":
+    "1回戦 {need} 試合中 {have} 試合が発表済みです。エントリーはロック済みです。見るだけで、ピックはできません。",
+  "tournament.announced.matchStarted": "開始済み",
   "tournament.locked": "ロック済み",
   "tournament.entry.submitted":
     "ブラケットは提出済みです。ロックまでは編集できます。",

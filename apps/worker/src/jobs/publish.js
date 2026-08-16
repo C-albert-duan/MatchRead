@@ -1,10 +1,10 @@
 import {
   createClient,
-  fetchOfficialSeats,
   getTournamentFixtures,
   getTournamentResults,
   namedFirstRoundPairs,
   overlayOfficialDraw,
+  resolveOfficialSeats,
 } from "@matchread/provider-rapidapi";
 import { rebuildUrl, supabaseRest } from "../env.js";
 import { postJson, restGet } from "../rest.js";
@@ -104,9 +104,15 @@ export async function publishDraws(env, { dryRun = false } = {}) {
         summary.announced += 1;
       }
 
-      const official = await fetchOfficialSeats(client, event);
+      const official = await resolveOfficialSeats(client, event, fixtures);
       if (!official.ok) {
-        console.log("publish", label, "pending —", official.reason);
+        console.log(
+          "publish",
+          label,
+          "pending —",
+          official.reason,
+          official.firstRound || ""
+        );
         summary.pending += 1;
         continue;
       }

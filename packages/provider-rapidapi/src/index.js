@@ -708,3 +708,33 @@ export async function fetchOfficialSeats(client, event) {
     reason: "no official Tennis API draw",
   };
 }
+
+/**
+ * Official sheet from Tennis API, else a complete named first round
+ * whose pair count matches the event size. Never pads a partial field.
+ * @param {{ get: (path: string) => Promise<any> }} client
+ * @param {{ ref?: string, tour?: string, name?: string, api_name?: string, starts_on?: string|null, draw_size?: number }} event
+ * @param {unknown[]} [fixtures]
+ */
+export async function resolveOfficialSeats(client, event, fixtures = []) {
+  const official = await fetchOfficialSeats(client, event);
+  if (official.ok) return official;
+  const fallback = buildDrawFromFirstRound(fixtures, {
+    prefix: normalizeTour(event?.tour),
+    drawSize: Number(event?.draw_size) || 0,
+  });
+  if (fallback.ok) {
+    return {
+      ok: true,
+      drawSize: fallback.drawSize,
+      seats: fallback.seats,
+      source: "first-round",
+    };
+  }
+  return {
+    ok: false,
+    reason: official.reason,
+    firstRound: fallback.reason,
+    pairs: fallback.pairs,
+  };
+}

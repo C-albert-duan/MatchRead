@@ -11,4 +11,5 @@ export {
   mapResultsToIngest,
   namedFirstRoundPairs,
   overlayOfficialDraw,
+  resolveOfficialSeats,
 } from "../../../packages/provider-rapidapi/src/index.js";

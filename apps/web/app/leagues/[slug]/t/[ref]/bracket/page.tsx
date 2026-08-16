@@ -1,3 +1,4 @@
+import { isOfficialPublicDraw, type DrawSeat } from "@matchread/core";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -114,12 +115,27 @@ export default async function BracketPage({ params }: Props) {
     ]);
 
   const announced = announcedRows ?? [];
+  let seats: DrawSeat[] = [];
+  if (draw) {
+    const { data: seatRows } = await supabase
+      .from("draw_seats")
+      .select(DRAW_SEAT_SELECT)
+      .eq("draw_id", draw.id)
+      .order("position", { ascending: true });
+    seats = (seatRows ?? []).map(mapDrawSeat);
+  }
+
+  const official = isOfficialPublicDraw(
+    seats,
+    Number(tournament.draw_size) || 0
+  );
   const locked = isTournamentLocked({
     ...tournament,
     league_locked_at: leagueLockedAt,
+    hasOfficialDraw: official,
   });
 
-  if (!draw) {
+  if (!official) {
     if (announced.length === 0) {
       redirect(`/leagues/${league.slug}/t/${tournament.ref}`);
     }
@@ -134,6 +150,11 @@ export default async function BracketPage({ params }: Props) {
               <h1 className="t-page-title">
                 {tf("bracket.page.title", { name: tournament.name })}
               </h1>
+              <p className="t-lead">
+                {locked
+                  ? t("bracket.page.lockedReadOnly")
+                  : t("bracket.page.editLede")}
+              </p>
             </div>
             <div className="page-actions">
               <Link
@@ -173,18 +194,10 @@ export default async function BracketPage({ params }: Props) {
   }
 
   const [
-    { data: seatRows },
     { data: bracket },
     { data: resultRows },
     { data: scheduleRows },
   ] = await Promise.all([
-      supabase
-        .from("draw_seats")
-        .select(
-          DRAW_SEAT_SELECT
-        )
-        .eq("draw_id", draw.id)
-        .order("position", { ascending: true }),
       supabase
         .from("brackets")
         .select("picks, confidence, submitted_at")
@@ -202,10 +215,12 @@ export default async function BracketPage({ params }: Props) {
         .eq("tournament_id", tournament.id),
     ]);
 
-  const seats = (seatRows ?? []).map(mapDrawSeat);
   const picks = (bracket?.picks ?? {}) as BracketPicks;
   const confidence = (bracket?.confidence ?? {}) as BracketConfidence;
-  const platformLocked = isPlatformLocked(tournament);
+  const platformLocked = isPlatformLocked({
+    ...tournament,
+    hasOfficialDraw: true,
+  });
 
   const officialResults: OfficialResults = {};
   for (const row of resultRows ?? []) {
@@ -245,7 +260,7 @@ export default async function BracketPage({ params }: Props) {
             </h1>
             <p className="t-lead">
               <span className="numeral">
-                {whenCaption(tournament, getLocale())}
+                {whenCaption({ ...tournament, hasDraw: true }, getLocale())}
               </span>
               {" · "}
               {locked && hasOfficial

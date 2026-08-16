@@ -75,6 +75,7 @@ export type TournamentTimeRow = {
   lock_at?: string | null;
   admin_locked_at?: string | null;
   venue_tz?: string | null;
+  hasDraw?: boolean;
 };
 
 export type TournamentTimeLabels = {
@@ -94,7 +95,11 @@ export function tournamentTimeFacts(
 ) {
   const start = formatTournamentDate(row.starts_on, locale, row.ends_on) ?? labels.tbc;
   const locked = isEntryLocked(
-    { lock_at: row.lock_at ?? null, admin_locked_at: row.admin_locked_at },
+    {
+      lock_at: row.lock_at ?? null,
+      admin_locked_at: row.admin_locked_at,
+      hasDraw: row.hasDraw,
+    },
     now
   );
   const lock = row.lock_at

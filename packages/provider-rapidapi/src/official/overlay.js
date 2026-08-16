@@ -131,11 +131,12 @@ function voidedRow(row) {
   return t === "walkover" || t === "default" || t === "cancelled" || t === "canceled";
 }
 
-function fillTbdSeats(seats, rows, catalog) {
+function fillTbdSeats(seats, rows, catalog, prefix = "atp") {
   const byId = new Map(
     seats.filter((s) => s.provider_player_id).map((s) => [String(s.provider_player_id), s])
   );
   const catalogById = new Map(catalog.map((p) => [p.id, p]));
+  const refPrefix = String(prefix || "atp").replace(/[^a-z0-9-]/gi, "") || "atp";
 
   for (let i = 0; i < seats.length; i += 2) {
     const a = seats[i];
@@ -174,6 +175,8 @@ function fillTbdSeats(seats, rows, catalog) {
           ? person.country_code
           : tbd.country_code;
       tbd.provider_player_id = id;
+      // Real named seat — never keep a tbd-* / Qualifier identity.
+      tbd.player_ref = `${refPrefix}-${id}`;
       byId.set(id, tbd);
     }
   }
@@ -307,12 +310,24 @@ export function overlayOfficialDraw(officialSeats, fixtures, opts = {}) {
     };
   });
 
-  fillTbdSeats(seats, rows, catalog);
+  const prefix = String(opts.prefix || "atp").replace(/[^a-z0-9-]/gi, "") || "atp";
+  fillTbdSeats(seats, rows, catalog, prefix);
   for (const s of seats) {
     if (s.provider_player_id) players[String(s.provider_player_id)] = s.player_ref;
   }
 
+  // Never publish a winner that is still an official TBD label.
   const tree = mapOfficialTree(seats, rows);
+  tree.results = tree.results.filter((r) => {
+    if (r.voided) return true;
+    const ref = String(r.winner_ref || "");
+    if (!ref || /^tbd-/i.test(ref)) return false;
+    const seat = seats.find((s) => s.player_ref === ref);
+    if (!seat) return true;
+    if (seat.seat_kind === "tbd") return false;
+    if (/^qualifier$/i.test(String(seat.last_name || ""))) return false;
+    return Boolean(seat.provider_player_id);
+  });
 
   const named = seats.filter((s) => s.seat_kind === "player").length;
   const byes = seats.filter((s) => s.seat_kind === "bye").length;

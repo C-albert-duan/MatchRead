@@ -4,6 +4,7 @@ import {
   calendarStatus,
   calendarStatusMessageKey,
   formatCountdown,
+  isEntryLocked,
   isEntryOpen,
   isInPlay,
 } from "./status.ts";
@@ -27,6 +28,31 @@ const usOpen = {
 };
 
 const rehearsal = new Date("2026-08-12T12:00:00.000Z");
+
+test("a past lock_at without a draw is not an entry lock", () => {
+  assert.equal(
+    isEntryLocked(
+      {
+        hasDraw: false,
+        lock_at: "2026-08-11T17:00:00.000Z",
+        admin_locked_at: null,
+      },
+      rehearsal
+    ),
+    false
+  );
+  assert.equal(
+    isEntryLocked(
+      {
+        hasDraw: true,
+        lock_at: "2026-08-11T17:00:00.000Z",
+        admin_locked_at: null,
+      },
+      rehearsal
+    ),
+    true
+  );
+});
 
 test("Montreal and Toronto are live on 12 Aug, not Open", () => {
   assert.equal(calendarStatus(montreal, rehearsal), "live");

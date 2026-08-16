@@ -6,7 +6,8 @@ Until settlement runs, standings and Daily Check do not move.
 
 | Trigger | Who | Where |
 |---|---|---|
-| **`settle-leagues` + pg_cron** | Platform | Every 5 min at minute 2, 7, … (after sync-tennis) |
+| **Finished match ingest** | Platform | After `sync-tennis` / worker reconcile upserts results for that tournament |
+| **`settle-leagues` + pg_cron** | Platform | Every 5 min at minute 2, 7, … — only tournaments with **due** finished matches (timed `scheduled_at` reached, or no timed schedule) whose results are newer than the last snapshot |
 | **Run settlement** | Commissioner | Tournament page (this league) |
 | **Settle all leagues** | Founder | Tournament page after official results |
 | Fixture seed | Dev | `0004_settlement.sql` for `uso-2026` |

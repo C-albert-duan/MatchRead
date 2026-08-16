@@ -39,10 +39,13 @@ export function daysFromStart(
 }
 
 export function isEntryLocked(
-  row: Pick<StatusTournament, "lock_at" | "admin_locked_at">,
+  row: Pick<StatusTournament, "lock_at" | "admin_locked_at"> & {
+    hasDraw?: boolean;
+  },
   now: Date = new Date()
 ) {
   if (row.admin_locked_at) return true;
+  if (row.hasDraw === false) return false;
   if (!row.lock_at) return false;
   return new Date(row.lock_at).getTime() <= now.getTime();
 }

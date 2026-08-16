@@ -102,6 +102,8 @@ Deno.serve(async (req) => {
     };
     /** Replace an existing verified draw. Default: skip if verified seats exist. */
     force?: boolean;
+    /** Delete all announced_matchups for this tournament before upsert (or alone). */
+    replace_announced?: boolean;
     delete_tournament_refs?: string[];
     seats?: SeatRow[];
     results?: ResultRow[];
@@ -197,6 +199,18 @@ Deno.serve(async (req) => {
     }
   }
 
+  if (matchups.length > 0 || body.replace_announced) {
+    // Replace the announced sheet so stale fx / doubles rows cannot linger.
+    const { error: annDelErr } = await admin
+      .from("announced_matchups")
+      .delete()
+      .eq("tournament_id", tournamentId);
+    if (annDelErr) {
+      return jsonError(400, `wipe announced: ${annDelErr.message}`, log);
+    }
+    log.push("wiped announced_matchups");
+  }
+
   if (matchups.length > 0) {
     const now = new Date().toISOString();
     const rows = matchups.map((m) => ({
@@ -290,14 +304,20 @@ Deno.serve(async (req) => {
               patch.country_code = s.country_code || "XXX";
               patch.seed = s.seed ?? null;
             }
+            const incomingKind = seatKindOf(s);
+            const existingIsTbd =
+              existing?.seat_kind === "tbd" ||
+              /^qualifier$/i.test(String(existing?.last_name || ""));
             if (
-              existing?.seat_kind === "tbd" &&
-              seatKindOf(s) === "player" &&
-              s.last_name
+              existingIsTbd &&
+              incomingKind === "player" &&
+              s.last_name &&
+              !/^qualifier$/i.test(String(s.last_name))
             ) {
               patch.last_name = s.last_name;
               patch.seat_kind = "player";
               patch.is_bye = false;
+              if (s.player_ref) patch.player_ref = s.player_ref;
               if (s.entry_status) patch.entry_status = s.entry_status;
               filled += 1;
             }

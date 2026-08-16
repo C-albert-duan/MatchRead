@@ -1,3 +1,4 @@
+import { isOfficialPublicDraw } from "@matchread/core";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/AppShell";
@@ -122,7 +123,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
       .eq("league_id", league.id)
       .eq("tournament_id", tournament.id)
       .order("position", { ascending: true }),
-    showManualResults && draw
+    draw
       ? supabase
           .from("draw_seats")
           .select(DRAW_SEAT_SELECT)
@@ -166,6 +167,17 @@ export default async function TournamentInLeaguePage({ params }: Props) {
   const bracket = bracketRes.data;
   const snapshots = snapshotsRes.data;
   const seats = (seatsRes.data ?? []).map(mapDrawSeat);
+  const announced = matchupsRes.data ?? [];
+  const official = isOfficialPublicDraw(
+    seats,
+    Number(tournament.draw_size) || 0
+  );
+  const locked = isTournamentLocked({
+    ...tournament,
+    league_locked_at: leagueLockedAt,
+    hasOfficialDraw: official,
+  });
+  const hasDraw = official;
   const initialResults: Record<string, string> = {};
   for (const row of resultsRes.data ?? []) {
     if (!row.voided && row.winner_ref) {
@@ -181,12 +193,6 @@ export default async function TournamentInLeaguePage({ params }: Props) {
     };
   }
 
-  const locked = isTournamentLocked({
-    ...tournament,
-    league_locked_at: leagueLockedAt,
-  });
-  const hasDraw = Boolean(draw);
-  const announced = matchupsRes.data ?? [];
   const canOpenBracket = hasDraw || announced.length > 0;
   const bracketHref = `/leagues/${league.slug}/t/${tournament.ref}/bracket`;
 
@@ -235,7 +241,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
               {tournament.surface} court
               {" · "}
               <span className="numeral">
-                {whenCaption(tournament, getLocale())}
+                {whenCaption({ ...tournament, hasDraw }, getLocale())}
               </span>
             </p>
           </div>

@@ -1,14 +1,14 @@
 import {
   createClient,
-  fetchOfficialSeats,
   getLiveEvents,
   getTournamentFixtures,
   getTournamentResults,
   mapLiveFinishedToIngest,
   mapResultsToIngest,
   overlayOfficialDraw,
+  resolveOfficialSeats,
 } from "@matchread/provider-rapidapi";
-import { rebuildUrl, supabaseRest } from "../env.js";
+import { rebuildUrl, settleUrl, supabaseRest } from "../env.js";
 import { postJson, restGet } from "../rest.js";
 import { SEASON } from "../season.js";
 
@@ -71,7 +71,7 @@ async function mappingFromDb(sb, event) {
 }
 
 async function mappingFromOfficial(client, event, fixtures, results) {
-  const official = await fetchOfficialSeats(client, event);
+  const official = await resolveOfficialSeats(client, event, fixtures);
   if (!official.ok) return { players: {}, matches: {}, seats: [] };
   const built = overlayOfficialDraw(official.seats, fixtures, {
     prefix: event.tour,
@@ -97,7 +97,13 @@ export async function reconcileResults(env, { dryRun = false } = {}) {
     host: env.RAPIDAPI_HOST,
   });
   const events = sb ? await listLiveEvents(env) : [];
-  const summary = { events: events.length, ingested: 0, skipped: 0, errors: 0 };
+  const summary = {
+    events: events.length,
+    ingested: 0,
+    skipped: 0,
+    errors: 0,
+    settled: 0,
+  };
 
   if (!sb) {
     console.warn("reconcile: no Supabase URL/anon key — skip");
@@ -113,6 +119,7 @@ export async function reconcileResults(env, { dryRun = false } = {}) {
   }
 
   const rebuild = rebuildUrl(env);
+  const settle = settleUrl(env);
 
   for (const event of events) {
     const label = `${event.ref} (${event.provider_tournament_id})`;
@@ -179,6 +186,13 @@ export async function reconcileResults(env, { dryRun = false } = {}) {
           tournament_id: event.id,
           results,
         });
+        // Same tick as finished facts: grade brackets once the match is done.
+        if (settle) {
+          await postJson(settle, env.INGEST_SECRET, {
+            tournament_ref: event.ref,
+          });
+          summary.settled += 1;
+        }
       }
       summary.ingested += results.length;
     } catch (err) {

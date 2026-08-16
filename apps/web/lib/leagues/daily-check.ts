@@ -1,5 +1,6 @@
 import {
   computeDailyCheck,
+  isOfficialPublicDraw,
   type BracketPicks,
   type DailyCheck,
   type DrawSeat,
@@ -144,11 +145,6 @@ export async function loadDailyCheck(input: {
   ]);
 
   const draw = drawRes.data;
-  const hasDraw = Boolean(draw);
-  const locked = isTournamentLocked({
-    ...tournament,
-    league_locked_at: leagueLockedAt,
-  });
   const brackets = bracketsRes.data ?? [];
   const snaps = snapsRes.data ?? [];
   const results = resultsRes.data ?? [];
@@ -158,7 +154,6 @@ export async function loadDailyCheck(input: {
   const submittedCount = brackets.filter((b) => b.submitted_at).length;
   const youSubmitted = Boolean(myBracket?.submitted_at);
 
-  // Wave 3: seats only if we have a draw (needed for names / engagement)
   let seats: DrawSeat[] = [];
   if (draw) {
     const { data: seatRows } = await supabase
@@ -170,6 +165,16 @@ export async function loadDailyCheck(input: {
       .order("position", { ascending: true });
     seats = (seatRows ?? []).map(mapDrawSeat);
   }
+
+  const hasDraw = isOfficialPublicDraw(
+    seats,
+    Number(tournament.draw_size) || 0
+  );
+  const locked = isTournamentLocked({
+    ...tournament,
+    league_locked_at: leagueLockedAt,
+    hasOfficialDraw: hasDraw,
+  });
 
   const official: OfficialResults = {};
   let decidedCount = 0;

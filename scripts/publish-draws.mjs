@@ -16,11 +16,11 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   createClient,
-  fetchOfficialSeats,
   getTournamentFixtures,
   getTournamentResults,
   namedFirstRoundPairs,
   overlayOfficialDraw,
+  resolveOfficialSeats,
 } from "@matchread/provider-rapidapi";
 
 function matchupsFromPairs(pairs, prefix) {
@@ -223,9 +223,14 @@ async function main() {
       announced += 1;
     }
 
-    const official = await fetchOfficialSeats(client, event);
+    const official = await resolveOfficialSeats(client, event, fixtures);
     if (!official.ok) {
-      console.log(label, "full draw pending —", official.reason);
+      console.log(
+        label,
+        "full draw pending —",
+        official.reason,
+        official.firstRound || ""
+      );
       pending += 1;
       continue;
     }
@@ -253,6 +258,7 @@ async function main() {
       schedule: built.schedule ?? [],
       matches: built.matches ?? {},
       matchups,
+      replace_announced: true,
     };
     const preview = resolve(process.cwd(), `tmp-${event.ref}-draw.json`);
     writeFileSync(preview, JSON.stringify(payload, null, 2) + "\n");
