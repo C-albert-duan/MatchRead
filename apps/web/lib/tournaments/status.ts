@@ -1,6 +1,6 @@
 export const DAY_MS = 86_400_000;
 
-/** Rough in-play window after start when the event still belongs on "Open now". */
+/** Rough in-play window after start (On court / live chip). */
 export const IN_PLAY_DAYS = 14;
 
 export type StatusTournament = {
@@ -50,12 +50,15 @@ export function isEntryLocked(
   return new Date(row.lock_at).getTime() <= now.getTime();
 }
 
-/** Entry is fillable: verified draw exists and the lock has not passed. */
+/**
+ * Entry is fillable: verified draw exists, lock has not passed, and the
+ * event is not past the in-play window (finished calendars are never open).
+ */
 export function isEntryOpen(
   row: StatusTournament,
   now: Date = new Date()
 ) {
-  return row.hasDraw && !isEntryLocked(row, now);
+  return row.hasDraw && !isEntryLocked(row, now) && !isComplete(row, now);
 }
 
 /** Matches are being played — date window only, independent of draw. */

@@ -75,6 +75,17 @@ test("an unlocked draw before start is Open", () => {
   };
   const beforeLock = new Date("2026-08-11T12:00:00.000Z");
   assert.equal(calendarStatus(cin, beforeLock), "open");
+  assert.equal(isEntryOpen(cin, beforeLock), true);
+});
+
+test("a finished draw is not entry-open even without lock_at", () => {
+  const done = {
+    hasDraw: true,
+    starts_on: "2026-07-20",
+    lock_at: null as string | null,
+  };
+  assert.equal(calendarStatus(done, rehearsal), "complete");
+  assert.equal(isEntryOpen(done, rehearsal), false);
 });
 
 test("countdown is locale-aware and silent after the instant", () => {

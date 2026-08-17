@@ -22,12 +22,15 @@ export type LandingEvent = {
   admin_locked_at?: string | null;
 };
 
-/** Homepage "Open now" — only when a person can still fill a bracket. */
+/**
+ * Homepage "Open now" — fillable draw that has not started yet.
+ * In-play fillable events belong under On court; finished ones nowhere.
+ */
 export function isOpenNow(
   row: LandingEvent,
   now: Date = new Date()
 ): boolean {
-  return isEntryOpen(row, now);
+  return isEntryOpen(row, now) && !isInPlay(row, now);
 }
 
 export type LandingCalendar<T extends LandingEvent = LandingEvent> = {

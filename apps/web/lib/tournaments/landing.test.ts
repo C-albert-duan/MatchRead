@@ -41,6 +41,36 @@ describe("partitionLandingCalendar", () => {
     assert.deepEqual(upcoming.map((e) => e.id), []);
   });
 
+  it("keeps finished draws out of Open now even without lock_at", () => {
+    const done = event({
+      id: "chacabuco",
+      starts_on: "2026-07-28",
+      lock_at: null,
+    });
+    const { openNow, onCourt, upcoming } = partitionLandingCalendar(
+      [done],
+      now
+    );
+    assert.deepEqual(openNow.map((e) => e.id), []);
+    assert.deepEqual(onCourt.map((e) => e.id), []);
+    assert.deepEqual(upcoming.map((e) => e.id), []);
+  });
+
+  it("puts an unlocked in-play draw on court, not Open now", () => {
+    const live = event({
+      id: "live-open",
+      starts_on: "2026-08-10",
+      lock_at: null,
+    });
+    const { openNow, onCourt, upcoming } = partitionLandingCalendar(
+      [live],
+      now
+    );
+    assert.deepEqual(openNow.map((e) => e.id), []);
+    assert.deepEqual(onCourt.map((e) => e.id), ["live-open"]);
+    assert.deepEqual(upcoming.map((e) => e.id), []);
+  });
+
   it("puts a not-started pending draw in Upcoming", () => {
     const wsal = event({
       id: "wsal",
