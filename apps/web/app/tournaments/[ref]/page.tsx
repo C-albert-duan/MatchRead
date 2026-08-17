@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { DrawSeat, OfficialResults } from "@matchread/core";
+import type { OfficialResults } from "@matchread/core";
 import { AppShell } from "@/components/shell/AppShell";
 import { AnnouncedFirstRound } from "@/components/bracket/AnnouncedFirstRound";
 import { PublicOfficialDraw } from "@/components/bracket/PublicOfficialDraw";
@@ -10,7 +10,12 @@ import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { getLocale, t, tf } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
-import { DRAW_SEAT_SELECT, mapDrawSeat } from "@/lib/brackets/types";
+import {
+  loadAnnouncedMatchups,
+  loadMatchScheduleMap,
+  loadOfficialResultsMap,
+  loadTournamentSeats,
+} from "@/lib/brackets/types";
 import { publicPageMetadata } from "@/lib/seo";
 import {
   calendarStatus,
@@ -82,55 +87,18 @@ export default async function PublicTournamentPage({ params }: Props) {
   const supabase = createClient();
   const official: OfficialResults = {};
   const schedule: Record<string, MatchScheduleRow> = {};
-  let seats: DrawSeat[] = [];
-  const { data: announcedRows } = await supabase
-    .from("announced_matchups")
-    .select(
-      "match_key, player1_ref, player1_last_name, player1_seed, player2_ref, player2_last_name, player2_seed, scheduled_at, has_time"
-    )
-    .eq("tournament_id", event.id)
-    .order("scheduled_at", { ascending: true });
-  const announced = announcedRows ?? [];
 
-  // Always load seats when a draw row exists — do not hide the sheet behind
-  // hasDraw/auth. Pure-fact: official seats are public.
-  const { data: draw } = await supabase
-    .from("draws")
-    .select("id")
-    .eq("tournament_id", event.id)
-    .maybeSingle();
-  if (draw?.id) {
-    const [{ data: seatRows }, { data: resultRows }, { data: scheduleRows }] =
-      await Promise.all([
-        supabase
-          .from("draw_seats")
-          .select(DRAW_SEAT_SELECT)
-          .eq("draw_id", draw.id)
-          .order("position", { ascending: true }),
-        supabase
-          .from("match_results")
-          .select("match_key, winner_ref, voided")
-          .eq("tournament_id", event.id),
-        supabase
-          .from("match_schedule")
-          .select("match_key, scheduled_at, has_time")
-          .eq("tournament_id", event.id),
-      ]);
-    seats = (seatRows ?? []).map(mapDrawSeat);
-    for (const row of resultRows ?? []) {
-      official[row.match_key] = {
-        winnerRef: row.winner_ref,
-        voided: row.voided,
-      };
-    }
-    for (const row of scheduleRows ?? []) {
-      if (!row.match_key || !row.scheduled_at) continue;
-      schedule[row.match_key] = {
-        scheduled_at: row.scheduled_at,
-        has_time: Boolean(row.has_time),
-      };
-    }
+  const [announced, seats, officialMap, scheduleMap] = await Promise.all([
+    loadAnnouncedMatchups(supabase, event.id),
+    loadTournamentSeats(supabase, event.id),
+    loadOfficialResultsMap(supabase, event.id),
+    loadMatchScheduleMap(supabase, event.id),
+  ]);
+
+  for (const [key, row] of Object.entries(officialMap)) {
+    official[key] = row;
   }
+  Object.assign(schedule, scheduleMap);
 
   const showDraw = seats.length > 0;
 

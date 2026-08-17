@@ -3,13 +3,15 @@
 import { revalidatePath } from "next/cache";
 import {
   gradeBracket,
-  maxBracketScore,
   rankRows,
-  seasonPoints,
   type BracketPicks,
   type OfficialResults,
 } from "@matchread/core";
 import { isFounderEmail } from "@/lib/auth/founder";
+import {
+  loadBracketPicksMap,
+  parseMatchKey,
+} from "@/lib/brackets/types";
 import { createClient } from "@/lib/supabase/server";
 
 export type ActionResult =
@@ -24,12 +26,32 @@ async function requireUser() {
   return { supabase, user };
 }
 
+async function loadOfficialFromMatches(
+  supabase: ReturnType<typeof createClient>,
+  tournamentId: string
+): Promise<OfficialResults> {
+  const { data: results } = await supabase
+    .from("matches")
+    .select("round, index_in_round, winner_player_id, voided")
+    .eq("tournament_id", tournamentId);
+
+  const official: OfficialResults = {};
+  for (const row of results ?? []) {
+    if (!row.voided && !row.winner_player_id) continue;
+    official[`r${row.round}-m${row.index_in_round}`] = {
+      winnerRef: row.voided ? null : row.winner_player_id,
+      voided: Boolean(row.voided),
+    };
+  }
+  return official;
+}
+
 export async function settleLeagueTournament(input: {
   leagueId: string;
   leagueSlug: string;
   tournamentId: string;
   tournamentRef: string;
-  /** Slam-class = 2, otherwise 1 */
+  /** Slam-class = 2, otherwise 1 — kept for callers; season_points is derived. */
   eventWeight?: number;
 }): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
@@ -38,7 +60,7 @@ export async function settleLeagueTournament(input: {
   }
 
   const { data: membership } = await supabase
-    .from("league_members")
+    .from("members")
     .select("role")
     .eq("league_id", input.leagueId)
     .eq("user_id", user.id)
@@ -62,130 +84,66 @@ export async function settleLeagueTournament(input: {
     return { ok: false, error: "Tournament not found." };
   }
 
-  const { data: results } = await supabase
-    .from("match_results")
-    .select("match_key, winner_ref, voided")
-    .eq("tournament_id", input.tournamentId);
-
-  if (!results?.length) {
+  const official = await loadOfficialFromMatches(supabase, input.tournamentId);
+  if (Object.keys(official).length === 0) {
     return {
       ok: false,
-      error: "No official results yet. Apply migration 0004 or publish results.",
-    };
-  }
-
-  const official: OfficialResults = {};
-  for (const row of results) {
-    official[row.match_key] = {
-      winnerRef: row.winner_ref,
-      voided: row.voided,
+      error: "No official results yet. Wait for match winners to settle.",
     };
   }
 
   const { data: brackets } = await supabase
     .from("brackets")
-    .select("id, user_id, picks, submitted_at")
+    .select("id, user_id, submitted_at")
     .eq("league_id", input.leagueId)
     .eq("tournament_id", input.tournamentId)
     .not("submitted_at", "is", null);
 
-  const { data: priorSnaps } = await supabase
-    .from("bracket_snapshots")
-    .select("user_id, position, score")
-    .eq("league_id", input.leagueId)
-    .eq("tournament_id", input.tournamentId);
-
-  const priorByUser = new Map(
-    (priorSnaps ?? []).map((s) => [
-      s.user_id,
-      { position: s.position as number | null, score: s.score as number },
-    ])
-  );
-
   const drawSize = tournament.draw_size as number;
-  const maxScore = maxBracketScore(drawSize);
-  const weight = input.eventWeight ?? 2;
 
   type GradeRow = {
     userId: string;
     bracketId: string;
     score: number;
-    correct: number;
-    incorrect: number;
-    voided: number;
-    upside: number;
-    championRef: string | null;
-    championAlive: boolean | null;
+    championPlayerId: string | null;
     tieBreak: string;
   };
 
   const graded: GradeRow[] = [];
   for (const b of brackets ?? []) {
+    const picks = await loadBracketPicksMap(supabase, b.id);
     const grade = gradeBracket({
       drawSize,
-      picks: (b.picks ?? {}) as BracketPicks,
+      picks: picks as BracketPicks,
       official,
     });
     graded.push({
       userId: b.user_id,
       bracketId: b.id,
       score: grade.score,
-      correct: grade.correct,
-      incorrect: grade.incorrect,
-      voided: grade.voided,
-      upside: grade.upside,
-      championRef: grade.championRef,
-      championAlive: grade.championAlive,
+      championPlayerId: grade.championRef,
       tieBreak: b.user_id,
     });
   }
 
   const ranked = rankRows(graded);
+  const now = new Date().toISOString();
 
   for (const row of ranked) {
-    const prior = priorByUser.get(row.userId);
-    const previousPosition = prior?.position ?? null;
-    const previousScore = prior?.score ?? null;
-
-    const { error } = await supabase.from("bracket_snapshots").upsert(
-      {
-        league_id: input.leagueId,
-        tournament_id: input.tournamentId,
-        user_id: row.userId,
-        bracket_id: row.bracketId,
-        score: row.score,
-        correct: row.correct,
-        incorrect: row.incorrect,
-        voided_picks: row.voided,
-        upside: row.upside,
-        max_score: maxScore,
-        champion_ref: row.championRef,
-        champion_alive: row.championAlive,
-        position: row.position,
-        previous_position: previousPosition,
-        score_delta:
-          previousScore != null ? row.score - previousScore : null,
-        position_delta:
-          previousPosition != null ? previousPosition - row.position : null,
-        ranked_at: new Date().toISOString(),
-      },
-      { onConflict: "league_id,tournament_id,user_id" }
-    );
+    const { error } = await supabase
+      .from("brackets")
+      .update({
+        points: row.score,
+        rank: row.position,
+        champion_player_id: row.championPlayerId,
+        updated_at: now,
+      })
+      .eq("id", row.bracketId);
 
     if (error) {
       return { ok: false, error: error.message };
     }
-
-    // Season aggregate: replace this event's contribution via full recompute
   }
-
-  // Recompute season standings from all snapshots in this league
-  const seasonResult = await recomputeSeasonStandings(
-    supabase,
-    input.leagueId,
-    weight
-  );
-  if (!seasonResult.ok) return seasonResult;
 
   revalidatePath(`/leagues/${input.leagueSlug}`);
   revalidatePath(`/leagues/${input.leagueSlug}/season`);
@@ -197,80 +155,13 @@ export async function settleLeagueTournament(input: {
   return { ok: true, graded: ranked.length };
 }
 
-async function recomputeSeasonStandings(
-  supabase: ReturnType<typeof createClient>,
-  leagueId: string,
-  defaultWeight: number
-): Promise<ActionResult> {
-  const { data: snaps } = await supabase
-    .from("bracket_snapshots")
-    .select("user_id, score, max_score, tournament_id")
-    .eq("league_id", leagueId);
-
-  const { data: priorSeason } = await supabase
-    .from("season_standings")
-    .select("user_id, position, points")
-    .eq("league_id", leagueId);
-
-  const prior = new Map(
-    (priorSeason ?? []).map((r) => [
-      r.user_id,
-      { position: r.position as number | null, points: r.points as number },
-    ])
-  );
-
-  const byUser = new Map<string, number>();
-  for (const s of snaps ?? []) {
-    const pts = seasonPoints(
-      s.score,
-      s.max_score || 1,
-      defaultWeight
-    );
-    byUser.set(s.user_id, (byUser.get(s.user_id) ?? 0) + pts);
-  }
-
-  const ranked = rankRows(
-    [...byUser.entries()].map(([userId, score]) => ({
-      userId,
-      score,
-      tieBreak: userId,
-    }))
-  );
-
-  for (const row of ranked) {
-    const prev = prior.get(row.userId);
-    const { error } = await supabase.from("season_standings").upsert(
-      {
-        league_id: leagueId,
-        user_id: row.userId,
-        points: row.score,
-        position: row.position,
-        previous_position: prev?.position ?? null,
-        points_delta: prev != null ? row.score - prev.points : null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "league_id,user_id" }
-    );
-    if (error) return { ok: false, error: error.message };
-  }
-
-  return { ok: true, graded: ranked.length };
-}
-
-function parseMatchRound(matchKey: string): number | null {
-  const m = /^r(\d+)-m\d+$/.exec(matchKey);
-  if (!m) return null;
-  return Number(m[1]);
-}
-
 /**
  * Operator void / withdrawal path.
- * Records pick_voids and marks future undecided (or player-won-path)
- * match_results as voided when RLS allows. No service-role in browser.
+ * Marks matches.voided from fromRound onward when the player is on the path.
  */
 export async function stubVoidPlayer(input: {
   tournamentId: string;
-  playerRef: string;
+  playerId: string;
   fromRound?: number;
   reason?: string;
 }): Promise<ActionResult> {
@@ -281,31 +172,33 @@ export async function stubVoidPlayer(input: {
     return { ok: false, error: "Founder access required." };
   }
 
-  const playerRef = input.playerRef.trim();
-  if (!playerRef) return { ok: false, error: "player_ref is required." };
+  const raw = input.playerId.trim();
+  if (!raw) return { ok: false, error: "player_id is required." };
+
+  let playerId = raw;
+  const uuidLike =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      raw
+    );
+  if (!uuidLike) {
+    const { data: player } = await supabase
+      .from("players")
+      .select("id")
+      .eq("provider_id", raw)
+      .maybeSingle();
+    if (!player?.id) {
+      return { ok: false, error: "Player not found (id or provider_id)." };
+    }
+    playerId = player.id;
+  }
 
   const fromRound = input.fromRound ?? 0;
 
-  const { error } = await supabase.from("pick_voids").upsert(
-    {
-      tournament_id: input.tournamentId,
-      player_ref: playerRef,
-      from_round: fromRound,
-      reason: input.reason?.trim() || "withdrawal",
-    },
-    { onConflict: "tournament_id,player_ref,from_round" }
-  );
-
-  if (error) {
-    return {
-      ok: false,
-      error: `${error.message} (Need commissioner RLS on a league for this tournament, or check pick_voids policies.)`,
-    };
-  }
-
   const { data: results, error: resultsError } = await supabase
-    .from("match_results")
-    .select("match_key, winner_ref, voided")
+    .from("matches")
+    .select(
+      "id, round, index_in_round, winner_player_id, voided, side_a_player_id, side_b_player_id"
+    )
     .eq("tournament_id", input.tournamentId);
 
   if (resultsError) {
@@ -314,23 +207,28 @@ export async function stubVoidPlayer(input: {
 
   let voidedMatches = 0;
   for (const row of results ?? []) {
-    const round = parseMatchRound(row.match_key);
-    if (round == null || round < fromRound) continue;
+    if (row.round < fromRound) continue;
     if (row.voided) continue;
-    const undecided = !row.winner_ref;
-    const onPlayerPath = row.winner_ref === playerRef;
+    const undecided = !row.winner_player_id;
+    const onPlayerPath = row.winner_player_id === playerId;
+    const onSide =
+      row.side_a_player_id === playerId || row.side_b_player_id === playerId;
     if (!undecided && !onPlayerPath) continue;
+    if (undecided && !onSide && !onPlayerPath) continue;
 
     const { error: updError } = await supabase
-      .from("match_results")
-      .update({ voided: true })
-      .eq("tournament_id", input.tournamentId)
-      .eq("match_key", row.match_key);
+      .from("matches")
+      .update({
+        voided: true,
+        winner_player_id: null,
+        settled_at: new Date().toISOString(),
+      })
+      .eq("id", row.id);
 
     if (updError) {
       return {
         ok: false,
-        error: `${updError.message} (pick_voids saved; match_results update blocked by RLS — commissioner write required.)`,
+        error: `${updError.message} (matches update blocked — service role / ingest required.)`,
       };
     }
     voidedMatches++;
@@ -359,7 +257,6 @@ export async function recordOfficialResult(input: {
 
 /**
  * One round-trip: optionally clear dependent later results, then save this winner.
- * Faster than clearOfficialResults + recordOfficialResult back-to-back.
  */
 export async function saveOfficialWinner(input: {
   leagueId: string;
@@ -382,10 +279,13 @@ export async function saveOfficialWinner(input: {
     return { ok: false, error: "winner_ref is required (or mark voided)." };
   }
 
+  const parsed = parseMatchKey(matchKey);
+  if (!parsed) return { ok: false, error: "Invalid match_key." };
+
   const founder = isFounderEmail(user.email ?? undefined);
   if (!founder) {
     const { data: membership } = await supabase
-      .from("league_members")
+      .from("members")
       .select("role")
       .eq("league_id", input.leagueId)
       .eq("user_id", user.id)
@@ -398,47 +298,51 @@ export async function saveOfficialWinner(input: {
   const toClear = (input.clearMatchKeys ?? []).filter(
     (k) => k && k !== matchKey
   );
-  if (toClear.length > 0) {
+  for (const key of toClear) {
+    const clearParsed = parseMatchKey(key);
+    if (!clearParsed) continue;
     const { error: clearError } = await supabase
-      .from("match_results")
-      .delete()
+      .from("matches")
+      .update({
+        winner_player_id: null,
+        voided: false,
+        settled_at: null,
+      })
       .eq("tournament_id", input.tournamentId)
-      .in("match_key", toClear);
+      .eq("round", clearParsed.round)
+      .eq("index_in_round", clearParsed.index_in_round);
     if (clearError) {
       return {
         ok: false,
-        error: `${clearError.message} (Need commissioner write RLS on match_results.)`,
+        error: `${clearError.message} (Need write access on matches.)`,
       };
     }
   }
 
-  const { error } = await supabase.from("match_results").upsert(
-    {
-      tournament_id: input.tournamentId,
-      match_key: matchKey,
-      winner_ref: input.voided ? null : winnerRef,
+  const { error } = await supabase
+    .from("matches")
+    .update({
+      winner_player_id: input.voided ? null : winnerRef,
       voided: Boolean(input.voided),
       settled_at: new Date().toISOString(),
-    },
-    { onConflict: "tournament_id,match_key" }
-  );
+    })
+    .eq("tournament_id", input.tournamentId)
+    .eq("round", parsed.round)
+    .eq("index_in_round", parsed.index_in_round);
 
   if (error) {
     return {
       ok: false,
-      error: `${error.message} (Need commissioner write RLS on match_results for this tournament.)`,
+      error: `${error.message} (Need write access on matches for this tournament.)`,
     };
   }
 
-  // Refresh this tournament hub (standings / bracket grades). Local panel
-  // already updated optimistically — one revalidate is enough.
   revalidatePath(`/leagues/${input.leagueSlug}/t/${input.tournamentRef}`);
   return { ok: true, graded: 1 };
 }
 
 /**
- * Commissioner / founder: delete one or more official results (e.g. clear a
- * match so it can be recorded later, or wipe seeded demo rows).
+ * Commissioner / founder: clear one or more official results.
  */
 export async function clearOfficialResults(input: {
   leagueId: string;
@@ -454,7 +358,7 @@ export async function clearOfficialResults(input: {
   const founder = isFounderEmail(user.email ?? undefined);
   if (!founder) {
     const { data: membership } = await supabase
-      .from("league_members")
+      .from("members")
       .select("role")
       .eq("league_id", input.leagueId)
       .eq("user_id", user.id)
@@ -464,21 +368,40 @@ export async function clearOfficialResults(input: {
     }
   }
 
-  let query = supabase
-    .from("match_results")
-    .delete()
-    .eq("tournament_id", input.tournamentId);
+  const patch = {
+    winner_player_id: null as string | null,
+    voided: false,
+    settled_at: null as string | null,
+  };
 
   if (input.matchKeys && input.matchKeys.length > 0) {
-    query = query.in("match_key", input.matchKeys);
-  }
-
-  const { error } = await query;
-  if (error) {
-    return {
-      ok: false,
-      error: `${error.message} (Need commissioner write RLS on match_results.)`,
-    };
+    for (const key of input.matchKeys) {
+      const parsed = parseMatchKey(key);
+      if (!parsed) continue;
+      const { error } = await supabase
+        .from("matches")
+        .update(patch)
+        .eq("tournament_id", input.tournamentId)
+        .eq("round", parsed.round)
+        .eq("index_in_round", parsed.index_in_round);
+      if (error) {
+        return {
+          ok: false,
+          error: `${error.message} (Need write access on matches.)`,
+        };
+      }
+    }
+  } else {
+    const { error } = await supabase
+      .from("matches")
+      .update(patch)
+      .eq("tournament_id", input.tournamentId);
+    if (error) {
+      return {
+        ok: false,
+        error: `${error.message} (Need write access on matches.)`,
+      };
+    }
   }
 
   revalidatePath(`/leagues/${input.leagueSlug}/t/${input.tournamentRef}`);

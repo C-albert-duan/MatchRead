@@ -38,7 +38,7 @@ export default async function EnterTournamentPage({ params }: Props) {
   await supabase.rpc("ensure_profile");
 
   const { data, error } = await supabase.rpc("ensure_solo_league", {
-    p_tournament_ref: ref,
+    p_tournament_id: event.id,
   });
 
   if (error) {
@@ -52,12 +52,10 @@ export default async function EnterTournamentPage({ params }: Props) {
   const row = Array.isArray(data) ? data[0] : data;
   const slug =
     row && typeof row === "object"
-      ? ((row as { league_slug?: string }).league_slug ?? null)
+      ? ((row as { slug?: string; league_slug?: string }).slug ??
+        (row as { league_slug?: string }).league_slug ??
+        null)
       : null;
-  const outRef =
-    row && typeof row === "object"
-      ? ((row as { tournament_ref?: string }).tournament_ref ?? ref)
-      : ref;
 
   if (!slug) {
     redirect(
@@ -65,5 +63,5 @@ export default async function EnterTournamentPage({ params }: Props) {
     );
   }
 
-  redirect(`/leagues/${slug}/t/${outRef}/bracket`);
+  redirect(`/leagues/${slug}/t/${event.ref}/bracket`);
 }

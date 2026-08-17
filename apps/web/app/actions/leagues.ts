@@ -3,7 +3,6 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { slugifyLeagueName } from "@/lib/leagues/slug";
 import type { LeagueFormat, LeagueVisibility } from "@/lib/leagues/types";
 import { reportError } from "@/lib/report-error";
 import { trackServer } from "@/lib/telemetry-server";
@@ -39,8 +38,18 @@ export async function ensureSoloLeague(tournamentRef: string): Promise<ActionRes
 
   await supabase.rpc("ensure_profile");
 
+  const { data: tournament, error: tErr } = await supabase
+    .from("tournaments")
+    .select("id, slug")
+    .eq("slug", ref)
+    .maybeSingle();
+
+  if (tErr || !tournament?.id) {
+    return { ok: false, error: "Tournament not found." };
+  }
+
   const { data, error } = await supabase.rpc("ensure_solo_league", {
-    p_tournament_ref: ref,
+    p_tournament_id: tournament.id,
   });
 
   if (error) {
@@ -54,19 +63,15 @@ export async function ensureSoloLeague(tournamentRef: string): Promise<ActionRes
   const row = Array.isArray(data) ? data[0] : data;
   const slug =
     row && typeof row === "object"
-      ? ((row as { league_slug?: string }).league_slug ?? null)
+      ? ((row as { slug?: string }).slug ?? null)
       : null;
-  const outRef =
-    row && typeof row === "object"
-      ? ((row as { tournament_ref?: string }).tournament_ref ?? ref)
-      : ref;
 
   if (!slug) {
     return { ok: false, error: "Could not start your bracket." };
   }
 
   revalidatePath("/leagues");
-  redirect(`/leagues/${slug}/t/${outRef}/bracket`);
+  redirect(`/leagues/${slug}/t/${tournament.slug}/bracket`);
 }
 
 export async function createLeague(formData: FormData): Promise<ActionResult> {
@@ -81,6 +86,7 @@ export async function createLeague(formData: FormData): Promise<ActionResult> {
     formData.get("visibility") ?? "private"
   ) as LeagueVisibility;
   const tournamentLabel = String(formData.get("tournament_label") ?? "").trim();
+  // Form still posts tournament_label; value is tournaments.slug.
 
   if (!name) {
     return { ok: false, error: "Give your league a name." };
@@ -97,16 +103,27 @@ export async function createLeague(formData: FormData): Promise<ActionResult> {
 
   await supabase.rpc("ensure_profile");
 
-  const slug = slugifyLeagueName(name);
+  let tournamentId: string | null = null;
+  if (format === "single") {
+    const { data: t } = await supabase
+      .from("tournaments")
+      .select("id")
+      .eq("slug", tournamentLabel)
+      .maybeSingle();
+    if (!t?.id) {
+      return { ok: false, error: "Pick a tournament." };
+    }
+    tournamentId = t.id;
+  }
 
   const { data: created, error: createError } = await supabase.rpc(
     "create_league",
     {
       p_name: name,
-      p_slug: slug,
       p_format: format,
+      p_tournament_id: tournamentId,
       p_visibility: visibility,
-      p_tournament_label: format === "single" ? tournamentLabel : null,
+      p_is_solo: false,
     }
   );
 
@@ -139,10 +156,9 @@ export async function joinLeagueWithToken(
     return { ok: false, error: "Sign in to join." };
   }
 
-  const { data: leagueId, error } = await supabase.rpc(
-    "join_league_with_token",
-    { p_token: token }
-  );
+  const { data: leagueRow, error } = await supabase.rpc("join_with_invite", {
+    p_token: token,
+  });
 
   if (error) {
     const msg = error.message ?? "";
@@ -157,15 +173,15 @@ export async function joinLeagueWithToken(
 
   trackServer("league_joined", user.id, { token: token.slice(0, 8) });
 
-  const { data: league } = await supabase
-    .from("leagues")
-    .select("slug")
-    .eq("id", leagueId)
-    .single();
+  const joined = Array.isArray(leagueRow) ? leagueRow[0] : leagueRow;
+  const joinedSlug =
+    joined && typeof joined === "object"
+      ? ((joined as { slug?: string }).slug ?? null)
+      : null;
 
   revalidatePath("/leagues");
-  if (league?.slug) {
-    redirect(`/leagues/${league.slug}`);
+  if (joinedSlug) {
+    redirect(`/leagues/${joinedSlug}`);
   }
   redirect("/leagues");
 }
@@ -179,25 +195,15 @@ export async function revokeAndReissueInvite(
     return { ok: false, error: "Sign in required." };
   }
 
-  const now = new Date().toISOString();
-
-  const { error: revokeError } = await supabase
-    .from("league_invites")
-    .update({ revoked_at: now })
-    .eq("league_id", leagueId)
-    .is("revoked_at", null);
-
-  if (revokeError) {
-    return { ok: false, error: revokeError.message };
-  }
-
-  const { error: insertError } = await supabase.from("league_invites").insert({
-    league_id: leagueId,
-    created_by: user.id,
+  const { error } = await supabase.rpc("reissue_invite", {
+    p_league_id: leagueId,
   });
 
-  if (insertError) {
-    return { ok: false, error: insertError.message };
+  if (error) {
+    return {
+      ok: false,
+      error: mapLeagueRpcError(error.message, "Could not reissue invite."),
+    };
   }
 
   revalidatePath(`/leagues/${slug}`);

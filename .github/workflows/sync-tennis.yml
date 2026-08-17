@@ -1,7 +1,6 @@
-# Optional manual trigger. Production clock is Supabase pg_cron (every 30 min).
-# See docs/runbooks/SYNC-TENNIS.md — GitHub is not required.
+# Optional manual trigger. Production clock is Supabase pg_cron → sync-facts.
 #
-# Repo secrets if you use this button (no RAPIDAPI_KEY):
+# Repo secrets (no RAPIDAPI_KEY — that lives in Supabase Edge secrets):
 #   NEXT_PUBLIC_SUPABASE_URL   https://<ref>.supabase.co
 #   INGEST_SECRET              same as supabase secrets INGEST_SECRET
 
@@ -10,29 +9,28 @@ name: Sync tennis facts
 on:
   workflow_dispatch:
     inputs:
-      job:
-        description: "publish | reconcile | all"
-        type: choice
-        options: [all, publish, reconcile]
-        default: all
       dry_run:
         description: "Fetch only — do not write"
         type: boolean
         default: true
-      ref:
-        description: "Optional tournament ref (e.g. cin-2026)"
+      slug:
+        description: "Optional tournament slug (e.g. t-atp-21347)"
+        type: string
+        default: ""
+      year:
+        description: "Calendar year"
         type: string
         default: ""
 
 concurrency:
-  group: sync-tennis
+  group: sync-facts
   cancel-in-progress: false
 
 jobs:
   sync:
-    name: POST sync-tennis
+    name: POST sync-facts
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: read
 
@@ -41,36 +39,28 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           INGEST_SECRET: ${{ secrets.INGEST_SECRET }}
-          EVENT_NAME: ${{ github.event_name }}
-          JOB_INPUT: ${{ inputs.job }}
           DRY_INPUT: ${{ inputs.dry_run }}
-          REF_INPUT: ${{ inputs.ref }}
+          SLUG_INPUT: ${{ inputs.slug }}
+          YEAR_INPUT: ${{ inputs.year }}
         run: |
           set -euo pipefail
           if [ -z "${SUPABASE_URL:-}" ] || [ -z "${INGEST_SECRET:-}" ]; then
             echo "Missing NEXT_PUBLIC_SUPABASE_URL or INGEST_SECRET repo secrets."
             exit 1
           fi
-          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
-            JOB="${JOB_INPUT:-all}"
-            DRY="${DRY_INPUT:-false}"
-            REF="${REF_INPUT:-}"
-          else
-            JOB="all"
-            DRY="false"
-            REF=""
-          fi
-          case "${DRY}" in
+          case "${DRY_INPUT:-false}" in
             true|True|TRUE) DRY_JSON=true ;;
             *) DRY_JSON=false ;;
           esac
-          URL="${SUPABASE_URL%/}/functions/v1/sync-tennis"
+          URL="${SUPABASE_URL%/}/functions/v1/sync-facts"
           BODY=$(jq -n \
-            --arg job "${JOB}" \
             --argjson dryRun "${DRY_JSON}" \
-            --arg ref "${REF}" \
-            '{job:$job, dryRun:$dryRun} + (if $ref == "" then {} else {ref:$ref} end)')
-          echo "POST $URL job=$JOB dryRun=$DRY_JSON"
+            --arg slug "${SLUG_INPUT:-}" \
+            --arg year "${YEAR_INPUT:-}" \
+            '{dryRun:$dryRun}
+              + (if $slug == "" then {} else {slug:$slug} end)
+              + (if $year == "" then {} else {year:($year|tonumber)} end)')
+          echo "POST $URL dryRun=$DRY_JSON"
           CODE=$(curl -sS -o /tmp/sync-out.json -w "%{http_code}" \
             -X POST "$URL" \
             -H "Authorization: Bearer ${INGEST_SECRET}" \

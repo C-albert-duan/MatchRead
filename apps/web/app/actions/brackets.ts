@@ -2,6 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import type { BracketConfidence, BracketPicks } from "@matchread/core";
+import {
+  confidenceToSavePayload,
+  picksToSavePayload,
+} from "@/lib/brackets/types";
 import { reportError } from "@/lib/report-error";
 import { createClient } from "@/lib/supabase/server";
 
@@ -33,13 +37,25 @@ export async function saveBracketPicks(input: {
     return { ok: false, error: "Sign in to save your bracket.", code: "auth" };
   }
 
-  const { error } = await supabase.rpc("save_bracket_picks", {
+  const payload = await picksToSavePayload(
+    supabase,
+    input.tournamentId,
+    input.picks
+  );
+  const confidencePayload =
+    input.confidence != null
+      ? await confidenceToSavePayload(
+          supabase,
+          input.tournamentId,
+          input.confidence
+        )
+      : null;
+
+  const { error } = await supabase.rpc("save_picks", {
     p_league_id: input.leagueId,
     p_tournament_id: input.tournamentId,
-    p_picks: input.picks,
-    ...(input.confidence != null
-      ? { p_confidence: input.confidence }
-      : {}),
+    p_picks: payload,
+    ...(confidencePayload != null ? { p_confidence: confidencePayload } : {}),
   });
 
   if (error) {
@@ -114,23 +130,38 @@ export async function adminLockTournament(input: {
     return { ok: false, error: "Sign in required.", code: "auth" };
   }
 
-  const { error } = await supabase.rpc("admin_lock_tournament", {
-    p_tournament_ref: input.tournamentRef,
-    p_locked: input.locked,
-    p_league_slug: input.leagueSlug,
+  const { data: league } = await supabase
+    .from("leagues")
+    .select("id")
+    .eq("slug", input.leagueSlug)
+    .maybeSingle();
+  const { data: tournament } = await supabase
+    .from("tournaments")
+    .select("id")
+    .eq("slug", input.tournamentRef)
+    .maybeSingle();
+
+  if (!league?.id || !tournament?.id) {
+    return { ok: false, error: "League or tournament not found." };
+  }
+
+  if (!input.locked) {
+    return {
+      ok: false,
+      error: "Unlock is not supported after a league lock.",
+      code: "locked",
+    };
+  }
+
+  const { error } = await supabase.rpc("lock_league_event", {
+    p_league_id: league.id,
+    p_tournament_id: tournament.id,
   });
 
   if (error) {
     const msg = error.message ?? "";
     if (/commissioner/i.test(msg)) {
       return { ok: false, error: "Only the commissioner can lock.", code: "role" };
-    }
-    if (/tournament locked/i.test(msg)) {
-      return {
-        ok: false,
-        error: "First ball has started. This league cannot reopen.",
-        code: "locked",
-      };
     }
     return { ok: false, error: msg || "Could not update lock." };
   }

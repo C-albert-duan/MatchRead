@@ -1,7 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  CIN_2026_OFFICIAL,
   buildDrawFromFirstRound,
   firstMainDrawBall,
   mapLiveFinishedToIngest,
@@ -13,6 +12,22 @@ import {
   resolveNationalBankOpenWeek,
 } from "./index.js";
 import { drawNameCandidates } from "./official/parse-draw.js";
+
+function seat(position, overrides = {}) {
+  const kind = overrides.seat_kind || (overrides.is_bye ? "bye" : "player");
+  return {
+    position,
+    player_ref: overrides.player_ref ?? `p-${position}`,
+    last_name: overrides.last_name ?? (kind === "bye" ? "Bye" : "Player"),
+    given_name: overrides.given_name ?? null,
+    seed: overrides.seed ?? null,
+    country_code: overrides.country_code ?? "XXX",
+    is_bye: kind === "bye",
+    seat_kind: kind,
+    entry_status: overrides.entry_status ?? null,
+    provider_player_id: overrides.provider_player_id ?? null,
+  };
+}
 
 describe("normalizeTour", () => {
   it("defaults unknown to atp", () => {
@@ -204,23 +219,47 @@ describe("buildDrawFromFirstRound", () => {
 });
 
 describe("overlayOfficialDraw", () => {
-  it("keeps Cincinnati as 128 with byes and TBD seats", () => {
-    assert.equal(CIN_2026_OFFICIAL.seats.length, 128);
-    const byes = CIN_2026_OFFICIAL.seats.filter((s) => s.seat_kind === "bye");
-    const tbd = CIN_2026_OFFICIAL.seats.filter((s) => s.seat_kind === "tbd");
-    const named = CIN_2026_OFFICIAL.seats.filter((s) => s.seat_kind === "player");
-    assert.equal(byes.length, 32);
-    assert.equal(tbd.length, 13);
-    assert.equal(named.length, 83);
-    assert.equal(CIN_2026_OFFICIAL.seats[0].last_name, "Zverev");
-    assert.equal(CIN_2026_OFFICIAL.seats[1].seat_kind, "bye");
-    assert.equal(CIN_2026_OFFICIAL.seats[10].seat_kind, "tbd");
-    assert.equal(CIN_2026_OFFICIAL.seats[37].entry_status, "wc");
-    assert.equal(CIN_2026_OFFICIAL.seats[85].entry_status, "pr");
-    assert.equal(CIN_2026_OFFICIAL.seats[127].last_name, "Auger-Aliassime");
-  });
-
   it("maps provider ids onto official slots without reordering", () => {
+    const seats = [
+      seat(0, {
+        last_name: "Cerundolo",
+        given_name: "Francisco",
+        player_ref: "p-fc",
+        country_code: "ARG",
+      }),
+      seat(1, { seat_kind: "bye", player_ref: "bye-1" }),
+      seat(2, {
+        last_name: "Norrie",
+        given_name: "Cameron",
+        player_ref: "cin-2-norrie",
+        country_code: "GBR",
+      }),
+      seat(3, {
+        last_name: "Prizmic",
+        given_name: "Dino",
+        player_ref: "p-prizmic",
+        country_code: "CRO",
+      }),
+      seat(4, {
+        last_name: "Fucsovics",
+        given_name: "Marton",
+        player_ref: "p-fuc",
+        country_code: "HUN",
+      }),
+      seat(5, {
+        last_name: "Atmane",
+        given_name: "Terence",
+        player_ref: "p-atm",
+        country_code: "FRA",
+      }),
+      seat(6, {
+        last_name: "Cerundolo",
+        given_name: "Juan",
+        player_ref: "p-jmc",
+        country_code: "ARG",
+      }),
+      seat(7, { seat_kind: "tbd", last_name: "Qualifier", player_ref: "tbd-7" }),
+    ];
     const fixtures = [
       {
         id: 9001,
@@ -250,19 +289,19 @@ describe("overlayOfficialDraw", () => {
         date: "2026-08-14T17:00:00.000Z",
       },
     ];
-    const built = overlayOfficialDraw(CIN_2026_OFFICIAL.seats, fixtures, {
+    const built = overlayOfficialDraw(seats, fixtures, {
       prefix: "atp",
     });
     assert.equal(built.ok, true);
     if (!built.ok) throw new Error(built.reason);
-    assert.equal(built.drawSize, 128);
+    assert.equal(built.drawSize, 8);
     assert.equal(built.seats[2].provider_player_id, "11");
     assert.equal(built.seats[2].player_ref, "cin-2-norrie");
     assert.equal(built.seats[3].provider_player_id, "22");
     assert.equal(built.seats[4].provider_player_id, "31");
     assert.equal(built.seats[5].provider_player_id, "32");
-    assert.equal(built.seats[87].provider_player_id, "41");
-    assert.equal(built.seats[123].provider_player_id, "42");
+    assert.equal(built.seats[0].provider_player_id, "41");
+    assert.equal(built.seats[6].provider_player_id, "42");
     assert.equal(built.matches["9001"], "r0-m1");
     assert.equal(built.matches["9002"], "r0-m2");
     assert.equal(built.matches["9003"], undefined);
@@ -271,10 +310,31 @@ describe("overlayOfficialDraw", () => {
       Object.values(built.matches).length
     );
     assert.equal(built.seats[1].seat_kind, "bye");
-    assert.equal(built.seats[10].seat_kind, "tbd");
+    assert.equal(built.seats[7].seat_kind, "tbd");
   });
 
   it("does not give two Cerundolos the same provider id", () => {
+    const seats = [
+      seat(0, {
+        last_name: "Cerundolo",
+        given_name: "Francisco",
+        player_ref: "p-fc",
+        country_code: "ARG",
+      }),
+      seat(1, { seat_kind: "bye", player_ref: "bye-1" }),
+      seat(2, {
+        last_name: "Cerundolo",
+        given_name: "Juan",
+        player_ref: "p-jmc",
+        country_code: "ARG",
+      }),
+      seat(3, {
+        last_name: "Nakashima",
+        given_name: "Brandon",
+        player_ref: "p-nak",
+        country_code: "USA",
+      }),
+    ];
     const fixtures = [
       {
         id: 1,
@@ -284,13 +344,13 @@ describe("overlayOfficialDraw", () => {
         player2: { id: 99, name: "Brandon Nakashima", countryAcr: "USA" },
       },
     ];
-    const built = overlayOfficialDraw(CIN_2026_OFFICIAL.seats, fixtures, {
+    const built = overlayOfficialDraw(seats, fixtures, {
       prefix: "atp",
     });
     assert.equal(built.ok, true);
     if (!built.ok) throw new Error(built.reason);
-    assert.equal(built.seats[87].provider_player_id, "52934");
-    assert.equal(built.seats[123].provider_player_id, null);
+    assert.equal(built.seats[0].provider_player_id, "52934");
+    assert.equal(built.seats[2].provider_player_id, null);
   });
 
   it("fills a TBD seat from the named opponent's published match", () => {
@@ -500,14 +560,14 @@ describe("parseOfficialDraw", () => {
 });
 
 describe("drawNameCandidates", () => {
-  it("adds Cincinnati aliases for the WTA Open", () => {
+  it("uses api_name and strips trailing Open", () => {
     const names = drawNameCandidates({
       ref: "cin-wta-2026",
       api_name: "Cincinnati Open",
     });
     assert.ok(names.includes("Cincinnati Open"));
     assert.ok(names.includes("Cincinnati"));
-    assert.ok(names.includes("Western & Southern Open"));
+    assert.equal(names.includes("Western & Southern Open"), false);
   });
 });
 

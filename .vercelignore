@@ -1,6 +1,4 @@
 # Keep Vercel uploads small — app code only
-Wireframe
-docs/plans
 **/*.md
 !README.md
 .git

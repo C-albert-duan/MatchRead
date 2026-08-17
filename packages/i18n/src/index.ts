@@ -505,9 +505,6 @@ const en = {
     ". The draw does not have to exist yet — members join now and the bracket opens when it lands.",
   "create.submit": "Create league",
   "create.creating": "Creating",
-  "create.opt.uso": "US Open 2026 — fixture 16-draw (entry open)",
-  "create.opt.wim": "Wimbledon 2026 — draw pending",
-  "create.opt.rg": "Roland Garros 2026 — draw pending",
 
   // Join invite
   "join.eyebrow": "Invite",
@@ -1057,9 +1054,6 @@ const es: Record<MessageKey, string> = {
     ". El sorteo no tiene que existir aún — los miembros se unen ahora y el cuadro abre cuando llegue.",
   "create.submit": "Crear liga",
   "create.creating": "Creando",
-  "create.opt.uso": "US Open 2026 — fixture cuadro 16 (inscripción abierta)",
-  "create.opt.wim": "Wimbledon 2026 — sorteo pendiente",
-  "create.opt.rg": "Roland Garros 2026 — sorteo pendiente",
 
   "join.eyebrow": "Invitación",
   "join.invalid.title": "Esta invitación ya no es válida",
@@ -1591,9 +1585,6 @@ const ja: Record<MessageKey, string> = {
     "に残ります。ドローはまだ無くて構いません — 先に参加し、ドローが出たらブラケットが開きます。",
   "create.submit": "リーグを作成",
   "create.creating": "作成中",
-  "create.opt.uso": "全米オープン 2026 — 16ドロー（受付中）",
-  "create.opt.wim": "ウィンブルドン 2026 — ドロー待ち",
-  "create.opt.rg": "全仏オープン 2026 — ドロー待ち",
 
   "join.eyebrow": "招待",
   "join.invalid.title": "この招待はもう無効です",

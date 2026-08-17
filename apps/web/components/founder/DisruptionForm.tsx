@@ -25,7 +25,7 @@ export function DisruptionForm({
   afterMessage,
 }: Props) {
   const [tournamentId, setTournamentId] = useState(tournaments[0]?.id ?? "");
-  const [playerRef, setPlayerRef] = useState("p-0");
+  const [playerId, setPlayerId] = useState("");
   const [fromRound, setFromRound] = useState(0);
   const [reason, setReason] = useState("withdrawal");
   const [pending, startTransition] = useTransition();
@@ -44,7 +44,7 @@ export function DisruptionForm({
         startTransition(async () => {
           const result = await stubVoidPlayer({
             tournamentId,
-            playerRef: playerRef.trim(),
+            playerId: playerId.trim(),
             fromRound,
             reason: reason.trim() || "withdrawal",
           });
@@ -83,17 +83,17 @@ export function DisruptionForm({
       </label>
 
       <label className="stack gap-sm">
-        <span className="field-label">Player ref</span>
+        <span className="field-label">Player id</span>
         <input
           className="field"
-          value={playerRef}
-          onChange={(e) => setPlayerRef(e.target.value)}
-          placeholder="p-0"
+          value={playerId}
+          onChange={(e) => setPlayerId(e.target.value)}
+          placeholder="uuid or provider_id"
           required
           autoComplete="off"
         />
         <span className="hint">
-          Seat id from the draw (e.g. p-0). Fixture US Open uses p-0 … p-15.
+          Seat player_id (UUID) or players.provider_id from the published draw.
         </span>
       </label>
 
@@ -133,7 +133,7 @@ export function DisruptionForm({
       <button
         type="submit"
         className="act act--prominent act--prominent-size"
-        disabled={pending || !tournamentId || !playerRef.trim()}
+        disabled={pending || !tournamentId || !playerId.trim()}
         style={{ alignSelf: "flex-start" }}
       >
         {pending ? submittingLabel : submitLabel}

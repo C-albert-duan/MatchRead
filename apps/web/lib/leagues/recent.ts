@@ -87,54 +87,45 @@ export async function loadRecentLeagueActivity(
     };
   }
 
-  const [tournamentRes, drawRes, snapRes, settledRes] = await Promise.all([
+  const [tournamentRes, myBracketRes, settledRes] = await Promise.all([
     supabase
       .from("tournaments")
-      .select("id, ref, name")
+      .select("id, slug, name, published_at")
       .eq("id", tournamentId)
-      .maybeSingle(),
-    supabase
-      .from("draws")
-      .select("id")
-      .eq("tournament_id", tournamentId)
       .maybeSingle(),
     picked
       ? supabase
-          .from("bracket_snapshots")
-          .select(
-            "position, score, position_delta, score_delta, correct, champion_alive"
-          )
+          .from("brackets")
+          .select("points, rank, champion_player_id")
           .eq("league_id", league.id)
           .eq("tournament_id", tournamentId)
           .eq("user_id", userId)
           .maybeSingle()
       : Promise.resolve({
           data: null as {
-            position: number | null;
-            score: number;
-            position_delta: number | null;
-            score_delta: number | null;
-            correct: number | null;
-            champion_alive: boolean | null;
+            points: number | null;
+            rank: number | null;
+            champion_player_id: string | null;
           } | null,
         }),
     supabase
-      .from("match_results")
-      .select("match_key", { count: "exact", head: true })
+      .from("matches")
+      .select("id", { count: "exact", head: true })
       .eq("tournament_id", tournamentId)
-      .not("winner_ref", "is", null)
+      .not("winner_player_id", "is", null)
       .eq("voided", false),
   ]);
 
   const tournament = tournamentRes.data;
-  const mine = snapRes.data;
+  const mine = myBracketRes.data;
   let fieldSize: number | null = null;
-  if (mine?.position != null) {
+  if (mine?.rank != null) {
     const { count } = await supabase
-      .from("bracket_snapshots")
+      .from("brackets")
       .select("user_id", { count: "exact", head: true })
       .eq("league_id", league.id)
-      .eq("tournament_id", tournamentId);
+      .eq("tournament_id", tournamentId)
+      .not("points", "is", null);
     fieldSize = count ?? null;
   }
 
@@ -143,24 +134,23 @@ export async function loadRecentLeagueActivity(
     tournament: tournament
       ? {
           id: tournament.id,
-          ref: tournament.ref,
+          ref: tournament.slug,
           name: tournament.name,
-          hasDraw: Boolean(drawRes.data),
+          hasDraw: Boolean(tournament.published_at),
         }
       : null,
     submittedAt: picked?.submitted_at ?? null,
     draftUpdatedAt,
     standing:
-      mine?.position != null && fieldSize != null
+      mine?.rank != null && mine.points != null && fieldSize != null
         ? {
-            position: mine.position,
-            score: mine.score,
+            position: mine.rank,
+            score: mine.points,
             fieldSize,
-            positionDelta: mine.position_delta ?? null,
-            scoreDelta: mine.score_delta ?? null,
-            correct: mine.correct ?? null,
-            championAlive:
-              mine.champion_alive == null ? null : Boolean(mine.champion_alive),
+            positionDelta: null,
+            scoreDelta: null,
+            correct: null,
+            championAlive: null,
           }
         : null,
     settledMatches: settledRes.count ?? null,

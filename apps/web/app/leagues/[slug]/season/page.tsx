@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { rankRows } from "@matchread/core";
 import { AppShell } from "@/components/shell/AppShell";
 import { LiveRefresh } from "@/components/shell/LiveRefresh";
 import { StandingsTable } from "@/components/league/StandingsTable";
@@ -32,7 +33,7 @@ export default async function SeasonStandingsPage({ params }: Props) {
   if (!league) notFound();
 
   const { data: membership } = await supabase
-    .from("league_members")
+    .from("members")
     .select("role")
     .eq("league_id", league.id)
     .eq("user_id", user.id)
@@ -47,28 +48,32 @@ export default async function SeasonStandingsPage({ params }: Props) {
   );
 
   const { data: rows } = await supabase
-    .from("season_standings")
-    .select("user_id, points, position, previous_position, points_delta")
-    .eq("league_id", league.id)
-    .order("position", { ascending: true });
+    .from("season_points")
+    .select("user_id, points")
+    .eq("league_id", league.id);
+
+  const ranked = rankRows(
+    (rows ?? []).map((r) => ({
+      userId: r.user_id,
+      score: r.points ?? 0,
+      tieBreak: r.user_id,
+    }))
+  );
 
   const names = await loadDisplayNames(
     supabase,
-    (rows ?? []).map((r) => r.user_id)
+    ranked.map((r) => r.userId)
   );
 
-  const standingRows = (rows ?? []).map((r) => ({
-    user_id: r.user_id,
-    score: r.points,
+  const standingRows = ranked.map((r) => ({
+    user_id: r.userId,
+    score: r.score,
     position: r.position,
-    previous_position: r.previous_position,
-    score_delta: r.points_delta,
-    position_delta:
-      r.previous_position != null && r.position != null
-        ? r.previous_position - r.position
-        : null,
-    label: memberLabel(r.user_id, user.id, names),
-    isYou: r.user_id === user.id,
+    previous_position: null as number | null,
+    score_delta: null as number | null,
+    position_delta: null as number | null,
+    label: memberLabel(r.userId, user.id, names),
+    isYou: r.userId === user.id,
   }));
 
   return (

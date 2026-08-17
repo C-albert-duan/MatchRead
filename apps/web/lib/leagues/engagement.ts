@@ -84,7 +84,7 @@ export function buildLeagueEngagement(input: {
 
     const rawMiss = biggestMiss({ picks, official, drawSize });
     if (rawMiss) {
-      const seat = seats.find((s) => s.player_ref === rawMiss.playerRef);
+      const seat = seats.find((s) => s.player_id === rawMiss.playerRef);
       miss = {
         ...rawMiss,
         playerName: seat?.last_name ?? rawMiss.playerRef,

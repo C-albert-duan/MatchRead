@@ -182,14 +182,6 @@ export type OfficialDrawSeat = {
   provider_player_id: string | null;
 };
 
-export declare const CIN_2026_OFFICIAL: {
-  ref: "cin-2026";
-  tour: "atp";
-  draw_size: 128;
-  source: string;
-  seats: OfficialDrawSeat[];
-};
-
 export declare function overlayOfficialDraw(
   officialSeats: OfficialDrawSeat[] | Array<Record<string, unknown>>,
   fixtures: unknown[],

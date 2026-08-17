@@ -26,7 +26,7 @@ type Props = {
   tournamentRef: string;
   drawSize: number;
   seats: DrawSeat[];
-  /** Existing official winners: matchKey → player_ref */
+  /** Existing official winners: matchKey → player_id */
   initialResults: Record<string, string>;
   isFounder: boolean;
   schedule?: Record<string, MatchScheduleRow>;

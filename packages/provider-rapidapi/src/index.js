@@ -649,7 +649,6 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-export { CIN_2026_OFFICIAL } from "./official/cin-2026.js";
 export { overlayOfficialDraw } from "./official/overlay.js";
 export {
   drawNameCandidates,
@@ -668,8 +667,7 @@ export {
 } from "./live.js";
 
 /**
- * Official seats from Tennis API draws. Cincinnati MDS is fallback only
- * when the API sheet is missing. Never invent slot order from match ids.
+ * Official seats from Tennis API draws. Never invent slot order from match ids.
  * @param {{ get: (path: string) => Promise<any> }} client
  * @param {{ ref?: string, tour?: string, name?: string, api_name?: string, starts_on?: string|null, draw_size?: number }} event
  */
@@ -677,17 +675,6 @@ export async function fetchOfficialSeats(client, event) {
   const { drawNameCandidates, drawYear, parseOfficialDraw } = await import(
     "./official/parse-draw.js"
   );
-  const { CIN_2026_OFFICIAL } = await import("./official/cin-2026.js");
-  // Cincinnati topology is the published MDS sheet. Do not replace slot
-  // order with a Tennis API parse of a different shape.
-  if (event?.ref === "cin-2026") {
-    return {
-      ok: true,
-      drawSize: CIN_2026_OFFICIAL.seats.length,
-      seats: CIN_2026_OFFICIAL.seats,
-      source: "mds",
-    };
-  }
   const prefix = normalizeTour(event?.tour);
   const year = drawYear(event);
   const names = drawNameCandidates(event);

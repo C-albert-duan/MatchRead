@@ -84,19 +84,24 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
     notFound();
   }
 
-  const [membershipRes, membersRes] = await Promise.all([
-    supabase
-      .from("league_members")
-      .select("role")
-      .eq("league_id", league.id)
-      .eq("user_id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("league_members")
-      .select("user_id, role, joined_at")
-      .eq("league_id", league.id)
-      .order("joined_at", { ascending: true }),
-  ]);
+  const [membershipRes, membersRes, { data: linkedTournaments }] =
+    await Promise.all([
+      supabase
+        .from("members")
+        .select("role")
+        .eq("league_id", league.id)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("members")
+        .select("user_id, role, joined_at")
+        .eq("league_id", league.id)
+        .order("joined_at", { ascending: true }),
+      supabase
+        .from("league_tournaments")
+        .select("tournament_id, tournaments ( name )")
+        .eq("league_id", league.id),
+    ]);
 
   if (!membershipRes.data) {
     notFound();
@@ -117,6 +122,18 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
     member_count: memberCount,
   });
 
+  const primaryLt = linkedTournaments?.[0];
+  const primaryTour = primaryLt
+    ? Array.isArray(primaryLt.tournaments)
+      ? primaryLt.tournaments[0]
+      : primaryLt.tournaments
+    : null;
+  const leagueForCheck = {
+    ...league,
+    tournament_id: primaryLt?.tournament_id ?? null,
+    tournament_label: primaryTour?.name ?? null,
+  };
+
   const memberNames = await loadDisplayNames(
     supabase,
     members.map((m) => m.user_id)
@@ -125,13 +142,13 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
   const [bundle, inviteRes, tournamentsRes, publishedIds] = await Promise.all([
     loadDailyCheck({
       supabase,
-      league,
+      league: leagueForCheck,
       userId: user.id,
       memberCount,
     }),
     isCommissioner
       ? supabase
-          .from("league_invites")
+          .from("invites")
           .select("token")
           .eq("league_id", league.id)
           .is("revoked_at", null)
@@ -141,7 +158,9 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
       : Promise.resolve({ data: null as { token: string } | null }),
     supabase
       .from("tournaments")
-      .select("id, ref, name, surface, starts_on, ends_on, lock_at, admin_locked_at, venue_tz, draw_size, tour")
+      .select(
+        "id, slug, name, surface, starts_on, ends_on, lock_at, venue_tz, draw_size, tour, published_at"
+      )
       .order("starts_on", { ascending: true }),
     listVerifiedDrawTournamentIds(),
   ]);
@@ -159,42 +178,61 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
 
   const openInvite = searchParams.invite === "1" && Boolean(inviteUrl);
 
-  const leagueTournaments = (tournamentsRes.data ?? []).filter((row) =>
-    leagueIncludesTournament(league, row.id)
-  );
+  const leagueTournaments = (tournamentsRes.data ?? [])
+    .filter((row) =>
+      leagueIncludesTournament(
+        {
+          format: league.format,
+          tournament_id: leagueForCheck.tournament_id,
+        },
+        row.id
+      )
+    )
+    .map((row) => ({ ...row, ref: row.slug }));
 
   const tournamentIds = leagueTournaments.map((t) => t.id);
-  const [{ data: resultRows }, { data: snapRows }, { data: leagueLockRows }] =
+  const [{ data: resultRows }, { data: scoredRows }, { data: leagueLockRows }] =
     tournamentIds.length > 0
       ? await Promise.all([
           supabase
-            .from("match_results")
-            .select("tournament_id, winner_ref, voided")
+            .from("matches")
+            .select("tournament_id, winner_player_id, voided")
             .in("tournament_id", tournamentIds),
           supabase
-            .from("bracket_snapshots")
+            .from("brackets")
             .select("tournament_id")
             .eq("league_id", league.id)
-            .in("tournament_id", tournamentIds),
+            .in("tournament_id", tournamentIds)
+            .not("points", "is", null),
           supabase
-            .from("league_draw_locks")
+            .from("league_tournaments")
             .select("tournament_id, locked_at")
             .eq("league_id", league.id)
             .in("tournament_id", tournamentIds),
         ])
       : [
-          { data: [] as Array<{ tournament_id: string; winner_ref: string | null; voided: boolean }> },
+          {
+            data: [] as Array<{
+              tournament_id: string;
+              winner_player_id: string | null;
+              voided: boolean;
+            }>,
+          },
           { data: [] as Array<{ tournament_id: string }> },
-          { data: [] as Array<{ tournament_id: string; locked_at: string }> },
+          {
+            data: [] as Array<{ tournament_id: string; locked_at: string | null }>,
+          },
         ];
 
   const leagueLockedAt = new Map(
-    (leagueLockRows ?? []).map((row) => [row.tournament_id, row.locked_at])
+    (leagueLockRows ?? [])
+      .filter((row) => row.locked_at)
+      .map((row) => [row.tournament_id, row.locked_at as string])
   );
 
   const decidedByTournament = new Map<string, number>();
   for (const row of resultRows ?? []) {
-    if (row.voided || row.winner_ref) {
+    if (row.voided || row.winner_player_id) {
       decidedByTournament.set(
         row.tournament_id,
         (decidedByTournament.get(row.tournament_id) ?? 0) + 1
@@ -202,7 +240,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
     }
   }
   const settledTournaments = new Set(
-    (snapRows ?? []).map((s) => s.tournament_id)
+    (scoredRows ?? []).map((s) => s.tournament_id)
   );
 
   return (
@@ -215,7 +253,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
             </p>
             <h1 className="t-page-title">
               {solo
-                ? league.tournament_label ?? league.name
+                ? leagueForCheck.tournament_label ?? league.name
                 : league.name}
             </h1>
             <p className="t-lead">
@@ -224,7 +262,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
               ) : (
                 <>
                   {league.format === "single"
-                    ? league.tournament_label ?? t("league.format.single")
+                    ? leagueForCheck.tournament_label ?? t("league.format.single")
                     : t("league.format.season")}
                   {" · "}
                   {league.visibility}
@@ -313,8 +351,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
           </h2>
           {leagueTournaments.length === 0 ? (
             <p className="t-body">
-              {t("league.noTournaments")} Apply{" "}
-              <code>supabase/migrations/0003_brackets.sql</code>.
+              {t("league.noTournaments")}
             </p>
           ) : (
             <ul className="league-list">
@@ -327,8 +364,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                   settled: settledTournaments.has(t.id),
                   starts_on: t.starts_on,
                   lock_at: t.lock_at,
-                  admin_locked_at: (t as { admin_locked_at?: string | null })
-                    .admin_locked_at,
+                  admin_locked_at: null,
                   league_locked_at: leagueLockedAt.get(t.id) ?? null,
                 });
                 const start =

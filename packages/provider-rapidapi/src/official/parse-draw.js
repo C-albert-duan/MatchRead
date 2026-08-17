@@ -320,13 +320,6 @@ export function drawNameCandidates(event) {
     ""
   );
   push(strippedOpen);
-  const blob = `${event?.api_name || ""} ${event?.name || ""} ${event?.ref || ""}`;
-  if (/cincinnati/i.test(blob)) {
-    push("Cincinnati Open");
-    push("Cincinnati");
-    push("Western & Southern Open");
-    push("Western and Southern Open");
-  }
   return out;
 }
 

@@ -5,6 +5,7 @@ import {
   isTimedMatchStarted,
   isTournamentLocked,
   mapDrawSeat,
+  parseMatchKey,
 } from "./types.ts";
 
 const now = new Date("2026-08-12T12:00:00.000Z");
@@ -110,28 +111,33 @@ test("timed matches start only when the provider published a clock", () => {
 test("mapDrawSeat keeps bye, TBD, and entry tags", () => {
   const bye = mapDrawSeat({
     position: 1,
-    player_ref: "bye-1",
-    last_name: "Bye",
-    is_bye: true,
-    seat_kind: "bye",
+    kind: "bye",
+    player_id: null,
   });
   const tbd = mapDrawSeat({
     position: 10,
-    player_ref: "tbd-10",
-    last_name: "Qualifier",
-    seat_kind: "tbd",
+    kind: "tbd",
+    player_id: null,
+    tbd_label: "Qualifier",
   });
   const wc = mapDrawSeat({
     position: 37,
-    player_ref: "cin-37-draper",
+    kind: "player",
+    player_id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     last_name: "Draper",
     country_code: "GBR",
-    seat_kind: "player",
-    entry_status: "wc",
+    entry: "wc",
   });
-  assert.equal(bye.seat_kind, "bye");
-  assert.equal(bye.is_bye, true);
-  assert.equal(tbd.seat_kind, "tbd");
-  assert.equal(tbd.is_bye, false);
-  assert.equal(wc.entry_status, "wc");
+  assert.equal(bye.kind, "bye");
+  assert.equal(bye.player_id, null);
+  assert.equal(tbd.kind, "tbd");
+  assert.equal(tbd.tbd_label, "Qualifier");
+  assert.equal(tbd.last_name, "Qualifier");
+  assert.equal(wc.entry, "wc");
+  assert.equal(wc.player_id, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+});
+
+test("parseMatchKey reads rN-mM", () => {
+  assert.deepEqual(parseMatchKey("r0-m3"), { round: 0, index_in_round: 3 });
+  assert.equal(parseMatchKey("bad"), null);
 });

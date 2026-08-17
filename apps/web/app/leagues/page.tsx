@@ -83,8 +83,7 @@ export default async function LeaguesPage() {
 
         {error ? (
           <p className="form-error" role="alert">
-            Could not load leagues. Apply Phase 2 migrations (
-            <code>docs/SUPABASE-SETUP.md</code>).
+            Could not load leagues. Check Supabase migrations and connection.
             <br />
             <span className="t-caption">{error}</span>
           </p>

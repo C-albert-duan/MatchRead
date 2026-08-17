@@ -8,7 +8,8 @@
     "start": "next start -H 0.0.0.0 -p 3001",
     "lint": "node -e \"console.log('web lint ok')\"",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test lib/tournaments/*.test.ts lib/brackets/*.test.ts lib/leagues/*.test.ts"
+    "test": "node --experimental-strip-types --test lib/tournaments/*.test.ts lib/brackets/*.test.ts lib/leagues/*.test.ts",
+    "test:live": "playwright test e2e/live-checklist.spec.ts"
   },
   "dependencies": {
     "@matchread/core": "*",
@@ -21,6 +22,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",

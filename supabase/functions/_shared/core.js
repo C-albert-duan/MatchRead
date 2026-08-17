@@ -1,7 +1,15 @@
-/** Edge copy of @matchread/core grading (Deno bundle cannot follow TS extensionless imports). */
+/** Edge copy of @matchread/core grading (Deno cannot follow package TS imports).
+ * Player identity is UUID (`players.id`), not legacy string refs.
+ */
 
 export function matchKey(round, indexInRound) {
   return `r${round}-m${indexInRound}`;
+}
+
+export function parseMatchKey(key) {
+  const m = String(key || "").match(/^r(\d+)-m(\d+)$/);
+  if (!m) return null;
+  return { round: Number(m[1]), indexInRound: Number(m[2]) };
 }
 
 export function buildRoundStructure(drawSize) {
@@ -60,21 +68,30 @@ export function computeAlive(drawSize, official, through) {
   for (let r = through; r >= 0; r--) {
     for (const match of rounds[r].matches) {
       const o = official[match.key];
-      if (!o?.winnerRef || o.voided) continue;
+      if (!o?.winnerPlayerId || o.voided) continue;
       if (r === through) {
-        alive.add(o.winnerRef);
+        alive.add(o.winnerPlayerId);
         continue;
       }
       const childKey = matchKey(r + 1, Math.floor(match.indexInRound / 2));
       const child = official[childKey];
-      if (!child?.winnerRef && !child?.voided) {
-        alive.add(o.winnerRef);
+      if (!child?.winnerPlayerId && !child?.voided) {
+        alive.add(o.winnerPlayerId);
       }
     }
   }
   return alive;
 }
 
+/**
+ * @param {{
+ *   drawSize: number,
+ *   picks: Record<string, string>,
+ *   official: Record<string, { winnerPlayerId: string | null, voided?: boolean }>,
+ *   throughRound?: number,
+ * }} input
+ * picks / winners are `players.id` UUID strings; keys are `r{R}-m{I}`.
+ */
 export function gradeBracket(input) {
   const { drawSize, picks, official } = input;
   const rounds = buildRoundStructure(drawSize);
@@ -86,7 +103,7 @@ export function gradeBracket(input) {
   for (const round of rounds) {
     for (const match of round.matches) {
       const o = official[match.key];
-      if (o && (o.voided || o.winnerRef)) {
+      if (o && (o.voided || o.winnerPlayerId)) {
         furthest = Math.max(furthest, round.index);
       }
     }
@@ -107,12 +124,12 @@ export function gradeBracket(input) {
     for (const match of round.matches) {
       const o = official[match.key];
       const mine = picks[match.key];
-      if (!o || (!o.voided && !o.winnerRef) || !mine) continue;
+      if (!o || (!o.voided && !o.winnerPlayerId) || !mine) continue;
       if (o.voided) {
         voided++;
         continue;
       }
-      if (o.winnerRef === mine) {
+      if (o.winnerPlayerId === mine) {
         score += w;
         correct++;
       } else {
@@ -122,7 +139,7 @@ export function gradeBracket(input) {
   }
 
   const finalKey = matchKey(lastRound, 0);
-  const officialChampion = official[finalKey]?.winnerRef ?? null;
+  const officialChampion = official[finalKey]?.winnerPlayerId ?? null;
   const myChampion = picks[finalKey] ?? null;
   if (
     officialChampion &&
@@ -153,7 +170,7 @@ export function gradeBracket(input) {
     incorrect,
     voided,
     upside,
-    championRef: myChampion,
+    championPlayerId: myChampion,
     championAlive: myChampion ? alive.has(myChampion) : null,
     maxScore,
   };

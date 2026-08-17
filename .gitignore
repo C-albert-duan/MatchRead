@@ -42,15 +42,14 @@ Thumbs.db
 supabase/.branches
 supabase/.temp
 
-# Wireframe archives (extracted copies are tracked)
-Wireframe/**/*.zip
-Wireframe/**/*.tar.gz
-
 # Debug / local tooling
 *.log
 npm-debug.log*
 pnpm-debug.log*
 agent-transcripts
+apps/web/test-results
+apps/web/e2e/*-report.json
+apps/web/e2e/*-results.json
 
 .provider-map-toronto.json
 

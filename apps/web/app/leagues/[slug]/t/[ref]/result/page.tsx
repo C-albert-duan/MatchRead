@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
+  gradeBracket,
+  maxBracketScore,
   ordinal,
+  rankRows,
   type BracketPicks,
   type DrawSeat,
   type OfficialResults,
@@ -10,7 +13,11 @@ import { ResultPickBreakdown } from "@/components/league/ResultPickBreakdown";
 import { AppShell } from "@/components/shell/AppShell";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
-import { DRAW_SEAT_SELECT, mapDrawSeat } from "@/lib/brackets/types";
+import {
+  loadBracketPicksMap,
+  loadOfficialResultsMap,
+  loadTournamentSeats,
+} from "@/lib/brackets/types";
 import { getLocale, t } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
 import { leagueIncludesTournament } from "@/lib/leagues/covers";
@@ -38,124 +45,144 @@ export default async function ResultArtifactPage({ params }: Props) {
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, slug, name, format, tournament_label, tournament_id, is_solo")
+    .select("id, slug, name, format, is_solo")
     .eq("slug", params.slug)
     .maybeSingle();
 
   if (!league) notFound();
 
-  const [{ data: membership }, { count: memberCount }] = await Promise.all([
-    supabase
-      .from("league_members")
-      .select("role")
-      .eq("league_id", league.id)
-      .eq("user_id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("league_members")
-      .select("*", { count: "exact", head: true })
-      .eq("league_id", league.id),
-  ]);
+  const [{ data: membership }, { count: memberCount }, { data: linked }] =
+    await Promise.all([
+      supabase
+        .from("members")
+        .select("role")
+        .eq("league_id", league.id)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("members")
+        .select("*", { count: "exact", head: true })
+        .eq("league_id", league.id),
+      supabase
+        .from("league_tournaments")
+        .select("tournament_id")
+        .eq("league_id", league.id)
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
   if (!membership) notFound();
 
   const solo = isSoloPresentation({
-    is_solo: Boolean((league as { is_solo?: boolean }).is_solo),
+    is_solo: Boolean(league.is_solo),
     member_count: memberCount ?? 1,
   });
 
   const { data: tournament } = await supabase
     .from("tournaments")
     .select("*")
-    .eq("ref", params.ref)
+    .eq("slug", params.ref)
     .maybeSingle();
 
   if (!tournament) notFound();
 
   if (
     league.format === "single" &&
-    !leagueIncludesTournament(league, tournament.id)
+    !leagueIncludesTournament(
+      { format: league.format, tournament_id: linked?.tournament_id ?? null },
+      tournament.id
+    )
   ) {
     notFound();
   }
 
+  const tournamentRef = tournament.slug as string;
+
   const [
-    { data: snap },
-    { count: fieldSize },
     { data: myBracket },
+    { count: fieldSize },
     { count: resultCount },
-    { data: draw },
-    { data: resultRows },
+    seats,
+    officialMap,
   ] = await Promise.all([
     supabase
-      .from("bracket_snapshots")
-      .select(
-        "score, position, max_score, champion_ref, champion_alive, correct, incorrect"
-      )
+      .from("brackets")
+      .select("id, submitted_at, points, rank, champion_player_id")
       .eq("league_id", league.id)
       .eq("tournament_id", tournament.id)
       .eq("user_id", user.id)
       .maybeSingle(),
-    supabase
-      .from("bracket_snapshots")
-      .select("*", { count: "exact", head: true })
-      .eq("league_id", league.id)
-      .eq("tournament_id", tournament.id),
     supabase
       .from("brackets")
-      .select("submitted_at, picks")
+      .select("*", { count: "exact", head: true })
       .eq("league_id", league.id)
       .eq("tournament_id", tournament.id)
-      .eq("user_id", user.id)
-      .maybeSingle(),
+      .not("points", "is", null),
     supabase
-      .from("match_results")
+      .from("matches")
       .select("*", { count: "exact", head: true })
-      .eq("tournament_id", tournament.id),
-    supabase
-      .from("draws")
-      .select("id")
       .eq("tournament_id", tournament.id)
-      .maybeSingle(),
-    supabase
-      .from("match_results")
-      .select("match_key, winner_ref, voided")
-      .eq("tournament_id", tournament.id),
+      .or("winner_player_id.not.is.null,voided.eq.true"),
+    loadTournamentSeats(supabase, tournament.id),
+    loadOfficialResultsMap(supabase, tournament.id),
   ]);
 
-  const { data: season } = await supabase
-    .from("season_standings")
-    .select("position, points")
-    .eq("league_id", league.id)
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const { data: seasonRows } = await supabase
+    .from("season_points")
+    .select("user_id, points")
+    .eq("league_id", league.id);
 
-  let seats: DrawSeat[] = [];
-  if (draw) {
-    const { data: seatRows } = await supabase
-      .from("draw_seats")
-      .select(DRAW_SEAT_SELECT)
-      .eq("draw_id", draw.id)
-      .order("position", { ascending: true });
-    seats = (seatRows ?? []).map(mapDrawSeat);
+  const seasonRanked = rankRows(
+    (seasonRows ?? []).map((r) => ({
+      userId: r.user_id,
+      score: r.points ?? 0,
+      tieBreak: r.user_id,
+    }))
+  );
+  const season = seasonRanked.find((r) => r.userId === user.id);
+  const seasonPoints =
+    seasonRows?.find((r) => r.user_id === user.id)?.points ?? null;
+
+  const picks: BracketPicks = myBracket?.id
+    ? await loadBracketPicksMap(supabase, myBracket.id)
+    : {};
+
+  const official: OfficialResults = {};
+  for (const [key, row] of Object.entries(officialMap)) {
+    official[key] = row;
   }
+
+  const drawSize = tournament.draw_size as number;
+  let grade: ReturnType<typeof gradeBracket> | null = null;
+  let maxScore = 1;
+  try {
+    maxScore = maxBracketScore(drawSize);
+    if (Object.keys(picks).length > 0 && Object.keys(official).length > 0) {
+      grade = gradeBracket({ drawSize, picks, official });
+    }
+  } catch {
+    grade = null;
+  }
+
+  const snap =
+    myBracket?.points != null
+      ? {
+          score: myBracket.points,
+          position: myBracket.rank,
+          max_score: maxScore,
+          champion_ref: myBracket.champion_player_id,
+          champion_alive: grade?.championAlive ?? null,
+          correct: grade?.correct ?? null,
+          incorrect: grade?.incorrect ?? null,
+        }
+      : null;
 
   let championName: string | null = null;
   if (snap?.champion_ref) {
-    const seat = seats.find((s) => s.player_ref === snap.champion_ref);
+    const seat = seats.find((s) => s.player_id === snap.champion_ref);
     championName = seat?.last_name ?? snap.champion_ref;
   }
 
-  const official: OfficialResults = {};
-  for (const row of resultRows ?? []) {
-    official[row.match_key] = {
-      winnerRef: row.winner_ref,
-      voided: row.voided,
-    };
-  }
-
-  const picks = (myBracket?.picks ?? {}) as BracketPicks;
-  const maxScore = snap?.max_score || 1;
   const percent = snap ? Math.round((snap.score / maxScore) * 100) : null;
 
   return (
@@ -191,7 +218,7 @@ export default async function ResultArtifactPage({ params }: Props) {
           </div>
           <div className="page-actions">
             <Link
-              href={`/leagues/${league.slug}/t/${tournament.ref}`}
+              href={`/leagues/${league.slug}/t/${tournamentRef}`}
               className="act act--prominent act--standard-size"
             >
               {t("result.tournament")}
@@ -217,13 +244,13 @@ export default async function ResultArtifactPage({ params }: Props) {
             <p className="t-caption">{t("result.partialNote")}</p>
             <div className="page-actions">
               <Link
-                href={`/leagues/${league.slug}/t/${tournament.ref}/bracket`}
+                href={`/leagues/${league.slug}/t/${tournamentRef}/bracket`}
                 className="act act--prominent act--standard-size"
               >
                 {t("result.myBracket")}
               </Link>
               <Link
-                href={`/leagues/${league.slug}/t/${tournament.ref}`}
+                href={`/leagues/${league.slug}/t/${tournamentRef}`}
                 className="act act--quiet"
               >
                 {t("result.tournament")}
@@ -278,11 +305,11 @@ export default async function ResultArtifactPage({ params }: Props) {
               <dl className="meta-grid">
                 <div>
                   <dt className="t-caption">{t("result.correct")}</dt>
-                  <dd className="numeral stat--good">{snap.correct}</dd>
+                  <dd className="numeral stat--good">{snap.correct ?? "—"}</dd>
                 </div>
                 <div>
                   <dt className="t-caption">{t("result.misses")}</dt>
-                  <dd className="numeral stat--miss">{snap.incorrect}</dd>
+                  <dd className="numeral stat--miss">{snap.incorrect ?? "—"}</dd>
                 </div>
                 <div>
                   <dt className="t-caption">{t("result.champion")}</dt>
@@ -300,8 +327,8 @@ export default async function ResultArtifactPage({ params }: Props) {
                     <dt className="t-caption">{t("result.season")}</dt>
                     <dd>
                       {ordinal(season.position)}
-                      {season.points != null
-                        ? ` · ${season.points.toLocaleString("en-GB")} pts`
+                      {seasonPoints != null
+                        ? ` · ${seasonPoints.toLocaleString("en-GB")} pts`
                         : ""}
                     </dd>
                   </div>
@@ -310,10 +337,10 @@ export default async function ResultArtifactPage({ params }: Props) {
             </article>
 
             <ResultPickBreakdown
-              drawSize={tournament.draw_size as number}
+              drawSize={drawSize}
               picks={picks}
               official={official}
-              seats={seats}
+              seats={seats as DrawSeat[]}
             />
           </div>
         )}

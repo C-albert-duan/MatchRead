@@ -11,10 +11,13 @@ import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { isFounderEmail } from "@/lib/auth/founder";
 import {
-  DRAW_SEAT_SELECT,
   isTournamentLocked,
+  loadAnnouncedMatchups,
+  loadBracketPicksMap,
   loadLeagueDrawLock,
-  mapDrawSeat,
+  loadMatchScheduleMap,
+  loadOfficialResultsMap,
+  loadTournamentSeats,
 } from "@/lib/brackets/types";
 import { getLocale, t } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
@@ -32,6 +35,19 @@ type Props = {
   params: { slug: string; ref: string };
 };
 
+async function loadLeagueTournamentId(
+  supabase: ReturnType<typeof createClient>,
+  leagueId: string
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("league_tournaments")
+    .select("tournament_id")
+    .eq("league_id", leagueId)
+    .limit(1)
+    .maybeSingle();
+  return data?.tournament_id ?? null;
+}
+
 export default async function TournamentInLeaguePage({ params }: Props) {
   const user = await getSessionUser();
   if (!user) {
@@ -44,29 +60,31 @@ export default async function TournamentInLeaguePage({ params }: Props) {
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, slug, name, format, tournament_label, tournament_id, is_solo")
+    .select("id, slug, name, format, owner_id, is_solo")
     .eq("slug", params.slug)
     .maybeSingle();
 
   if (!league) notFound();
 
-  const [{ data: membership }, { count: memberCount }] = await Promise.all([
-    supabase
-      .from("league_members")
-      .select("role")
-      .eq("league_id", league.id)
-      .eq("user_id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("league_members")
-      .select("*", { count: "exact", head: true })
-      .eq("league_id", league.id),
-  ]);
+  const [{ data: membership }, { count: memberCount }, linkedTournamentId] =
+    await Promise.all([
+      supabase
+        .from("members")
+        .select("role")
+        .eq("league_id", league.id)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("members")
+        .select("*", { count: "exact", head: true })
+        .eq("league_id", league.id),
+      loadLeagueTournamentId(supabase, league.id),
+    ]);
 
   if (!membership) notFound();
 
   const solo = isSoloPresentation({
-    is_solo: Boolean((league as { is_solo?: boolean }).is_solo),
+    is_solo: Boolean(league.is_solo),
     member_count: memberCount ?? 1,
   });
 
@@ -79,122 +97,91 @@ export default async function TournamentInLeaguePage({ params }: Props) {
   const { data: tournament } = await supabase
     .from("tournaments")
     .select("*")
-    .eq("ref", params.ref)
+    .eq("slug", params.ref)
     .maybeSingle();
 
   if (!tournament) notFound();
 
   if (
     league.format === "single" &&
-    !leagueIncludesTournament(league, tournament.id)
+    !leagueIncludesTournament(
+      { format: league.format, tournament_id: linkedTournamentId },
+      tournament.id
+    )
   ) {
     notFound();
   }
 
-  const { data: draw } = await supabase
-    .from("draws")
-    .select("id, published_at")
-    .eq("tournament_id", tournament.id)
-    .maybeSingle();
-
   const isCommissioner = membership.role === "commissioner";
   const isFounder = isFounderEmail(user.email ?? undefined);
-  const liveFeed = Boolean(
-    (tournament as { provider_tournament_id?: string | null })
-      .provider_tournament_id
-  );
-  // Manual Official Results UI only for fixture tournaments without a provider.
-  const showManualResults = isCommissioner && !liveFeed;
+  // Manual Official Results UI only when no provider feed (rare / ops).
+  const showManualResults =
+    isCommissioner && !(tournament as { provider_id?: string | null }).provider_id;
 
-  const [bracketRes, snapshotsRes, seatsRes, resultsRes, scheduleRes, leagueLockedAt, matchupsRes] =
-    await Promise.all([
+  const [
+    bracketRes,
+    scoredRes,
+    seats,
+    officialMap,
+    scheduleMap,
+    leagueLockedAt,
+    announced,
+  ] = await Promise.all([
     supabase
       .from("brackets")
-      .select("submitted_at, updated_at, picks")
+      .select("id, submitted_at, updated_at")
       .eq("league_id", league.id)
       .eq("tournament_id", tournament.id)
       .eq("user_id", user.id)
       .maybeSingle(),
     supabase
-      .from("bracket_snapshots")
+      .from("brackets")
       .select(
-        "user_id, score, position, previous_position, position_delta, score_delta, upside, champion_alive"
+        "user_id, points, rank, champion_player_id"
       )
       .eq("league_id", league.id)
       .eq("tournament_id", tournament.id)
-      .order("position", { ascending: true }),
-    draw
-      ? supabase
-          .from("draw_seats")
-          .select(DRAW_SEAT_SELECT)
-          .eq("draw_id", draw.id)
-          .order("position", { ascending: true })
-      : Promise.resolve({ data: [] }),
+      .not("points", "is", null)
+      .order("rank", { ascending: true }),
+    loadTournamentSeats(supabase, tournament.id),
     showManualResults
-      ? supabase
-          .from("match_results")
-          .select("match_key, winner_ref, voided")
-          .eq("tournament_id", tournament.id)
-      : Promise.resolve({
-          data: [] as Array<{
-            match_key: string;
-            winner_ref: string | null;
-            voided: boolean;
-          }>,
-        }),
+      ? loadOfficialResultsMap(supabase, tournament.id)
+      : Promise.resolve({} as Awaited<ReturnType<typeof loadOfficialResultsMap>>),
     showManualResults
-      ? supabase
-          .from("match_schedule")
-          .select("match_key, scheduled_at, has_time")
-          .eq("tournament_id", tournament.id)
-      : Promise.resolve({
-          data: [] as Array<{
-            match_key: string;
-            scheduled_at: string;
-            has_time: boolean;
-          }>,
-        }),
+      ? loadMatchScheduleMap(supabase, tournament.id)
+      : Promise.resolve({} as Awaited<ReturnType<typeof loadMatchScheduleMap>>),
     loadLeagueDrawLock(supabase, league.id, tournament.id),
-    supabase
-      .from("announced_matchups")
-      .select(
-        "match_key, player1_ref, player1_last_name, player1_seed, player2_ref, player2_last_name, player2_seed, scheduled_at, has_time"
-      )
-      .eq("tournament_id", tournament.id)
-      .order("scheduled_at", { ascending: true }),
+    loadAnnouncedMatchups(supabase, tournament.id),
   ]);
 
   const bracket = bracketRes.data;
-  const snapshots = snapshotsRes.data;
-  const seats = (seatsRes.data ?? []).map(mapDrawSeat);
-  const announced = matchupsRes.data ?? [];
+  const picks = bracket?.id
+    ? await loadBracketPicksMap(supabase, bracket.id)
+    : {};
+
   const official = isOfficialPublicDraw(
     seats,
     Number(tournament.draw_size) || 0
   );
   const locked = isTournamentLocked({
-    ...tournament,
+    lock_at: tournament.lock_at,
+    admin_locked_at: null,
     league_locked_at: leagueLockedAt,
     hasOfficialDraw: official,
   });
   const hasDraw = official;
+
   const initialResults: Record<string, string> = {};
-  for (const row of resultsRes.data ?? []) {
-    if (!row.voided && row.winner_ref) {
-      initialResults[row.match_key] = row.winner_ref;
+  for (const [key, row] of Object.entries(officialMap)) {
+    if (!row.voided && row.winnerRef) {
+      initialResults[key] = row.winnerRef;
     }
   }
-  const schedule: Record<string, MatchScheduleRow> = {};
-  for (const row of scheduleRes.data ?? []) {
-    if (!row.match_key || !row.scheduled_at) continue;
-    schedule[row.match_key] = {
-      scheduled_at: row.scheduled_at,
-      has_time: Boolean(row.has_time),
-    };
-  }
+  const schedule: Record<string, MatchScheduleRow> = scheduleMap;
 
+  const tournamentRef = tournament.slug as string;
   const canOpenBracket = hasDraw || announced.length > 0;
-  const bracketHref = `/leagues/${league.slug}/t/${tournament.ref}/bracket`;
+  const bracketHref = `/leagues/${league.slug}/t/${tournamentRef}/bracket`;
 
   let bracketLabel = t("tournament.openBracket");
   if (locked) bracketLabel = t("tournament.viewBracket");
@@ -203,18 +190,18 @@ export default async function TournamentInLeaguePage({ params }: Props) {
 
   const standingNames = await loadDisplayNames(
     supabase,
-    (snapshots ?? []).map((s) => s.user_id)
+    (scoredRes.data ?? []).map((s) => s.user_id)
   );
 
-  const standingRows = (snapshots ?? []).map((s) => ({
+  const standingRows = (scoredRes.data ?? []).map((s) => ({
     user_id: s.user_id,
-    score: s.score,
-    position: s.position,
-    previous_position: s.previous_position,
-    score_delta: s.score_delta,
-    position_delta: s.position_delta,
-    upside: s.upside,
-    champion_alive: s.champion_alive,
+    score: s.points ?? 0,
+    position: s.rank,
+    previous_position: null as number | null,
+    score_delta: null as number | null,
+    position_delta: null as number | null,
+    upside: null as number | null,
+    champion_alive: null as boolean | null,
     label: memberLabel(s.user_id, user.id, standingNames),
     isYou: s.user_id === user.id,
   }));
@@ -226,9 +213,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
         <header className="page-header page-header--split">
           <div className="page-header-copy">
             <p className="eyebrow">
-              {solo
-                ? t("league.solo.eyebrow")
-                : league.name}
+              {solo ? t("league.solo.eyebrow") : league.name}
             </p>
             <h1 className="t-page-title">{tournament.name}</h1>
             <p className="t-lead">
@@ -274,13 +259,16 @@ export default async function TournamentInLeaguePage({ params }: Props) {
         {!hasDraw && announced.length > 0 ? (
           <AnnouncedFirstRound
             matchups={announced}
-            expectedFirst={Math.max(Math.floor(Number(tournament.draw_size || 64) / 2), 16)}
-            picks={(bracket?.picks ?? {}) as Record<string, string>}
+            expectedFirst={Math.max(
+              Math.floor(Number(tournament.draw_size || 64) / 2),
+              16
+            )}
+            picks={picks}
             locked={locked}
             leagueId={league.id}
             leagueSlug={league.slug}
             tournamentId={tournament.id}
-            tournamentRef={tournament.ref}
+            tournamentRef={tournamentRef}
             venueTz={
               (tournament as { venue_tz?: string | null }).venue_tz || "UTC"
             }
@@ -297,7 +285,10 @@ export default async function TournamentInLeaguePage({ params }: Props) {
             <p className="t-body">{t("tournament.drawPending.body")}</p>
           </section>
         ) : (
-          <section className="section focus-band" style={{ borderTop: "none", paddingTop: 0 }}>
+          <section
+            className="section focus-band"
+            style={{ borderTop: "none", paddingTop: 0 }}
+          >
             <h2 className="section-title">{t("tournament.yourEntry")}</h2>
             <p className="t-body">
               {locked
@@ -322,13 +313,10 @@ export default async function TournamentInLeaguePage({ params }: Props) {
                   <>
                     <p className="t-lead numeral">
                       {standingRows[0]?.score ?? 0}
-                      {standingRows[0]?.upside != null
-                        ? ` · +${standingRows[0].upside} upside`
-                        : ""}
                     </p>
                     <div className="page-actions">
                       <Link
-                        href={`/leagues/${league.slug}/t/${tournament.ref}/result`}
+                        href={`/leagues/${league.slug}/t/${tournamentRef}/result`}
                         className="act act--standard act--standard-size"
                       >
                         {t("tournament.seeResult")}
@@ -351,7 +339,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
                 {standingRows.length > 0 ? (
                   <div className="page-actions">
                     <Link
-                      href={`/leagues/${league.slug}/t/${tournament.ref}/result`}
+                      href={`/leagues/${league.slug}/t/${tournamentRef}/result`}
                       className="act act--standard act--standard-size"
                     >
                       {t("tournament.seeResult")}
@@ -360,8 +348,6 @@ export default async function TournamentInLeaguePage({ params }: Props) {
                 ) : null}
               </>
             )}
-            {/* Ops: commissioner only. Live-feed tournaments ingest winners
-                via RapidAPI — no manual Official Results panel. */}
             {isCommissioner ? (
               <>
                 {showManualResults ? (
@@ -369,7 +355,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
                     leagueId={league.id}
                     leagueSlug={league.slug}
                     tournamentId={tournament.id}
-                    tournamentRef={tournament.ref}
+                    tournamentRef={tournamentRef}
                     drawSize={tournament.draw_size}
                     seats={seats}
                     initialResults={initialResults}
@@ -385,7 +371,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
                   leagueId={league.id}
                   leagueSlug={league.slug}
                   tournamentId={tournament.id}
-                  tournamentRef={tournament.ref}
+                  tournamentRef={tournamentRef}
                 />
               </>
             ) : null}

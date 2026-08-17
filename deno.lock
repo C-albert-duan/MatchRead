@@ -1,0 +1,50 @@
+{
+  "version": "5",
+  "remote": {
+    "https://esm.sh/@supabase/supabase-js@2.49.1": "947c71e163ca8bb5b538eccb5ee86fbc8da6bcb916a861586db5fad1af4701bb"
+  },
+  "workspace": {
+    "members": {
+      "apps/web": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@matchread/core@*",
+            "npm:@matchread/i18n@*",
+            "npm:@matchread/tokens@*",
+            "npm:@playwright/test@^1.55.0",
+            "npm:@supabase/ssr@~0.12.4",
+            "npm:@supabase/supabase-js@^2.111.0",
+            "npm:@types/node@^20.14.0",
+            "npm:@types/react-dom@^18.3.0",
+            "npm:@types/react@^18.3.3",
+            "npm:next@^14.2.5",
+            "npm:react-dom@^18.3.1",
+            "npm:react@^18.3.1",
+            "npm:typescript@^5.5.0"
+          ]
+        }
+      },
+      "packages/core": {
+        "packageJson": {
+          "dependencies": [
+            "npm:typescript@^5.5.0"
+          ]
+        }
+      },
+      "packages/i18n": {
+        "packageJson": {
+          "dependencies": [
+            "npm:typescript@^5.5.0"
+          ]
+        }
+      },
+      "packages/tokens": {
+        "packageJson": {
+          "dependencies": [
+            "npm:typescript@^5.5.0"
+          ]
+        }
+      }
+    }
+  }
+}

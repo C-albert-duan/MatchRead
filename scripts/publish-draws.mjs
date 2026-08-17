@@ -10,7 +10,7 @@
  * Env (.env.provider):
  *   RAPIDAPI_KEY, RAPIDAPI_HOST
  *   MATCHREAD_INGEST_URL, INGEST_SECRET   (required unless --dry-run)
- *   NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY  (optional listing)
+ *   NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY  (tournament listing)
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
@@ -40,16 +40,30 @@ function matchupsFromPairs(pairs, prefix) {
   }));
 }
 
-/** Season events we always check even without a Supabase listing. */
-const SEASON = [
-  { ref: "cin-2026", tour: "atp", provider_tournament_id: "21347", draw_size: 128, api_name: "Cincinnati Open" },
-  { ref: "cin-wta-2026", tour: "wta", provider_tournament_id: "16740", draw_size: 64, api_name: "Cincinnati Open" },
-  { ref: "wsal-2026", tour: "atp", provider_tournament_id: "21348", draw_size: 64, api_name: "Winston-Salem Open" },
-  { ref: "uso-2026", tour: "atp", provider_tournament_id: "21349", draw_size: 128, api_name: "US Open" },
-  { ref: "uso-wta-2026", tour: "wta", provider_tournament_id: "16743", draw_size: 128, api_name: "US Open" },
-  { ref: "nbo-mtl-2026", tour: "atp", provider_tournament_id: "21346", draw_size: 64, api_name: "National Bank Open - Montreal" },
-  { ref: "nbo-tor-2026", tour: "wta", provider_tournament_id: "16739", draw_size: 64, api_name: "National Bank Open - Toronto" },
-];
+async function listEvents(env, onlyRef) {
+  const sb = supabaseRest(env);
+  if (!sb) {
+    throw new Error(
+      "Supabase URL + anon key required to list tournaments (no hardcoded season)"
+    );
+  }
+  const rows = await restGet(
+    sb,
+    "tournaments?select=ref,name,tour,draw_size,provider_tournament_id&provider_tournament_id=not.is.null"
+  );
+  let events = rows
+    .filter((row) => row?.ref && row.provider_tournament_id)
+    .map((row) => ({
+      ref: row.ref,
+      name: row.name,
+      api_name: row.name,
+      tour: row.tour === "wta" ? "wta" : "atp",
+      provider_tournament_id: String(row.provider_tournament_id),
+      draw_size: Number(row.draw_size) || 0,
+    }));
+  if (onlyRef) events = events.filter((e) => e.ref === onlyRef);
+  return events;
+}
 
 function loadEnvFile(path) {
   if (!existsSync(path)) return {};
@@ -101,36 +115,6 @@ async function restGet(sb, path) {
   const text = await res.text();
   if (!res.ok) throw new Error(`Supabase ${res.status} ${path}: ${text.slice(0, 200)}`);
   return text ? JSON.parse(text) : [];
-}
-
-async function listEvents(env, onlyRef) {
-  /** @type {Map<string, { ref: string, tour: string, provider_tournament_id: string, draw_size: number, name?: string }>} */
-  const byRef = new Map(SEASON.map((row) => [row.ref, { ...row }]));
-  const sb = supabaseRest(env);
-  if (sb) {
-    try {
-      const rows = await restGet(
-        sb,
-        "tournaments?select=ref,name,tour,draw_size,provider_tournament_id&provider_tournament_id=not.is.null"
-      );
-      for (const row of rows) {
-        if (!row?.ref || !row.provider_tournament_id) continue;
-        byRef.set(row.ref, {
-          ref: row.ref,
-          name: row.name,
-          api_name: byRef.get(row.ref)?.api_name,
-          tour: row.tour === "wta" ? "wta" : "atp",
-          provider_tournament_id: String(row.provider_tournament_id),
-          draw_size: Number(row.draw_size) || 64,
-        });
-      }
-    } catch (err) {
-      console.warn("tournament list via REST failed:", err instanceof Error ? err.message : err);
-    }
-  }
-  let events = [...byRef.values()];
-  if (onlyRef) events = events.filter((e) => e.ref === onlyRef);
-  return events;
 }
 
 async function main() {

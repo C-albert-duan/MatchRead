@@ -1,6 +1,9 @@
 import {
   computeDailyCheck,
+  gradeBracket,
   isOfficialPublicDraw,
+  maxBracketScore,
+  rankRows,
   type BracketPicks,
   type DailyCheck,
   type DrawSeat,
@@ -9,10 +12,11 @@ import {
 } from "@matchread/core";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  DRAW_SEAT_SELECT,
   isTournamentLocked,
+  loadBracketPicksMap,
   loadLeagueDrawLock,
-  mapDrawSeat,
+  loadOfficialResultsMap,
+  loadTournamentSeats,
 } from "@/lib/brackets/types";
 import {
   buildLeagueEngagement,
@@ -43,9 +47,22 @@ export type LeagueHomeBundle = {
   } | null;
 };
 
+async function resolveLeagueTournamentId(
+  supabase: SupabaseClient,
+  league: LeagueRow
+): Promise<string | null> {
+  if (league.tournament_id) return league.tournament_id;
+  const { data } = await supabase
+    .from("league_tournaments")
+    .select("tournament_id")
+    .eq("league_id", league.id)
+    .limit(1)
+    .maybeSingle();
+  return data?.tournament_id ?? null;
+}
+
 /**
  * One round-trip wave for league home: tournament context + pulse + engagement.
- * Avoids the old waterfall (15+ sequential Supabase calls).
  */
 export async function loadDailyCheck(input: {
   supabase: SupabaseClient;
@@ -56,27 +73,48 @@ export async function loadDailyCheck(input: {
   const { supabase, league, userId, memberCount } = input;
   const hour = new Date().getHours();
 
-  // Wave 1: tournament + season (independent)
+  const tournamentId = await resolveLeagueTournamentId(supabase, league);
+
   const [tournamentRes, seasonRes] = await Promise.all([
-    league.tournament_id
+    tournamentId
       ? supabase
           .from("tournaments")
-          .select("id, ref, name, lock_at, admin_locked_at, draw_size")
-          .eq("id", league.tournament_id)
+          .select(
+            "id, slug, name, lock_at, draw_size, published_at"
+          )
+          .eq("id", tournamentId)
           .maybeSingle()
       : Promise.resolve({ data: null as null }),
     supabase
-      .from("season_standings")
-      .select("position, points")
+      .from("season_points")
+      .select("points")
       .eq("league_id", league.id)
       .eq("user_id", userId)
       .maybeSingle(),
   ]);
 
-  const tournament = tournamentRes.data;
+  const tournamentRow = tournamentRes.data;
   const season = seasonRes.data;
 
-  if (!tournament) {
+  // Rank season_points for this user (view has no position column).
+  let seasonPosition: number | null = null;
+  if (season?.points != null) {
+    const { data: allSeason } = await supabase
+      .from("season_points")
+      .select("user_id, points")
+      .eq("league_id", league.id);
+    const ranked = rankRows(
+      (allSeason ?? []).map((r) => ({
+        userId: r.user_id,
+        score: r.points ?? 0,
+        tieBreak: r.user_id,
+      }))
+    );
+    seasonPosition =
+      ranked.find((r) => r.userId === userId)?.position ?? null;
+  }
+
+  if (!tournamentRow) {
     const check = computeDailyCheck({
       eventName: league.tournament_label ?? league.name,
       leagueSlug: league.slug,
@@ -90,7 +128,7 @@ export async function loadDailyCheck(input: {
       you: null,
       leader: null,
       fieldSize: memberCount,
-      seasonPosition: season?.position ?? null,
+      seasonPosition,
       seasonPoints: season?.points ?? null,
       hour,
     });
@@ -103,68 +141,61 @@ export async function loadDailyCheck(input: {
     };
   }
 
-  // Wave 2: everything keyed by tournament id — parallel
+  const tournament = {
+    id: tournamentRow.id,
+    ref: tournamentRow.slug as string,
+    name: tournamentRow.name,
+    lock_at: tournamentRow.lock_at as string | null,
+    admin_locked_at: null as string | null,
+    draw_size: tournamentRow.draw_size as number,
+    published_at: tournamentRow.published_at as string | null,
+  };
+
   const [
-    drawRes,
     bracketsRes,
-    snapsRes,
-    resultsRes,
+    scoredRes,
     myBracketRes,
     leagueLockedAt,
+    seats,
+    officialMap,
   ] = await Promise.all([
     supabase
-      .from("draws")
-      .select("id")
-      .eq("tournament_id", tournament.id)
-      .maybeSingle(),
-    supabase
       .from("brackets")
-      .select("user_id, submitted_at")
+      .select("id, user_id, submitted_at, points, rank, champion_player_id")
       .eq("league_id", league.id)
       .eq("tournament_id", tournament.id),
     supabase
-      .from("bracket_snapshots")
+      .from("brackets")
       .select(
-        "user_id, score, position, previous_position, position_delta, score_delta, upside, champion_alive, champion_ref, voided_picks, max_score, correct, incorrect"
+        "id, user_id, points, rank, champion_player_id, submitted_at"
       )
       .eq("league_id", league.id)
       .eq("tournament_id", tournament.id)
-      .order("position", { ascending: true }),
-    supabase
-      .from("match_results")
-      .select("match_key, winner_ref, voided")
-      .eq("tournament_id", tournament.id),
+      .not("points", "is", null)
+      .order("rank", { ascending: true }),
     supabase
       .from("brackets")
-      .select("picks, submitted_at")
+      .select("id, submitted_at")
       .eq("league_id", league.id)
       .eq("tournament_id", tournament.id)
       .eq("user_id", userId)
       .maybeSingle(),
     loadLeagueDrawLock(supabase, league.id, tournament.id),
+    loadTournamentSeats(supabase, tournament.id),
+    loadOfficialResultsMap(supabase, tournament.id),
   ]);
 
-  const draw = drawRes.data;
   const brackets = bracketsRes.data ?? [];
-  const snaps = snapsRes.data ?? [];
-  const results = resultsRes.data ?? [];
+  const scored = scoredRes.data ?? [];
   const myBracket = myBracketRes.data;
-  const picks = (myBracket?.picks ?? {}) as BracketPicks;
+
+  let picks: BracketPicks = {};
+  if (myBracket?.id) {
+    picks = await loadBracketPicksMap(supabase, myBracket.id);
+  }
 
   const submittedCount = brackets.filter((b) => b.submitted_at).length;
   const youSubmitted = Boolean(myBracket?.submitted_at);
-
-  let seats: DrawSeat[] = [];
-  if (draw) {
-    const { data: seatRows } = await supabase
-      .from("draw_seats")
-      .select(
-        DRAW_SEAT_SELECT
-      )
-      .eq("draw_id", draw.id)
-      .order("position", { ascending: true });
-    seats = (seatRows ?? []).map(mapDrawSeat);
-  }
 
   const hasDraw = isOfficialPublicDraw(
     seats,
@@ -178,17 +209,62 @@ export async function loadDailyCheck(input: {
 
   const official: OfficialResults = {};
   let decidedCount = 0;
-  for (const r of results) {
-    official[r.match_key] = {
-      winnerRef: r.winner_ref,
-      voided: r.voided,
-    };
-    if (!r.voided && r.winner_ref) decidedCount++;
+  for (const [key, row] of Object.entries(officialMap)) {
+    official[key] = row;
+    if (!row.voided && row.winnerRef) decidedCount++;
   }
 
   const expectedMatches = tournament.draw_size - 1;
   const eventComplete =
-    locked && decidedCount >= expectedMatches && snaps.length > 0;
+    locked && decidedCount >= expectedMatches && scored.length > 0;
+
+  // Live grades for engagement / pulse (brackets may lack full snap fields).
+  const drawSize = tournament.draw_size;
+  let maxScore = 0;
+  try {
+    maxScore = maxBracketScore(drawSize);
+  } catch {
+    maxScore = 0;
+  }
+  type SnapRow = {
+    user_id: string;
+    score: number;
+    max_score: number | null;
+    upside: number | null;
+    champion_alive: boolean | null;
+    correct: number | null;
+    incorrect: number | null;
+    position_delta: number | null;
+    previous_position: number | null;
+    position: number | null;
+    champion_ref: string | null;
+    voided_picks: number;
+  };
+
+  const snaps: SnapRow[] = [];
+  for (const b of scored) {
+    const bPicks = await loadBracketPicksMap(supabase, b.id);
+    const grade = gradeBracket({
+      drawSize,
+      picks: bPicks,
+      official,
+    });
+    snaps.push({
+      user_id: b.user_id,
+      score: b.points ?? grade.score,
+      max_score: maxScore,
+      upside: grade.upside,
+      champion_alive: grade.championAlive,
+      correct: grade.correct,
+      incorrect: grade.incorrect,
+      position_delta: null,
+      previous_position: null,
+      position: b.rank ?? null,
+      champion_ref: b.champion_player_id ?? grade.championRef,
+      voided_picks: grade.voided,
+    });
+  }
+  snaps.sort((a, b) => (a.position ?? 999) - (b.position ?? 999));
 
   const fieldSize = Math.max(memberCount, snaps.length);
   let you: StandingPulseRow | null = null;
@@ -211,25 +287,17 @@ export async function loadDailyCheck(input: {
     if (mine) {
       let championName: string | null = null;
       if (mine.champion_ref) {
-        const seat = seats.find((s) => s.player_ref === mine.champion_ref);
+        const seat = seats.find((s) => s.player_id === mine.champion_ref);
         championName = seat?.last_name ?? mine.champion_ref;
       }
-
-      const positionDelta =
-        mine.position_delta != null
-          ? mine.position_delta
-          : mine.previous_position != null && mine.position != null
-            ? mine.previous_position - mine.position
-            : null;
 
       you = {
         position: mine.position ?? fieldSize,
         previousPosition: mine.previous_position,
-        positionDelta,
+        positionDelta: mine.position_delta,
         score: mine.score,
-        previousScore:
-          mine.score_delta != null ? mine.score - mine.score_delta : null,
-        scoreDelta: mine.score_delta,
+        previousScore: null,
+        scoreDelta: null,
         upside: mine.upside ?? 0,
         championAlive: mine.champion_alive,
         voidedPicks: mine.voided_picks ?? 0,
@@ -265,7 +333,7 @@ export async function loadDailyCheck(input: {
     you,
     leader,
     fieldSize,
-    seasonPosition: season?.position ?? null,
+    seasonPosition,
     seasonPoints: season?.points ?? null,
     hour,
     bracketHealth: engagement.health,
@@ -274,7 +342,6 @@ export async function loadDailyCheck(input: {
     perfectBracketCount: engagement.perfectLeagueCount,
   });
 
-  // Fire-and-forget cache — never await (ignore missing table / errors)
   void Promise.resolve(
     supabase.from("daily_check_log").upsert(
       {

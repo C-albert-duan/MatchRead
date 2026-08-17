@@ -22,10 +22,8 @@
 !.env.docker.example
 apps/web/.env*.local
 
-# Large / non-runtime trees
-Wireframe
+# Non-runtime
 agent-transcripts
-docs/plans
 **/*.md
 !README.md
 

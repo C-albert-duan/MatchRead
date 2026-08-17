@@ -1,6 +1,4 @@
-import { isOfficialPublicDraw, type DrawSeat } from "@matchread/core";
 import { createClient } from "@/lib/supabase/server";
-import { mapDrawSeat } from "@/lib/brackets/types";
 import { DAY_MS, isEntryLocked } from "@/lib/tournaments/status";
 import { formatTournamentDate } from "@/lib/tournaments/dates";
 export { formatTournamentDate };
@@ -34,6 +32,7 @@ export type Tour = "atp" | "wta";
 
 export type CalendarTournament = {
   id: string;
+  /** URL slug (DB `tournaments.slug`). */
   ref: string;
   name: string;
   surface: string;
@@ -203,62 +202,18 @@ export function formatUpcomingAction(
   return parts.join(" · ");
 }
 
-/**
- * Tournament ids with an official public draw: seat count matches draw size
- * and every seat is a named player, published bye, or Qualifier/LL TBD.
- */
-export async function listVerifiedDrawTournamentIds(): Promise<Set<string>> {
-  const supabase = createClient();
-  const { data: draws } = await supabase.from("draws").select("id, tournament_id");
-  if (!draws?.length) return new Set();
-
-  const drawIds = draws.map((d) => d.id);
-  const tournamentIds = [...new Set(draws.map((d) => d.tournament_id))];
-  const [{ data: seats }, { data: tournaments }] = await Promise.all([
-    supabase
-      .from("draw_seats")
-      .select(
-        "draw_id, position, player_ref, last_name, seed, country_code, is_bye, seat_kind, entry_status"
-      )
-      .in("draw_id", drawIds),
-    supabase.from("tournaments").select("id, draw_size").in("id", tournamentIds),
-  ]);
-
-  const sizeByTournament = new Map(
-    (tournaments ?? []).map((t) => [t.id, Number(t.draw_size) || 0])
-  );
-  const seatsByDraw = new Map<string, DrawSeat[]>();
-  for (const row of seats ?? []) {
-    const list = seatsByDraw.get(row.draw_id) ?? [];
-    list.push(mapDrawSeat(row));
-    seatsByDraw.set(row.draw_id, list);
-  }
-
-  const verified = new Set<string>();
-  for (const draw of draws) {
-    const drawSeats = seatsByDraw.get(draw.id) ?? [];
-    const size = sizeByTournament.get(draw.tournament_id) ?? 0;
-    if (isOfficialPublicDraw(drawSeats, size)) {
-      verified.add(draw.tournament_id);
-    }
-  }
-  return verified;
-}
-
-/** Live tournaments from Supabase — no hardcoded calendar. */
+/** Live tournaments from Supabase — no hardcoded calendar. No seed data. */
 export async function listCalendarTournaments(): Promise<CalendarTournament[]> {
   const supabase = createClient();
-  const [{ data: tournaments }, verifiedIds] = await Promise.all([
-    supabase
-      .from("tournaments")
-      .select(
-        "id, ref, name, surface, starts_on, ends_on, lock_at, admin_locked_at, venue_tz, tour, draw_size"
-      )
-      .order("starts_on", { ascending: true }),
-    listVerifiedDrawTournamentIds(),
-  ]);
+  const { data: tournaments } = await supabase
+    .from("tournaments")
+    .select(
+      "id, slug, name, surface, starts_on, ends_on, lock_at, venue_tz, tour, draw_size, published_at"
+    )
+    .not("slug", "like", "e2e-%")
+    .order("starts_on", { ascending: true });
 
-  return (tournaments ?? []).map((row) => mapCalendarRow(row, verifiedIds));
+  return (tournaments ?? []).map((row) => mapCalendarRow(row));
 }
 
 export async function getCalendarTournament(
@@ -270,45 +225,51 @@ export async function getCalendarTournament(
   const { data: row } = await supabase
     .from("tournaments")
     .select(
-      "id, ref, name, surface, starts_on, ends_on, lock_at, admin_locked_at, venue_tz, tour, draw_size"
+      "id, slug, name, surface, starts_on, ends_on, lock_at, venue_tz, tour, draw_size, published_at"
     )
-    .eq("ref", trimmed)
+    .eq("slug", trimmed)
     .maybeSingle();
   if (!row) return null;
-  const verifiedIds = await listVerifiedDrawTournamentIds();
-  return mapCalendarRow(row, verifiedIds);
+  return mapCalendarRow(row);
 }
 
 type TournamentQueryRow = {
   id: string;
-  ref: string;
+  slug: string;
   name: string;
   surface: string | null;
   starts_on: string | null;
   ends_on?: string | null;
   lock_at: string | null;
-  admin_locked_at: string | null;
   venue_tz: string | null;
   tour?: string | null;
   draw_size?: number | null;
+  published_at?: string | null;
 };
 
-function mapCalendarRow(
-  row: TournamentQueryRow,
-  verifiedIds: Set<string>
-): CalendarTournament {
+function mapCalendarRow(row: TournamentQueryRow): CalendarTournament {
   return {
     id: row.id,
-    ref: row.ref,
+    ref: row.slug,
     name: row.name,
     surface: row.surface ?? "hard",
     starts_on: row.starts_on,
     ends_on: row.ends_on ?? null,
     lock_at: row.lock_at ?? null,
-    admin_locked_at: row.admin_locked_at ?? null,
+    admin_locked_at: null,
     venue_tz: row.venue_tz || "UTC",
     tour: normalizeTour(row.tour),
     draw_size: row.draw_size && row.draw_size > 0 ? row.draw_size : 64,
-    hasDraw: verifiedIds.has(row.id),
+    hasDraw: Boolean(row.published_at),
   };
+}
+
+/** Tournament ids with published_at set (official draw live). */
+export async function listVerifiedDrawTournamentIds(): Promise<Set<string>> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from("tournaments")
+    .select("id")
+    .not("published_at", "is", null);
+  return new Set((data ?? []).map((r) => r.id));
 }

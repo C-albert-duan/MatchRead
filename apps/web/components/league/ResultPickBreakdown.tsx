@@ -38,7 +38,9 @@ export function ResultPickBreakdown({
     unpicked: t("result.outcome.nopick"),
   };
   const detail = detailBracketGrade({ drawSize, picks, official });
-  const byRef = new Map(seats.map((s) => [s.player_ref, s]));
+  const byRef = new Map(
+    seats.filter((s) => s.player_id).map((s) => [s.player_id as string, s])
+  );
 
   const rounds = new Map<number, typeof detail.matches>();
   for (const m of detail.matches) {

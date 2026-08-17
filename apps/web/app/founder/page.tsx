@@ -34,25 +34,30 @@ export default async function FounderPage() {
     leaguesRes,
     membersRes,
     submittedRes,
-    snapshotsRes,
+    gradedRes,
     resultsRes,
-    lastSnapRes,
+    lastGradedRes,
     opsRes,
   ] = await Promise.all([
     supabase.from("leagues").select("*", { count: "exact", head: true }),
-    supabase.from("league_members").select("*", { count: "exact", head: true }),
+    supabase.from("members").select("*", { count: "exact", head: true }),
     supabase
       .from("brackets")
       .select("*", { count: "exact", head: true })
       .not("submitted_at", "is", null),
     supabase
-      .from("bracket_snapshots")
-      .select("*", { count: "exact", head: true }),
-    supabase.from("match_results").select("*", { count: "exact", head: true }),
+      .from("brackets")
+      .select("*", { count: "exact", head: true })
+      .not("points", "is", null),
     supabase
-      .from("bracket_snapshots")
-      .select("ranked_at")
-      .order("ranked_at", { ascending: false })
+      .from("matches")
+      .select("*", { count: "exact", head: true })
+      .or("winner_player_id.not.is.null,voided.eq.true"),
+    supabase
+      .from("brackets")
+      .select("updated_at")
+      .not("points", "is", null)
+      .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
     supabase
@@ -66,9 +71,9 @@ export default async function FounderPage() {
     leaguesRes.error ||
     membersRes.error ||
     submittedRes.error ||
-    snapshotsRes.error ||
+    gradedRes.error ||
     resultsRes.error ||
-    lastSnapRes.error ||
+    lastGradedRes.error ||
     opsRes.error;
 
   const fmt = (count: number | null | undefined, err: unknown) =>
@@ -89,7 +94,7 @@ export default async function FounderPage() {
     },
     {
       label: t("founder.stat.snapshots"),
-      value: fmt(snapshotsRes.count, snapshotsRes.error),
+      value: fmt(gradedRes.count, gradedRes.error),
     },
     {
       label: t("founder.stat.results"),
@@ -97,8 +102,8 @@ export default async function FounderPage() {
     },
     {
       label: t("founder.stat.lastRanked"),
-      value: lastSnapRes.data?.ranked_at
-        ? new Date(lastSnapRes.data.ranked_at).toISOString()
+      value: lastGradedRes.data?.updated_at
+        ? new Date(lastGradedRes.data.updated_at).toISOString()
         : t("founder.stat.none"),
     },
   ];

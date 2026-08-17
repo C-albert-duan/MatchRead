@@ -46,7 +46,7 @@ function refOf(occupant: SlotOccupant): string | null {
 
 function seatName(seats: DrawSeat[], ref: string | null): string {
   if (!ref) return "—";
-  const seat = seats.find((s) => s.player_ref === ref);
+  const seat = seats.find((s) => s.player_id === ref);
   return seat?.last_name ?? ref;
 }
 

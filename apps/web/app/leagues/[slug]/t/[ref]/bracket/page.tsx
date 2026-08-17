@@ -13,11 +13,15 @@ import { AnnouncedFirstRound } from "@/components/bracket/AnnouncedFirstRound";
 import { BracketEditor } from "@/components/bracket/BracketEditor";
 import { getSessionUser } from "@/lib/auth";
 import {
-  DRAW_SEAT_SELECT,
   isPlatformLocked,
   isTournamentLocked,
+  loadAnnouncedMatchups,
+  loadBracketConfidenceMap,
+  loadBracketPicksMap,
   loadLeagueDrawLock,
-  mapDrawSeat,
+  loadMatchScheduleMap,
+  loadOfficialResultsMap,
+  loadTournamentSeats,
 } from "@/lib/brackets/types";
 import { getLocale, t, tf } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
@@ -49,95 +53,91 @@ export default async function BracketPage({ params }: Props) {
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, slug, name, format, tournament_label, tournament_id, is_solo")
+    .select("id, slug, name, format, is_solo")
     .eq("slug", params.slug)
     .maybeSingle();
 
   if (!league) notFound();
 
-  const [{ data: membership }, { count: memberCount }] = await Promise.all([
-    supabase
-      .from("league_members")
-      .select("role")
-      .eq("league_id", league.id)
-      .eq("user_id", user.id)
-      .maybeSingle(),
-    supabase
-      .from("league_members")
-      .select("*", { count: "exact", head: true })
-      .eq("league_id", league.id),
-  ]);
+  const [{ data: membership }, { count: memberCount }, { data: linked }] =
+    await Promise.all([
+      supabase
+        .from("members")
+        .select("role")
+        .eq("league_id", league.id)
+        .eq("user_id", user.id)
+        .maybeSingle(),
+      supabase
+        .from("members")
+        .select("*", { count: "exact", head: true })
+        .eq("league_id", league.id),
+      supabase
+        .from("league_tournaments")
+        .select("tournament_id")
+        .eq("league_id", league.id)
+        .limit(1)
+        .maybeSingle(),
+    ]);
 
   if (!membership) notFound();
 
   const solo = isSoloPresentation({
-    is_solo: Boolean((league as { is_solo?: boolean }).is_solo),
+    is_solo: Boolean(league.is_solo),
     member_count: memberCount ?? 1,
   });
 
   const { data: tournament } = await supabase
     .from("tournaments")
     .select("*")
-    .eq("ref", params.ref)
+    .eq("slug", params.ref)
     .maybeSingle();
 
   if (!tournament) notFound();
 
   if (
     league.format === "single" &&
-    !leagueIncludesTournament(league, tournament.id)
+    !leagueIncludesTournament(
+      { format: league.format, tournament_id: linked?.tournament_id ?? null },
+      tournament.id
+    )
   ) {
     notFound();
   }
 
-  const [{ data: draw }, { data: announcedRows }, { data: announcedBracket }, leagueLockedAt] =
-    await Promise.all([
-      supabase
-        .from("draws")
-        .select("id")
-        .eq("tournament_id", tournament.id)
-        .maybeSingle(),
-      supabase
-        .from("announced_matchups")
-        .select(
-          "match_key, player1_ref, player1_last_name, player1_seed, player2_ref, player2_last_name, player2_seed, scheduled_at, has_time"
-        )
-        .eq("tournament_id", tournament.id)
-        .order("scheduled_at", { ascending: true }),
-      supabase
-        .from("brackets")
-        .select("picks, submitted_at")
-        .eq("league_id", league.id)
-        .eq("tournament_id", tournament.id)
-        .eq("user_id", user.id)
-        .maybeSingle(),
-      loadLeagueDrawLock(supabase, league.id, tournament.id),
-    ]);
+  const tournamentRef = tournament.slug as string;
 
-  const announced = announcedRows ?? [];
-  let seats: DrawSeat[] = [];
-  if (draw) {
-    const { data: seatRows } = await supabase
-      .from("draw_seats")
-      .select(DRAW_SEAT_SELECT)
-      .eq("draw_id", draw.id)
-      .order("position", { ascending: true });
-    seats = (seatRows ?? []).map(mapDrawSeat);
-  }
+  const [seats, announced, myBracketRes, leagueLockedAt] = await Promise.all([
+    loadTournamentSeats(supabase, tournament.id),
+    loadAnnouncedMatchups(supabase, tournament.id),
+    supabase
+      .from("brackets")
+      .select("id, submitted_at")
+      .eq("league_id", league.id)
+      .eq("tournament_id", tournament.id)
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    loadLeagueDrawLock(supabase, league.id, tournament.id),
+  ]);
+
+  const myBracket = myBracketRes.data;
+  const announcedPicks: BracketPicks = myBracket?.id
+    ? await loadBracketPicksMap(supabase, myBracket.id)
+    : {};
 
   const official = isOfficialPublicDraw(
     seats,
     Number(tournament.draw_size) || 0
   );
   const locked = isTournamentLocked({
-    ...tournament,
+    lock_at: tournament.lock_at,
+    admin_locked_at: null,
     league_locked_at: leagueLockedAt,
     hasOfficialDraw: official,
   });
 
-  if (!official) {
+  if (!official && !tournament.published_at) {
     if (announced.length === 0) {
-      redirect(`/leagues/${league.slug}/t/${tournament.ref}`);
+      redirect(`/leagues/${league.slug}/t/${tournamentRef}`);
     }
     return (
       <AppShell signedIn email={user.email}>
@@ -158,7 +158,7 @@ export default async function BracketPage({ params }: Props) {
             </div>
             <div className="page-actions">
               <Link
-                href={`/leagues/${league.slug}/t/${tournament.ref}`}
+                href={`/leagues/${league.slug}/t/${tournamentRef}`}
                 className="act act--standard act--standard-size"
               >
                 {t("common.tournament")}
@@ -177,12 +177,12 @@ export default async function BracketPage({ params }: Props) {
               Math.floor(Number(tournament.draw_size || 64) / 2),
               16
             )}
-            picks={(announcedBracket?.picks ?? {}) as BracketPicks}
+            picks={announcedPicks}
             locked={locked}
             leagueId={league.id}
             leagueSlug={league.slug}
             tournamentId={tournament.id}
-            tournamentRef={tournament.ref}
+            tournamentRef={tournamentRef}
             venueTz={
               (tournament as { venue_tz?: string | null }).venue_tz || "UTC"
             }
@@ -193,52 +193,29 @@ export default async function BracketPage({ params }: Props) {
     );
   }
 
-  const [
-    { data: bracket },
-    { data: resultRows },
-    { data: scheduleRows },
-  ] = await Promise.all([
-      supabase
-        .from("brackets")
-        .select("picks, confidence, submitted_at")
-        .eq("league_id", league.id)
-        .eq("tournament_id", tournament.id)
-        .eq("user_id", user.id)
-        .maybeSingle(),
-      supabase
-        .from("match_results")
-        .select("match_key, winner_ref, voided")
-        .eq("tournament_id", tournament.id),
-      supabase
-        .from("match_schedule")
-        .select("match_key, scheduled_at, has_time")
-        .eq("tournament_id", tournament.id),
-    ]);
+  const [picks, confidence, officialMap, scheduleMap] = await Promise.all([
+    myBracket?.id
+      ? loadBracketPicksMap(supabase, myBracket.id)
+      : Promise.resolve({} as BracketPicks),
+    myBracket?.id
+      ? loadBracketConfidenceMap(supabase, myBracket.id)
+      : Promise.resolve({} as BracketConfidence),
+    loadOfficialResultsMap(supabase, tournament.id),
+    loadMatchScheduleMap(supabase, tournament.id),
+  ]);
 
-  const picks = (bracket?.picks ?? {}) as BracketPicks;
-  const confidence = (bracket?.confidence ?? {}) as BracketConfidence;
   const platformLocked = isPlatformLocked({
-    ...tournament,
+    lock_at: tournament.lock_at,
+    admin_locked_at: null,
     hasOfficialDraw: true,
   });
 
   const officialResults: OfficialResults = {};
-  for (const row of resultRows ?? []) {
-    officialResults[row.match_key] = {
-      winnerRef: row.winner_ref,
-      voided: row.voided,
-    };
+  for (const [key, row] of Object.entries(officialMap)) {
+    officialResults[key] = row;
   }
   const hasOfficial = Object.keys(officialResults).length > 0;
-
-  const schedule: Record<string, MatchScheduleRow> = {};
-  for (const row of scheduleRows ?? []) {
-    if (!row.match_key || !row.scheduled_at) continue;
-    schedule[row.match_key] = {
-      scheduled_at: row.scheduled_at,
-      has_time: Boolean(row.has_time),
-    };
-  }
+  const schedule: Record<string, MatchScheduleRow> = scheduleMap;
 
   const surface = String(tournament.surface ?? "hard").toLowerCase();
   const courtTone = surface.includes("clay")
@@ -272,7 +249,7 @@ export default async function BracketPage({ params }: Props) {
           </div>
           <div className="page-actions">
             <Link
-              href={`/leagues/${league.slug}/t/${tournament.ref}`}
+              href={`/leagues/${league.slug}/t/${tournamentRef}`}
               className="act act--standard act--standard-size"
             >
               {t("common.tournament")}
@@ -288,12 +265,12 @@ export default async function BracketPage({ params }: Props) {
             leagueId={league.id}
             leagueSlug={league.slug}
             tournamentId={tournament.id}
-            tournamentRef={tournament.ref}
-            drawSize={tournament.draw_size}
-            seats={seats}
+            tournamentRef={tournamentRef}
+            drawSize={tournament.draw_size as number}
+            seats={seats as DrawSeat[]}
             initialPicks={picks}
             initialConfidence={confidence}
-            submittedAt={bracket?.submitted_at ?? null}
+            submittedAt={myBracket?.submitted_at ?? null}
             locked={locked}
             platformLocked={platformLocked}
             isCommissioner={membership.role === "commissioner"}

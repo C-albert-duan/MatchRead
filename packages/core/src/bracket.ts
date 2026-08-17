@@ -73,20 +73,22 @@ export function totalMatches(drawSize: number): number {
 export type SeatKind = "player" | "bye" | "tbd";
 export type EntryStatus = "wc" | "pr";
 
+/** Official draw seat. player_id is set only for kind=player. */
 export type DrawSeat = {
   position: number;
-  player_ref: string;
+  kind: SeatKind;
+  player_id: string | null;
   last_name: string;
   seed: number | null;
   country_code: string;
-  is_bye: boolean;
-  seat_kind?: SeatKind;
-  entry_status?: EntryStatus | null;
+  entry?: EntryStatus | null;
+  tbd_label?: string | null;
 };
 
 export function seatKind(
-  seat: Pick<DrawSeat, "is_bye"> & { seat_kind?: SeatKind }
+  seat: Pick<DrawSeat, "kind"> & { is_bye?: boolean; seat_kind?: SeatKind }
 ): SeatKind {
+  if (seat.kind) return seat.kind;
   if (seat.seat_kind) return seat.seat_kind;
   if (seat.is_bye) return "bye";
   return "player";
@@ -97,25 +99,30 @@ export function isFictionalSeatName(last: string | null | undefined): boolean {
   return !s || /^player\d*$/i.test(s) || /^player\s+\d+/i.test(s);
 }
 
-/** 0003 UX fixture used player_ref p-0 … p-15. Official seats never use that shape. */
+/** Legacy fixture refs p-0… — never valid as player_id. */
 export function isFictionalSeatRef(ref: string | null | undefined): boolean {
   return /^p-\d+$/i.test(String(ref || "").trim());
 }
 
 export function isNamedPlayerSeat(
-  seat: Pick<DrawSeat, "is_bye" | "last_name"> & {
+  seat: Pick<DrawSeat, "kind" | "last_name" | "player_id"> & {
     seat_kind?: SeatKind;
+    is_bye?: boolean;
     player_ref?: string;
   }
 ): boolean {
   if (seatKind(seat) !== "player") return false;
+  if (!seat.player_id && !seat.player_ref) return false;
   if (isFictionalSeatName(seat.last_name)) return false;
-  if (isFictionalSeatRef(seat.player_ref)) return false;
+  if (isFictionalSeatRef(seat.player_id ?? seat.player_ref)) return false;
   return true;
 }
 
 export function isPublicDrawSeat(
-  seat: Pick<DrawSeat, "is_bye" | "last_name"> & { seat_kind?: SeatKind }
+  seat: Pick<DrawSeat, "kind" | "last_name" | "player_id"> & {
+    seat_kind?: SeatKind;
+    is_bye?: boolean;
+  }
 ): boolean {
   const kind = seatKind(seat);
   if (kind === "bye" || kind === "tbd") return true;
@@ -137,6 +144,7 @@ export function isOfficialPublicDraw(
 export type SlotOccupant =
   | {
       kind: "player";
+      /** Player UUID (string). */
       ref: string;
       lastName: string;
       seed: number | null;
@@ -148,6 +156,7 @@ export type SlotOccupant =
   | { kind: "dash" }
   | { kind: "unpicked" };
 
+/** matchKey → player UUID */
 export type BracketPicks = Record<string, string>;
 
 function seatToOccupant(seat: DrawSeat | undefined): SlotOccupant {
@@ -155,23 +164,32 @@ function seatToOccupant(seat: DrawSeat | undefined): SlotOccupant {
   const kind = seatKind(seat);
   if (kind === "bye") return { kind: "bye" };
   if (kind === "tbd") return { kind: "tbd" };
+  if (!seat.player_id) return { kind: "dash" };
   return {
     kind: "player",
-    ref: seat.player_ref,
+    ref: seat.player_id,
     lastName: seat.last_name,
     seed: seat.seed,
     countryCode: seat.country_code,
-    entryStatus: seat.entry_status ?? null,
+    entryStatus: seat.entry ?? null,
   };
 }
 
 function pickToOccupant(
-  ref: string | undefined,
-  seatsByRef: Map<string, DrawSeat>
+  playerId: string | undefined,
+  seatsByPlayer: Map<string, DrawSeat>
 ): SlotOccupant {
-  if (!ref) return { kind: "dash" };
-  const seat = seatsByRef.get(ref);
-  if (!seat) return { kind: "dash" };
+  if (!playerId) return { kind: "dash" };
+  const seat = seatsByPlayer.get(playerId);
+  if (!seat) {
+    return {
+      kind: "player",
+      ref: playerId,
+      lastName: "?",
+      seed: null,
+      countryCode: "XXX",
+    };
+  }
   return seatToOccupant(seat);
 }
 
@@ -186,7 +204,11 @@ export function resolveMatchEntrants(
   round: number,
   indexInRound: number
 ): [SlotOccupant, SlotOccupant] {
-  const seatsByRef = new Map(seats.map((s) => [s.player_ref, s]));
+  const seatsByPlayer = new Map(
+    seats
+      .filter((s) => s.player_id)
+      .map((s) => [s.player_id as string, s])
+  );
   const byPos = new Map(seats.map((s) => [s.position, s]));
 
   if (round === 0) {
@@ -199,8 +221,8 @@ export function resolveMatchEntrants(
   const feederA = matchKey(round - 1, indexInRound * 2);
   const feederB = matchKey(round - 1, indexInRound * 2 + 1);
   return [
-    pickToOccupant(picks[feederA], seatsByRef),
-    pickToOccupant(picks[feederB], seatsByRef),
+    pickToOccupant(picks[feederA], seatsByPlayer),
+    pickToOccupant(picks[feederB], seatsByPlayer),
   ];
 }
 

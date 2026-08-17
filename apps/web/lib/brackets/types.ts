@@ -10,6 +10,7 @@ export type TournamentSurface =
 
 export type Tournament = {
   id: string;
+  /** URL slug (DB column `slug`). */
   ref: string;
   name: string;
   surface: TournamentSurface;
@@ -18,12 +19,7 @@ export type Tournament = {
   admin_locked_at: string | null;
   draw_size: number;
   venue_tz: string;
-};
-
-export type Draw = {
-  id: string;
-  tournament_id: string;
-  published_at: string;
+  published_at?: string | null;
 };
 
 export type BracketRow = {
@@ -34,41 +30,58 @@ export type BracketRow = {
   picks: BracketPicks;
   submitted_at: string | null;
   updated_at: string;
+  points?: number | null;
+  rank?: number | null;
+  champion_player_id?: string | null;
 };
 
 export type DrawSeatRow = DrawSeat;
 
-export const DRAW_SEAT_SELECT =
-  "position, player_ref, last_name, seed, country_code, is_bye, seat_kind, entry_status";
+export const SEAT_SELECT =
+  "position, kind, player_id, seed, entry, tbd_label, players(last_name, country_code)";
 
-export function mapDrawSeat(row: {
+export const DRAW_SEAT_SELECT = SEAT_SELECT;
+
+type SeatQueryRow = {
   position: number;
-  player_ref: string;
-  last_name: string;
+  kind?: SeatKind | null;
+  player_id?: string | null;
   seed?: number | null;
+  entry?: EntryStatus | null;
+  tbd_label?: string | null;
+  last_name?: string | null;
   country_code?: string | null;
-  is_bye?: boolean | null;
-  seat_kind?: SeatKind | null;
-  entry_status?: EntryStatus | null;
-}): DrawSeat {
-  const kind: SeatKind = row.seat_kind ?? (row.is_bye ? "bye" : "player");
+  players?:
+    | { last_name?: string | null; country_code?: string | null }
+    | { last_name?: string | null; country_code?: string | null }[]
+    | null;
+};
+
+export function mapDrawSeat(row: SeatQueryRow): DrawSeat {
+  const kind: SeatKind =
+    row.kind ?? (row.player_id ? "player" : row.tbd_label ? "tbd" : "bye");
+  const player =
+    Array.isArray(row.players) ? row.players[0] : row.players ?? null;
+  const last =
+    row.last_name ??
+    player?.last_name ??
+    (kind === "tbd" ? row.tbd_label ?? "TBD" : kind === "bye" ? "" : "");
   return {
     position: row.position,
-    player_ref: row.player_ref,
-    last_name: row.last_name,
+    kind,
+    player_id: row.player_id ?? null,
+    last_name: last || "",
     seed: row.seed ?? null,
-    country_code: row.country_code || "XXX",
-    is_bye: kind === "bye",
-    seat_kind: kind,
-    entry_status: row.entry_status ?? null,
+    country_code: row.country_code || player?.country_code || "XXX",
+    entry: row.entry ?? null,
+    tbd_label: row.tbd_label ?? null,
   };
 }
 
 export function isTournamentLocked(t: {
   lock_at: string | null;
-  admin_locked_at: string | null;
+  admin_locked_at?: string | null;
   league_locked_at?: string | null;
-  /** First-ball lock_at only applies once the official sheet exists. */
   hasOfficialDraw?: boolean;
   now?: Date;
 }): boolean {
@@ -80,10 +93,9 @@ export function isTournamentLocked(t: {
   return new Date(t.lock_at).getTime() <= now.getTime();
 }
 
-/** Platform first-ball / founder lock — ignores a commissioner league lock. */
 export function isPlatformLocked(t: {
   lock_at: string | null;
-  admin_locked_at: string | null;
+  admin_locked_at?: string | null;
   hasOfficialDraw?: boolean;
   now?: Date;
 }): boolean {
@@ -112,10 +124,249 @@ export async function loadLeagueDrawLock(
   tournamentId: string
 ): Promise<string | null> {
   const { data } = await supabase
-    .from("league_draw_locks")
+    .from("league_tournaments")
     .select("locked_at")
     .eq("league_id", leagueId)
     .eq("tournament_id", tournamentId)
     .maybeSingle();
   return (data as { locked_at?: string } | null)?.locked_at ?? null;
+}
+
+/** Load picks as matchKey → player_id using matches.round/index. */
+export async function loadBracketPicksMap(
+  supabase: SupabaseClient,
+  bracketId: string
+): Promise<BracketPicks> {
+  const { data: pickRows } = await supabase
+    .from("picks")
+    .select("player_id, match_id, matches(round, index_in_round)")
+    .eq("bracket_id", bracketId);
+
+  const out: BracketPicks = {};
+  for (const row of pickRows ?? []) {
+    const m = Array.isArray(row.matches) ? row.matches[0] : row.matches;
+    if (!m || row.player_id == null) continue;
+    const key = `r${m.round}-m${m.index_in_round}`;
+    out[key] = row.player_id;
+  }
+  return out;
+}
+
+/** Convert matchKey→playerId picks to save_picks RPC payload. */
+export async function picksToSavePayload(
+  supabase: SupabaseClient,
+  tournamentId: string,
+  picks: BracketPicks
+): Promise<{ match_id: string; player_id: string }[]> {
+  const { data: matches } = await supabase
+    .from("matches")
+    .select("id, round, index_in_round")
+    .eq("tournament_id", tournamentId);
+
+  const byKey = new Map(
+    (matches ?? []).map((m) => [`r${m.round}-m${m.index_in_round}`, m.id])
+  );
+  const out: { match_id: string; player_id: string }[] = [];
+  for (const [key, playerId] of Object.entries(picks)) {
+    const matchId = byKey.get(key);
+    if (!matchId || !playerId) continue;
+    out.push({ match_id: matchId, player_id: playerId });
+  }
+  return out;
+}
+
+/** matchKey → confidence from picks rows. */
+export async function loadBracketConfidenceMap(
+  supabase: SupabaseClient,
+  bracketId: string
+): Promise<Record<string, number>> {
+  const { data: pickRows } = await supabase
+    .from("picks")
+    .select("confidence, match_id, matches(round, index_in_round)")
+    .eq("bracket_id", bracketId);
+
+  const out: Record<string, number> = {};
+  for (const row of pickRows ?? []) {
+    const m = Array.isArray(row.matches) ? row.matches[0] : row.matches;
+    if (!m || row.confidence == null) continue;
+    out[`r${m.round}-m${m.index_in_round}`] = row.confidence;
+  }
+  return out;
+}
+
+/** Convert matchKey confidence map to match_id keys for save_picks. */
+export async function confidenceToSavePayload(
+  supabase: SupabaseClient,
+  tournamentId: string,
+  confidence: Record<string, number>
+): Promise<Record<string, number>> {
+  const { data: matches } = await supabase
+    .from("matches")
+    .select("id, round, index_in_round")
+    .eq("tournament_id", tournamentId);
+
+  const byKey = new Map(
+    (matches ?? []).map((m) => [`r${m.round}-m${m.index_in_round}`, m.id])
+  );
+  const out: Record<string, number> = {};
+  for (const [key, level] of Object.entries(confidence)) {
+    const matchId = byKey.get(key);
+    if (!matchId || level == null) continue;
+    out[matchId] = level;
+  }
+  return out;
+}
+
+export type OfficialResultsMap = Record<
+  string,
+  { winnerRef: string | null; voided: boolean }
+>;
+
+/** Official winners: matchKey `r{N}-m{M}` → winner_player_id. */
+export async function loadOfficialResultsMap(
+  supabase: SupabaseClient,
+  tournamentId: string
+): Promise<OfficialResultsMap> {
+  const { data: rows } = await supabase
+    .from("matches")
+    .select("round, index_in_round, winner_player_id, voided")
+    .eq("tournament_id", tournamentId);
+
+  const out: OfficialResultsMap = {};
+  for (const row of rows ?? []) {
+    if (!row.voided && !row.winner_player_id) continue;
+    out[`r${row.round}-m${row.index_in_round}`] = {
+      winnerRef: row.voided ? null : row.winner_player_id,
+      voided: Boolean(row.voided),
+    };
+  }
+  return out;
+}
+
+export type MatchScheduleMap = Record<
+  string,
+  { scheduled_at: string; has_time: boolean }
+>;
+
+export async function loadMatchScheduleMap(
+  supabase: SupabaseClient,
+  tournamentId: string
+): Promise<MatchScheduleMap> {
+  const { data: rows } = await supabase
+    .from("matches")
+    .select("round, index_in_round, scheduled_at, has_time")
+    .eq("tournament_id", tournamentId)
+    .not("scheduled_at", "is", null);
+
+  const out: MatchScheduleMap = {};
+  for (const row of rows ?? []) {
+    if (!row.scheduled_at) continue;
+    out[`r${row.round}-m${row.index_in_round}`] = {
+      scheduled_at: row.scheduled_at,
+      has_time: Boolean(row.has_time),
+    };
+  }
+  return out;
+}
+
+export type AnnouncedMatchupRow = {
+  match_key: string;
+  player1_ref: string;
+  player1_last_name: string;
+  player1_seed: number | null;
+  player2_ref: string;
+  player2_last_name: string;
+  player2_seed: number | null;
+  scheduled_at: string | null;
+  has_time: boolean;
+};
+
+/**
+ * First-round (or any) announced pairs from matches + player joins.
+ * Prefer round=0 with both sides set.
+ */
+export async function loadAnnouncedMatchups(
+  supabase: SupabaseClient,
+  tournamentId: string,
+  opts?: { round?: number; bothSidesOnly?: boolean }
+): Promise<AnnouncedMatchupRow[]> {
+  const round = opts?.round ?? 0;
+  const bothSidesOnly = opts?.bothSidesOnly ?? true;
+
+  const { data: rows } = await supabase
+    .from("matches")
+    .select(
+      "round, index_in_round, side_a_player_id, side_b_player_id, scheduled_at, has_time"
+    )
+    .eq("tournament_id", tournamentId)
+    .eq("round", round)
+    .order("index_in_round", { ascending: true });
+
+  const playerIds = new Set<string>();
+  for (const row of rows ?? []) {
+    if (row.side_a_player_id) playerIds.add(row.side_a_player_id);
+    if (row.side_b_player_id) playerIds.add(row.side_b_player_id);
+  }
+
+  const names = new Map<string, string>();
+  const seatSeeds = new Map<string, number | null>();
+  if (playerIds.size > 0) {
+    const [{ data: players }, { data: seats }] = await Promise.all([
+      supabase
+        .from("players")
+        .select("id, last_name")
+        .in("id", [...playerIds]),
+      supabase
+        .from("seats")
+        .select("player_id, seed")
+        .eq("tournament_id", tournamentId)
+        .in("player_id", [...playerIds]),
+    ]);
+    for (const p of players ?? []) names.set(p.id, p.last_name);
+    for (const s of seats ?? []) {
+      if (s.player_id) seatSeeds.set(s.player_id, s.seed ?? null);
+    }
+  }
+
+  const out: AnnouncedMatchupRow[] = [];
+  for (const row of rows ?? []) {
+    const aId = row.side_a_player_id as string | null;
+    const bId = row.side_b_player_id as string | null;
+    if (bothSidesOnly && (!aId || !bId)) continue;
+    if (!aId && !bId) continue;
+
+    out.push({
+      match_key: `r${row.round}-m${row.index_in_round}`,
+      player1_ref: aId ?? "",
+      player1_last_name: aId ? (names.get(aId) ?? "") : "",
+      player1_seed: aId ? (seatSeeds.get(aId) ?? null) : null,
+      player2_ref: bId ?? "",
+      player2_last_name: bId ? (names.get(bId) ?? "") : "",
+      player2_seed: bId ? (seatSeeds.get(bId) ?? null) : null,
+      scheduled_at: row.scheduled_at ?? null,
+      has_time: Boolean(row.has_time),
+    });
+  }
+  return out;
+}
+
+export async function loadTournamentSeats(
+  supabase: SupabaseClient,
+  tournamentId: string
+): Promise<DrawSeat[]> {
+  const { data: seatRows } = await supabase
+    .from("seats")
+    .select(SEAT_SELECT)
+    .eq("tournament_id", tournamentId)
+    .order("position", { ascending: true });
+  return (seatRows ?? []).map(mapDrawSeat);
+}
+
+/** Parse `r{N}-m{M}` into round + index. */
+export function parseMatchKey(
+  matchKey: string
+): { round: number; index_in_round: number } | null {
+  const m = /^r(\d+)-m(\d+)$/.exec(matchKey.trim());
+  if (!m) return null;
+  return { round: Number(m[1]), index_in_round: Number(m[2]) };
 }

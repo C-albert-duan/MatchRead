@@ -1,7 +1,6 @@
 /**
  * Slam / US Open window — draw topology & scoring smoke targets.
  *
- * Perf checklist (UI): see docs/plans/08-public-window-checklist.md
  * - Horizontal scroll on `.bracket-region` is the MVP path for 128
  * - Row virtualization is optional if low-end paint/jank shows up
  *

@@ -21,16 +21,8 @@ enable_signup = true
 enable_signup = true
 enable_confirmations = false
 
-# Machine ingest — auth is INGEST_SECRET, not a user JWT.
-[functions.ingest-events]
-verify_jwt = false
-import_map = "./functions/import_map.json"
-
-[functions.rebuild-draw]
-verify_jwt = false
-import_map = "./functions/import_map.json"
-
-[functions.sync-tennis]
+# Machine jobs — auth is INGEST_SECRET, not a user JWT.
+[functions.sync-facts]
 verify_jwt = false
 import_map = "./functions/import_map.json"
 

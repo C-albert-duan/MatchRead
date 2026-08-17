@@ -10,10 +10,7 @@ type Props = {
   intervalMs?: number;
 };
 
-/**
- * MVP live fallback: revalidate the current RSC tree on an interval.
- * No websockets — see docs/runbooks/LIVE-LISTENER.md.
- */
+/** Soft REST poll: revalidate the current RSC tree on an interval. No websockets. */
 export function LiveRefresh({ enabled, intervalMs = 45_000 }: Props) {
   const router = useRouter();
 

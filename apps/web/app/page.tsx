@@ -137,12 +137,7 @@ export default async function HomePage() {
   const { openNow, onCourt, upcoming, nextNamed } =
     partitionLandingCalendar(calendar);
   const onCourtCount = onCourt.length;
-  const lookEvent =
-    onCourt[0] ??
-    openNow[0] ??
-    upcoming[0] ??
-    calendar.find((event) => event.ref === "cin-2026") ??
-    calendar[0];
+  const lookEvent = onCourt[0] ?? openNow[0] ?? upcoming[0] ?? calendar[0];
   const lookHref = lookEvent ? tournamentHref(lookEvent.ref) : "/tournaments";
 
   const recent = signedIn && user

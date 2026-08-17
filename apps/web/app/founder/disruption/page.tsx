@@ -32,7 +32,7 @@ export default async function DisruptionPage() {
   const supabase = createClient();
   const { data: tournaments, error } = await supabase
     .from("tournaments")
-    .select("id, ref, name")
+    .select("id, slug, name")
     .order("starts_on", { ascending: true });
 
   return (
@@ -59,15 +59,14 @@ export default async function DisruptionPage() {
 
         {!error && (tournaments ?? []).length === 0 ? (
           <p className="stub-note">
-            No tournaments yet. Apply{" "}
-            <code>supabase/migrations/0003_brackets.sql</code>.
+            No tournaments yet. Sync calendar / publish an official draw.
           </p>
         ) : null}
 
         <DisruptionForm
           tournaments={(tournaments ?? []).map((row) => ({
             id: row.id,
-            ref: row.ref,
+            ref: row.slug,
             name: row.name,
           }))}
           preview={t("disruption.preview")}
