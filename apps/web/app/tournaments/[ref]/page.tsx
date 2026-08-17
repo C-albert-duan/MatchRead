@@ -11,6 +11,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getLocale, t, tf } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
 import {
+  effectiveDrawSize,
   loadAnnouncedMatchups,
   loadMatchScheduleMap,
   loadOfficialResultsMap,
@@ -88,8 +89,12 @@ export default async function PublicTournamentPage({ params }: Props) {
   const official: OfficialResults = {};
   const schedule: Record<string, MatchScheduleRow> = {};
 
+  // Sheet visibility follows seats / match facts only — never open vs live/locked.
   const [announced, seats, officialMap, scheduleMap] = await Promise.all([
-    loadAnnouncedMatchups(supabase, event.id),
+    loadAnnouncedMatchups(supabase, event.id, {
+      allRounds: true,
+      bothSidesOnly: false,
+    }),
     loadTournamentSeats(supabase, event.id),
     loadOfficialResultsMap(supabase, event.id),
     loadMatchScheduleMap(supabase, event.id),
@@ -101,6 +106,8 @@ export default async function PublicTournamentPage({ params }: Props) {
   Object.assign(schedule, scheduleMap);
 
   const showDraw = seats.length > 0;
+  const drawSize = effectiveDrawSize(seats.length, event.draw_size);
+  const showMatchups = !showDraw && announced.length > 0;
 
   return (
     <AppShell signedIn={Boolean(user)} email={user?.email} arena={showDraw || event.hasDraw}>
@@ -205,12 +212,15 @@ export default async function PublicTournamentPage({ params }: Props) {
           {status === "complete" ? (
             <p className="t-body">{t("publicTournament.complete")}</p>
           ) : null}
+          {!showDraw && !showMatchups && status !== "drawPending" ? (
+            <p className="t-caption">{t("tournament.drawPending.body")}</p>
+          ) : null}
         </section>
 
-        {seats.length === 0 && announced.length > 0 ? (
+        {showMatchups ? (
           <AnnouncedFirstRound
             matchups={announced}
-            expectedFirst={Math.max(Math.floor(Number(event.draw_size || 64) / 2), 16)}
+            expectedFirst={Math.max(Math.floor(drawSize / 2), 16)}
             locked={!entryOpen}
             enterHref={pickHref}
             venueTz={event.venue_tz}
@@ -224,7 +234,7 @@ export default async function PublicTournamentPage({ params }: Props) {
               {t("publicTournament.officialDraw")}
             </h2>
             <PublicOfficialDraw
-              drawSize={event.draw_size}
+              drawSize={drawSize}
               seats={seats}
               official={official}
               schedule={schedule}

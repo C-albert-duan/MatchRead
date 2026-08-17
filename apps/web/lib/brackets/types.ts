@@ -78,6 +78,21 @@ export function mapDrawSeat(row: SeatQueryRow): DrawSeat {
   };
 }
 
+/**
+ * Bracket size for display / `isOfficialPublicDraw`.
+ * Prefer an exact power-of-two seat count over a missing/wrong `draw_size` hint
+ * so a published sheet still renders after lock / on court.
+ */
+export function effectiveDrawSize(
+  seatCount: number,
+  hinted: number | null | undefined
+): number {
+  if (seatCount >= 2 && (seatCount & (seatCount - 1)) === 0) return seatCount;
+  const h = Number(hinted) || 0;
+  if (h >= 2 && (h & (h - 1)) === 0) return h;
+  return seatCount > 0 ? seatCount : h;
+}
+
 export function isTournamentLocked(t: {
   lock_at: string | null;
   admin_locked_at?: string | null;
@@ -282,25 +297,38 @@ export type AnnouncedMatchupRow = {
 };
 
 /**
- * First-round (or any) announced pairs from matches + player joins.
- * Prefer round=0 with both sides set.
+ * Announced / in-play pairs from matches + player joins.
+ * Default: round 0, both sides named (fillable announced field).
+ * Pass `allRounds: true` and `bothSidesOnly: false` to list every
+ * published side for a live tournament when seats are not loaded yet.
  */
 export async function loadAnnouncedMatchups(
   supabase: SupabaseClient,
   tournamentId: string,
-  opts?: { round?: number; bothSidesOnly?: boolean }
+  opts?: {
+    round?: number;
+    bothSidesOnly?: boolean;
+    /** When true, ignore `round` and return every match with a named side. */
+    allRounds?: boolean;
+  }
 ): Promise<AnnouncedMatchupRow[]> {
-  const round = opts?.round ?? 0;
   const bothSidesOnly = opts?.bothSidesOnly ?? true;
+  const allRounds = Boolean(opts?.allRounds);
 
-  const { data: rows } = await supabase
+  let query = supabase
     .from("matches")
     .select(
       "round, index_in_round, side_a_player_id, side_b_player_id, scheduled_at, has_time"
     )
     .eq("tournament_id", tournamentId)
-    .eq("round", round)
+    .order("round", { ascending: true })
     .order("index_in_round", { ascending: true });
+
+  if (!allRounds) {
+    query = query.eq("round", opts?.round ?? 0);
+  }
+
+  const { data: rows } = await query;
 
   const playerIds = new Set<string>();
   for (const row of rows ?? []) {

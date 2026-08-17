@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  effectiveDrawSize,
   isPlatformLocked,
   isTimedMatchStarted,
   isTournamentLocked,
@@ -9,6 +10,13 @@ import {
 } from "./types.ts";
 
 const now = new Date("2026-08-12T12:00:00.000Z");
+
+test("effectiveDrawSize prefers a power-of-two seat count over a missing hint", () => {
+  assert.equal(effectiveDrawSize(32, 0), 32);
+  assert.equal(effectiveDrawSize(32, null), 32);
+  assert.equal(effectiveDrawSize(0, 64), 64);
+  assert.equal(effectiveDrawSize(30, 32), 32);
+});
 
 test("platform first-ball lock is independent of a league lock", () => {
   assert.equal(

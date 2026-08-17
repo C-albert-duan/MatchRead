@@ -12,7 +12,7 @@
 // Deploy: npx supabase functions deploy sync-facts --no-verify-jwt
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { applyDrawFacts, type ApplyDrawBody } from "../_shared/apply-draw.ts";
+import { applyDrawFacts } from "../_shared/apply-draw.ts";
 import { applyMatchResults } from "../_shared/apply-results.ts";
 import {
   createClient as createRapid,
@@ -266,37 +266,27 @@ async function syncTournamentsFromCalendar(
 
   let upserted = 0;
   if (!dryRun && filtered.length) {
-    const { error } = await admin.from("tournaments").upsert(
-      filtered.map((t) => ({
-        slug: t.slug,
-        name: t.name,
-        tour: t.tour,
-        surface: t.surface,
-        starts_on: t.starts_on,
-        ends_on: t.ends_on,
-        provider_id: t.provider_id,
-        draw_size: t.draw_size,
-      })),
-      { onConflict: "provider_id" }
-    );
-    if (error) {
-      // provider_id unique; also try slug conflict path for older rows
-      const { error: err2 } = await admin.from("tournaments").upsert(
-        filtered.map((t) => ({
-          slug: t.slug,
-          name: t.name,
-          tour: t.tour,
-          surface: t.surface,
-          starts_on: t.starts_on,
-          ends_on: t.ends_on,
-          provider_id: t.provider_id,
-          draw_size: t.draw_size,
-        })),
-        { onConflict: "slug" }
-      );
-      if (err2) throw new Error(`tournaments upsert: ${err2.message}`);
-    }
-    upserted = filtered.length;
+    // One row per provider_id (calendar can list duplicates).
+    const byProvider = new Map<string, (typeof filtered)[number]>();
+    for (const t of filtered) byProvider.set(t.provider_id, t);
+    const rowsOut = [...byProvider.values()].map((t) => ({
+      slug: t.slug,
+      name: t.name,
+      tour: t.tour,
+      surface: t.surface,
+      starts_on: t.starts_on,
+      ends_on: t.ends_on,
+      provider_id: t.provider_id,
+      ...("draw_size" in t && t.draw_size != null
+        ? { draw_size: t.draw_size }
+        : {}),
+    }));
+
+    const { error } = await admin
+      .from("tournaments")
+      .upsert(rowsOut, { onConflict: "provider_id" });
+    if (error) throw new Error(`tournaments upsert: ${error.message}`);
+    upserted = rowsOut.length;
   }
 
   return {
@@ -438,7 +428,7 @@ async function postRebuild(
     return;
   }
   const body = { ...payload, force: Boolean(env.force || payload.force) };
-  const result = await applyDrawFacts(admin, body as ApplyDrawBody, log);
+  const result = await applyDrawFacts(admin, body, log);
   if (!result.ok) {
     log.push(`rebuild-draw failed: ${result.error}`);
     throw new Error(`rebuild-draw failed: ${result.error}`);

@@ -143,16 +143,16 @@ export function AnnouncedFirstRound({
                   ) : null}
                   <div className="row wrap gap-md">
                     <Side
-                      name={`${m.player1_last_name}${seedLabel(m.player1_seed)}`}
-                      selected={winner === m.player1_ref}
-                      disabled={sideDisabled}
+                      name={`${m.player1_last_name || "—"}${seedLabel(m.player1_seed)}`}
+                      selected={Boolean(m.player1_ref) && winner === m.player1_ref}
+                      disabled={sideDisabled || !m.player1_ref}
                       onClick={() => pick(m.match_key, m.player1_ref)}
                     />
                     <span className="t-caption">vs</span>
                     <Side
-                      name={`${m.player2_last_name}${seedLabel(m.player2_seed)}`}
-                      selected={winner === m.player2_ref}
-                      disabled={sideDisabled}
+                      name={`${m.player2_last_name || "—"}${seedLabel(m.player2_seed)}`}
+                      selected={Boolean(m.player2_ref) && winner === m.player2_ref}
+                      disabled={sideDisabled || !m.player2_ref}
                       onClick={() => pick(m.match_key, m.player2_ref)}
                     />
                   </div>

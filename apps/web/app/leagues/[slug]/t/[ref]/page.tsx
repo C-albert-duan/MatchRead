@@ -1,4 +1,4 @@
-import { isOfficialPublicDraw } from "@matchread/core";
+import { isOfficialPublicDraw, type OfficialResults } from "@matchread/core";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/AppShell";
@@ -7,10 +7,12 @@ import { OfficialResultsPanel } from "@/components/league/OfficialResultsPanel";
 import { SettleButton } from "@/components/league/SettleButton";
 import { StandingsTable } from "@/components/league/StandingsTable";
 import { AnnouncedFirstRound } from "@/components/bracket/AnnouncedFirstRound";
+import { PublicOfficialDraw } from "@/components/bracket/PublicOfficialDraw";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { isFounderEmail } from "@/lib/auth/founder";
 import {
+  effectiveDrawSize,
   isTournamentLocked,
   loadAnnouncedMatchups,
   loadBracketPicksMap,
@@ -144,14 +146,13 @@ export default async function TournamentInLeaguePage({ params }: Props) {
       .not("points", "is", null)
       .order("rank", { ascending: true }),
     loadTournamentSeats(supabase, tournament.id),
-    showManualResults
-      ? loadOfficialResultsMap(supabase, tournament.id)
-      : Promise.resolve({} as Awaited<ReturnType<typeof loadOfficialResultsMap>>),
-    showManualResults
-      ? loadMatchScheduleMap(supabase, tournament.id)
-      : Promise.resolve({} as Awaited<ReturnType<typeof loadMatchScheduleMap>>),
+    loadOfficialResultsMap(supabase, tournament.id),
+    loadMatchScheduleMap(supabase, tournament.id),
     loadLeagueDrawLock(supabase, league.id, tournament.id),
-    loadAnnouncedMatchups(supabase, tournament.id),
+    loadAnnouncedMatchups(supabase, tournament.id, {
+      allRounds: true,
+      bothSidesOnly: false,
+    }),
   ]);
 
   const bracket = bracketRes.data;
@@ -159,18 +160,25 @@ export default async function TournamentInLeaguePage({ params }: Props) {
     ? await loadBracketPicksMap(supabase, bracket.id)
     : {};
 
-  const official = isOfficialPublicDraw(
-    seats,
+  // Show the sheet whenever seats exist — live/locked never hides it.
+  const hasSheet = seats.length > 0;
+  const drawSize = effectiveDrawSize(
+    seats.length,
     Number(tournament.draw_size) || 0
   );
+  const official = isOfficialPublicDraw(seats, drawSize);
   const locked = isTournamentLocked({
     lock_at: tournament.lock_at,
     admin_locked_at: null,
     league_locked_at: leagueLockedAt,
-    hasOfficialDraw: official,
+    hasOfficialDraw: official || hasSheet,
   });
-  const hasDraw = official;
+  const hasDraw = hasSheet || Boolean(tournament.published_at);
 
+  const officialResults: OfficialResults = {};
+  for (const [key, row] of Object.entries(officialMap)) {
+    officialResults[key] = row;
+  }
   const initialResults: Record<string, string> = {};
   for (const [key, row] of Object.entries(officialMap)) {
     if (!row.voided && row.winnerRef) {
@@ -180,7 +188,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
   const schedule: Record<string, MatchScheduleRow> = scheduleMap;
 
   const tournamentRef = tournament.slug as string;
-  const canOpenBracket = hasDraw || announced.length > 0;
+  const canOpenBracket = hasSheet || announced.length > 0;
   const bracketHref = `/leagues/${league.slug}/t/${tournamentRef}/bracket`;
 
   let bracketLabel = t("tournament.openBracket");
@@ -208,7 +216,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
 
   return (
     <AppShell signedIn email={user.email}>
-      <LiveRefresh enabled={hasDraw} />
+      <LiveRefresh enabled={hasSheet} />
       <div className="page">
         <header className="page-header page-header--split">
           <div className="page-header-copy">
@@ -256,35 +264,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
           </div>
         </header>
 
-        {!hasDraw && announced.length > 0 ? (
-          <AnnouncedFirstRound
-            matchups={announced}
-            expectedFirst={Math.max(
-              Math.floor(Number(tournament.draw_size || 64) / 2),
-              16
-            )}
-            picks={picks}
-            locked={locked}
-            leagueId={league.id}
-            leagueSlug={league.slug}
-            tournamentId={tournament.id}
-            tournamentRef={tournamentRef}
-            venueTz={
-              (tournament as { venue_tz?: string | null }).venue_tz || "UTC"
-            }
-            locale={getLocale()}
-          />
-        ) : !hasDraw ? (
-          <section
-            className="panel stack gap-md focus-band"
-            aria-labelledby="draw-pending-empty"
-          >
-            <h2 id="draw-pending-empty" className="section-title">
-              {t("tournament.drawPending.title")}
-            </h2>
-            <p className="t-body">{t("tournament.drawPending.body")}</p>
-          </section>
-        ) : (
+        {hasSheet ? (
           <section
             className="section focus-band"
             style={{ borderTop: "none", paddingTop: 0 }}
@@ -298,9 +278,53 @@ export default async function TournamentInLeaguePage({ params }: Props) {
                   : t("tournament.entry.draft")}
             </p>
           </section>
+        ) : announced.length > 0 ? (
+          <AnnouncedFirstRound
+            matchups={announced}
+            expectedFirst={Math.max(Math.floor(drawSize / 2) || 16, 16)}
+            picks={picks}
+            locked={locked}
+            leagueId={league.id}
+            leagueSlug={league.slug}
+            tournamentId={tournament.id}
+            tournamentRef={tournamentRef}
+            venueTz={
+              (tournament as { venue_tz?: string | null }).venue_tz || "UTC"
+            }
+            locale={getLocale()}
+          />
+        ) : (
+          <section
+            className="panel stack gap-md focus-band"
+            aria-labelledby="draw-pending-empty"
+          >
+            <h2 id="draw-pending-empty" className="section-title">
+              {t("tournament.drawPending.title")}
+            </h2>
+            <p className="t-body">{t("tournament.drawPending.body")}</p>
+          </section>
         )}
 
-        {hasDraw ? (
+        {hasSheet ? (
+          <section className="section" aria-labelledby="official-draw">
+            <h2 id="official-draw" className="section-title">
+              {t("publicTournament.officialDraw")}
+            </h2>
+            <PublicOfficialDraw
+              drawSize={drawSize}
+              seats={seats}
+              official={officialResults}
+              schedule={schedule}
+              venueTz={
+                (tournament as { venue_tz?: string | null }).venue_tz || "UTC"
+              }
+              locale={getLocale()}
+              entryOpen={false}
+            />
+          </section>
+        ) : null}
+
+        {hasSheet ? (
           <section className="section" aria-labelledby="event-standings">
             <h2 id="event-standings" className="section-title">
               {solo
@@ -356,7 +380,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
                     leagueSlug={league.slug}
                     tournamentId={tournament.id}
                     tournamentRef={tournamentRef}
-                    drawSize={tournament.draw_size}
+                    drawSize={drawSize}
                     seats={seats}
                     initialResults={initialResults}
                     isFounder={isFounder}

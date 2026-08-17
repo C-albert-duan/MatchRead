@@ -13,6 +13,7 @@ import { AnnouncedFirstRound } from "@/components/bracket/AnnouncedFirstRound";
 import { BracketEditor } from "@/components/bracket/BracketEditor";
 import { getSessionUser } from "@/lib/auth";
 import {
+  effectiveDrawSize,
   isPlatformLocked,
   isTournamentLocked,
   loadAnnouncedMatchups,
@@ -108,7 +109,10 @@ export default async function BracketPage({ params }: Props) {
 
   const [seats, announced, myBracketRes, leagueLockedAt] = await Promise.all([
     loadTournamentSeats(supabase, tournament.id),
-    loadAnnouncedMatchups(supabase, tournament.id),
+    loadAnnouncedMatchups(supabase, tournament.id, {
+      allRounds: true,
+      bothSidesOnly: false,
+    }),
     supabase
       .from("brackets")
       .select("id, submitted_at")
@@ -124,18 +128,21 @@ export default async function BracketPage({ params }: Props) {
     ? await loadBracketPicksMap(supabase, myBracket.id)
     : {};
 
-  const official = isOfficialPublicDraw(
-    seats,
+  const hasSheet = seats.length > 0;
+  const drawSize = effectiveDrawSize(
+    seats.length,
     Number(tournament.draw_size) || 0
   );
+  const official = isOfficialPublicDraw(seats, drawSize);
   const locked = isTournamentLocked({
     lock_at: tournament.lock_at,
     admin_locked_at: null,
     league_locked_at: leagueLockedAt,
-    hasOfficialDraw: official,
+    hasOfficialDraw: official || hasSheet,
   });
 
-  if (!official && !tournament.published_at) {
+  // Bracket UI follows seats / announced facts — not live vs open.
+  if (!hasSheet) {
     if (announced.length === 0) {
       redirect(`/leagues/${league.slug}/t/${tournamentRef}`);
     }
@@ -173,10 +180,7 @@ export default async function BracketPage({ params }: Props) {
           </header>
           <AnnouncedFirstRound
             matchups={announced}
-            expectedFirst={Math.max(
-              Math.floor(Number(tournament.draw_size || 64) / 2),
-              16
-            )}
+            expectedFirst={Math.max(Math.floor(drawSize / 2) || 16, 16)}
             picks={announcedPicks}
             locked={locked}
             leagueId={league.id}
@@ -266,7 +270,7 @@ export default async function BracketPage({ params }: Props) {
             leagueSlug={league.slug}
             tournamentId={tournament.id}
             tournamentRef={tournamentRef}
-            drawSize={tournament.draw_size as number}
+            drawSize={drawSize}
             seats={seats as DrawSeat[]}
             initialPicks={picks}
             initialConfidence={confidence}

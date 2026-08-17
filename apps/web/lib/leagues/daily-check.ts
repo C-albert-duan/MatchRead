@@ -13,6 +13,7 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   isTournamentLocked,
+  effectiveDrawSize,
   loadBracketPicksMap,
   loadLeagueDrawLock,
   loadOfficialResultsMap,
@@ -199,7 +200,7 @@ export async function loadDailyCheck(input: {
 
   const hasDraw = isOfficialPublicDraw(
     seats,
-    Number(tournament.draw_size) || 0
+    effectiveDrawSize(seats.length, Number(tournament.draw_size) || 0)
   );
   const locked = isTournamentLocked({
     ...tournament,
