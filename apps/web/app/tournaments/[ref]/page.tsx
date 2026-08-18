@@ -34,7 +34,7 @@ import {
   type MatchScheduleRow,
 } from "@/lib/tournaments/calendar";
 import { EntryLockWhen } from "@/components/tournaments/EntryLockWhen";
-import { shouldShowEntryLock } from "@/lib/tournaments/when";
+import { shouldShowEntryLock, timeLabels } from "@/lib/tournaments/when";
 
 export const dynamic = "force-dynamic";
 
@@ -85,6 +85,7 @@ export default async function PublicTournamentPage({ params }: Props) {
   const when =
     formatTournamentDate(event.starts_on, locale, event.ends_on) ?? t("calendar.dateTbc");
   const showLock = shouldShowEntryLock(event);
+  const labels = timeLabels();
 
   const supabase = createClient();
   const official: OfficialResults = {};
@@ -136,6 +137,7 @@ export default async function PublicTournamentPage({ params }: Props) {
                   <EntryLockWhen
                     lockAt={event.lock_at}
                     locale={locale}
+                    labels={labels}
                     className="numeral"
                   />
                 </>

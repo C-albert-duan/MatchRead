@@ -28,7 +28,7 @@ import {
   surfaceClass,
 } from "@/lib/tournaments/calendar";
 import { EntryLockWhen } from "@/components/tournaments/EntryLockWhen";
-import { shouldShowEntryLock } from "@/lib/tournaments/when";
+import { shouldShowEntryLock, timeLabels } from "@/lib/tournaments/when";
 
 type Props = {
   params: { slug: string };
@@ -376,6 +376,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                   ) ?? t.starts_on;
                 const lockAt =
                   shouldShowEntryLock(t) && t.lock_at ? t.lock_at : null;
+                const labels = timeLabels();
                 return (
                   <li key={t.id}>
                     <Link
@@ -401,7 +402,11 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                           {lockAt ? (
                             <>
                               {" · "}
-                              <EntryLockWhen lockAt={lockAt} locale={locale} />
+                              <EntryLockWhen
+                                lockAt={lockAt}
+                                locale={locale}
+                                labels={labels}
+                              />
                             </>
                           ) : null}
                           {" · "}

@@ -3,6 +3,7 @@ import { TourLabel } from "@/components/tournaments/TourLabel";
 import { EntryLockWhen } from "@/components/tournaments/EntryLockWhen";
 import { t } from "@/lib/i18n";
 import type { Tour } from "@/lib/tournaments/calendar";
+import { timeLabels } from "@/lib/tournaments/when";
 
 type Chip = "upcoming";
 
@@ -36,6 +37,7 @@ export function TournamentCard({
   chip = null,
   locale,
 }: Props) {
+  const labels = timeLabels();
   return (
     <Link
       href={href}
@@ -64,6 +66,7 @@ export function TournamentCard({
               <EntryLockWhen
                 lockAt={lockAt}
                 locale={locale}
+                labels={labels}
                 className="trow-date numeral"
               />
             </>

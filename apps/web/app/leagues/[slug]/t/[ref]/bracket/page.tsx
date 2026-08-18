@@ -30,6 +30,7 @@ import { leagueIncludesTournament } from "@/lib/leagues/covers";
 import { createClient } from "@/lib/supabase/server";
 import type { MatchScheduleRow } from "@/lib/tournaments/calendar";
 import { WhenCaption } from "@/components/tournaments/EntryLockWhen";
+import { timeLabels } from "@/lib/tournaments/when";
 
 type Props = {
   params: { slug: string; ref: string };
@@ -244,6 +245,7 @@ export default async function BracketPage({ params }: Props) {
                 <WhenCaption
                   row={{ ...tournament, hasDraw: true }}
                   locale={getLocale()}
+                  labels={timeLabels()}
                 />
               </span>
               {" · "}
