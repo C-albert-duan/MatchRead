@@ -41,7 +41,7 @@ describe("partitionLandingCalendar", () => {
     assert.deepEqual(upcoming.map((e) => e.id), []);
   });
 
-  it("keeps finished draws out of Open now even without lock_at", () => {
+  it("keeps finished draws out of all buckets even without lock_at", () => {
     const done = event({
       id: "chacabuco",
       starts_on: "2026-07-28",
@@ -56,9 +56,9 @@ describe("partitionLandingCalendar", () => {
     assert.deepEqual(upcoming.map((e) => e.id), []);
   });
 
-  it("puts an unlocked in-play draw on court, not Open now", () => {
+  it("puts a started fillable draw in Open now until lock", () => {
     const live = event({
-      id: "live-open",
+      id: "live-fillable",
       starts_on: "2026-08-10",
       lock_at: null,
     });
@@ -66,8 +66,8 @@ describe("partitionLandingCalendar", () => {
       [live],
       now
     );
-    assert.deepEqual(openNow.map((e) => e.id), []);
-    assert.deepEqual(onCourt.map((e) => e.id), ["live-open"]);
+    assert.deepEqual(openNow.map((e) => e.id), ["live-fillable"]);
+    assert.deepEqual(onCourt.map((e) => e.id), []);
     assert.deepEqual(upcoming.map((e) => e.id), []);
   });
 
@@ -85,5 +85,22 @@ describe("partitionLandingCalendar", () => {
     assert.deepEqual(openNow.map((e) => e.id), []);
     assert.deepEqual(onCourt.map((e) => e.id), []);
     assert.deepEqual(upcoming.map((e) => e.id), ["wsal"]);
+  });
+
+  it("puts a started event with no draw in Upcoming, not On court", () => {
+    const tashkent = event({
+      id: "tashkent",
+      hasDraw: false,
+      starts_on: "2026-08-17",
+      lock_at: null,
+    });
+    const mid = new Date("2026-08-18T12:00:00.000Z");
+    const { openNow, onCourt, upcoming } = partitionLandingCalendar(
+      [tashkent],
+      mid
+    );
+    assert.deepEqual(openNow.map((e) => e.id), []);
+    assert.deepEqual(onCourt.map((e) => e.id), []);
+    assert.deepEqual(upcoming.map((e) => e.id), ["tashkent"]);
   });
 });

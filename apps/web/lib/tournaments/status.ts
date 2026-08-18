@@ -61,7 +61,10 @@ export function isEntryOpen(
   return row.hasDraw && !isEntryLocked(row, now) && !isComplete(row, now);
 }
 
-/** Matches are being played — date window only, independent of draw. */
+/**
+ * Tournament week is underway (starts_on reached, within the in-play window).
+ * Independent of whether a draw exists.
+ */
 export function isInPlay(
   row: Pick<StatusTournament, "starts_on" | "lock_at">,
   now: Date = new Date()
@@ -81,15 +84,32 @@ export function isComplete(
 }
 
 /**
+ * On court: published draw is locked and the event has started
+ * (starts_on reached, or lock_at / admin lock already fired).
+ */
+export function isOnCourt(
+  row: StatusTournament,
+  now: Date = new Date()
+): boolean {
+  if (!row.hasDraw) return false;
+  if (isComplete(row, now)) return false;
+  if (!isEntryLocked(row, now)) return false;
+  if (isInPlay(row, now)) return true;
+  // Locked via lock_at / admin before the calendar start day still counts
+  // as started for the bracket-view bucket.
+  return Boolean(row.admin_locked_at) || Boolean(row.lock_at);
+}
+
+/**
  * Label for a calendar / public-page status chip.
- * In-play beats "Open". A missing draw does not hide a tournament that has started.
+ * On court only when there is a locked published draw — never for bare calendar rows.
  */
 export function calendarStatus(
   row: StatusTournament,
   now: Date = new Date()
 ): CalendarStatus {
-  if (isInPlay(row, now)) return "live";
   if (isComplete(row, now)) return "complete";
+  if (isOnCourt(row, now)) return "live";
   if (!row.hasDraw) return "drawPending";
   if (isEntryLocked(row, now)) return "locked";
   return "open";

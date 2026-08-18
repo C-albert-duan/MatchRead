@@ -7,6 +7,7 @@ import {
   isEntryLocked,
   isEntryOpen,
   isInPlay,
+  isOnCourt,
 } from "./status.ts";
 
 export const UPCOMING_HORIZON_DAYS = 28;
@@ -23,14 +24,14 @@ export type LandingEvent = {
 };
 
 /**
- * Homepage "Open now" — fillable draw that has not started yet.
- * In-play fillable events belong under On court; finished ones nowhere.
+ * Homepage "Open now" — published draw, picks still fillable.
+ * (Typically before lock / start; still Open if the week started but lock has not fired.)
  */
 export function isOpenNow(
   row: LandingEvent,
   now: Date = new Date()
 ): boolean {
-  return isEntryOpen(row, now) && !isInPlay(row, now);
+  return isEntryOpen(row, now);
 }
 
 export type LandingCalendar<T extends LandingEvent = LandingEvent> = {
@@ -43,9 +44,9 @@ export type LandingCalendar<T extends LandingEvent = LandingEvent> = {
 
 /**
  * Split the landing calendar.
- * - Open now: verified draw, picks still unlocked.
- * - On court: the event has started (including locked draws).
- * - Upcoming: not started yet, within the horizon.
+ * - Open now: published draw, picks still fillable.
+ * - On court: published draw locked, event started — bracket view only.
+ * - Upcoming: no fillable bracket yet (draw pending), including started weeks.
  */
 export function partitionLandingCalendar<T extends LandingEvent>(
   events: T[],
@@ -58,16 +59,20 @@ export function partitionLandingCalendar<T extends LandingEvent>(
 
   const onCourt = events.filter((e) => {
     if (openIds.has(e.id)) return false;
-    return isInPlay(e, now);
+    return isOnCourt(e, now);
   });
   const onCourtIds = new Set(onCourt.map((e) => e.id));
 
   const upcoming = events.filter((e) => {
     if (openIds.has(e.id) || onCourtIds.has(e.id)) return false;
     if (isComplete(e, now)) return false;
-    if (isEntryLocked(e, now) && e.hasDraw) return false;
+    // Upcoming = coming soon with no fillable bracket.
+    if (e.hasDraw) return false;
     const moment = eventMoment(e);
-    if (!moment) return !e.hasDraw;
+    if (!moment) return true;
+    // Still list draw-pending rows that have started (no inventing a sheet)
+    // until the complete window — otherwise only future horizon.
+    if (isInPlay(e, now)) return true;
     return moment.getTime() <= horizonEnd.getTime();
   });
 

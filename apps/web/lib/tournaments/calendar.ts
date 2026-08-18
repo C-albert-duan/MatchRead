@@ -12,6 +12,7 @@ export {
   isEntryLocked,
   isEntryOpen,
   isInPlay,
+  isOnCourt,
   startInstant,
   IN_PLAY_DAYS,
 } from "@/lib/tournaments/status";

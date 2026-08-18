@@ -7,6 +7,7 @@ import {
   isEntryLocked,
   isEntryOpen,
   isInPlay,
+  isOnCourt,
 } from "./status.ts";
 
 const montreal = {
@@ -54,11 +55,13 @@ test("a past lock_at without a draw is not an entry lock", () => {
   );
 });
 
-test("Montreal and Toronto are live on 12 Aug, not Open", () => {
+test("Montreal with a locked draw is on court; Toronto without a draw is not", () => {
   assert.equal(calendarStatus(montreal, rehearsal), "live");
-  assert.equal(calendarStatus(torontoNoDraw, rehearsal), "live");
+  assert.equal(calendarStatus(torontoNoDraw, rehearsal), "drawPending");
   assert.equal(calendarStatusMessageKey("live"), "calendar.onCourt");
   assert.equal(isInPlay(montreal, rehearsal), true);
+  assert.equal(isOnCourt(montreal, rehearsal), true);
+  assert.equal(isOnCourt(torontoNoDraw, rehearsal), false);
   assert.equal(isEntryOpen(montreal, rehearsal), false);
   assert.equal(isEntryOpen(torontoNoDraw, rehearsal), false);
 });
@@ -76,6 +79,7 @@ test("an unlocked draw before start is Open", () => {
   const beforeLock = new Date("2026-08-11T12:00:00.000Z");
   assert.equal(calendarStatus(cin, beforeLock), "open");
   assert.equal(isEntryOpen(cin, beforeLock), true);
+  assert.equal(isOnCourt(cin, beforeLock), false);
 });
 
 test("a finished draw is not entry-open even without lock_at", () => {
@@ -86,6 +90,7 @@ test("a finished draw is not entry-open even without lock_at", () => {
   };
   assert.equal(calendarStatus(done, rehearsal), "complete");
   assert.equal(isEntryOpen(done, rehearsal), false);
+  assert.equal(isOnCourt(done, rehearsal), false);
 });
 
 test("countdown is locale-aware and silent after the instant", () => {
