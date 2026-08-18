@@ -48,19 +48,7 @@ function matchesSlugFilter(event, only) {
   if (!only) return true;
   const needle = String(only).trim().toLowerCase();
   if (!needle) return true;
-  if (event.slug.toLowerCase() === needle) return true;
-  // Legacy refs like cin-2026 → Cincinnati ATP
-  if (needle === "cin-2026" || needle === "cin") {
-    return (
-      event.tour === "atp" && /cincinnati/i.test(event.name)
-    );
-  }
-  if (needle === "cin-wta-2026" || needle === "cin-wta") {
-    return (
-      event.tour === "wta" && /cincinnati/i.test(event.name)
-    );
-  }
-  return false;
+  return event.slug.toLowerCase() === needle;
 }
 
 async function listEvents(env, onlySlug) {
