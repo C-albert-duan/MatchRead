@@ -27,7 +27,8 @@ import {
   normalizeTour,
   surfaceClass,
 } from "@/lib/tournaments/calendar";
-import { lockWhenLabel } from "@/lib/tournaments/when";
+import { EntryLockWhen } from "@/components/tournaments/EntryLockWhen";
+import { shouldShowEntryLock } from "@/lib/tournaments/when";
 
 type Props = {
   params: { slug: string };
@@ -373,10 +374,8 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                     locale,
                     (t as { ends_on?: string | null }).ends_on
                   ) ?? t.starts_on;
-                const lock = lockWhenLabel(t, locale);
-                const whenBits = [start, lock, `${t.draw_size}-draw`].filter(
-                  Boolean
-                );
+                const lockAt =
+                  shouldShowEntryLock(t) && t.lock_at ? t.lock_at : null;
                 return (
                   <li key={t.id}>
                     <Link
@@ -398,7 +397,15 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                       >
                         <span className="league-card-name">{t.name}</span>
                         <span className="t-caption numeral">
-                          {whenBits.join(" · ")}
+                          {start}
+                          {lockAt ? (
+                            <>
+                              {" · "}
+                              <EntryLockWhen lockAt={lockAt} locale={locale} />
+                            </>
+                          ) : null}
+                          {" · "}
+                          {`${t.draw_size}-draw`}
                         </span>
                       </span>
                       <span className="league-card-status">{status}</span>

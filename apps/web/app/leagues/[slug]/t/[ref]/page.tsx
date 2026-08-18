@@ -31,7 +31,7 @@ import {
   normalizeTour,
   type MatchScheduleRow,
 } from "@/lib/tournaments/calendar";
-import { whenCaption } from "@/lib/tournaments/when";
+import { WhenCaption } from "@/components/tournaments/EntryLockWhen";
 
 type Props = {
   params: { slug: string; ref: string };
@@ -234,7 +234,10 @@ export default async function TournamentInLeaguePage({ params }: Props) {
               {tournament.surface} court
               {" · "}
               <span className="numeral">
-                {whenCaption({ ...tournament, hasDraw }, getLocale())}
+                <WhenCaption
+                  row={{ ...tournament, hasDraw }}
+                  locale={getLocale()}
+                />
               </span>
             </p>
           </div>

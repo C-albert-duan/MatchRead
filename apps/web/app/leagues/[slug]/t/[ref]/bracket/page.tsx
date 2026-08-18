@@ -29,7 +29,7 @@ import { isSoloPresentation } from "@/lib/leagues/solo";
 import { leagueIncludesTournament } from "@/lib/leagues/covers";
 import { createClient } from "@/lib/supabase/server";
 import type { MatchScheduleRow } from "@/lib/tournaments/calendar";
-import { whenCaption } from "@/lib/tournaments/when";
+import { WhenCaption } from "@/components/tournaments/EntryLockWhen";
 
 type Props = {
   params: { slug: string; ref: string };
@@ -241,7 +241,10 @@ export default async function BracketPage({ params }: Props) {
             </h1>
             <p className="t-lead">
               <span className="numeral">
-                {whenCaption({ ...tournament, hasDraw: true }, getLocale())}
+                <WhenCaption
+                  row={{ ...tournament, hasDraw: true }}
+                  locale={getLocale()}
+                />
               </span>
               {" · "}
               {locked && hasOfficial

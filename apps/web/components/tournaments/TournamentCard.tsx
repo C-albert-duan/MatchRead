@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TourLabel } from "@/components/tournaments/TourLabel";
+import { EntryLockWhen } from "@/components/tournaments/EntryLockWhen";
 import { t } from "@/lib/i18n";
 import type { Tour } from "@/lib/tournaments/calendar";
 
@@ -12,12 +13,13 @@ type Props = {
   surface: "hard" | "clay" | "grass" | "indoor";
   surfaceLabel: string;
   when: string;
-  /** Venue-local lock, e.g. `entry locks Today 14:00`. Omit once locked. */
-  lockWhen?: string | null;
+  /** ISO lock instant — formatted in the viewer’s local timezone. */
+  lockAt?: string | null;
   status: string;
   statusPending?: boolean;
   soon?: boolean;
   chip?: Chip | null;
+  locale: string;
 };
 
 export function TournamentCard({
@@ -27,11 +29,12 @@ export function TournamentCard({
   surface,
   surfaceLabel,
   when,
-  lockWhen = null,
+  lockAt = null,
   status,
   statusPending = false,
   soon = false,
   chip = null,
+  locale,
 }: Props) {
   return (
     <Link
@@ -55,10 +58,14 @@ export function TournamentCard({
           </span>
           <i className="trow-sep" aria-hidden />
           <span className="trow-date numeral">{when}</span>
-          {lockWhen ? (
+          {lockAt ? (
             <>
               <i className="trow-sep" aria-hidden />
-              <span className="trow-date numeral">{lockWhen}</span>
+              <EntryLockWhen
+                lockAt={lockAt}
+                locale={locale}
+                className="trow-date numeral"
+              />
             </>
           ) : null}
         </span>

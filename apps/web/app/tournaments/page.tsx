@@ -14,7 +14,7 @@ import {
   surfaceClass,
   tournamentHref,
 } from "@/lib/tournaments/calendar";
-import { lockWhenLabel } from "@/lib/tournaments/when";
+import { shouldShowEntryLock } from "@/lib/tournaments/when";
 
 export const metadata: Metadata = publicPageMetadata({
   title: "Tournaments | MatchRead",
@@ -99,7 +99,8 @@ export default async function TournamentsPage({
                         formatTournamentDate(row.starts_on, locale, row.ends_on) ??
                         t("calendar.dateTbc")
                       }
-                      lockWhen={lockWhenLabel(row, locale)}
+                      lockAt={shouldShowEntryLock(row) ? row.lock_at : null}
+                      locale={locale}
                       status={t(calendarStatusMessageKey(status))}
                       statusPending={status === "drawPending"}
                       soon={status === "drawPending"}

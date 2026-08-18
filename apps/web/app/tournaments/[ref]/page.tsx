@@ -33,7 +33,8 @@ import {
   tournamentHref,
   type MatchScheduleRow,
 } from "@/lib/tournaments/calendar";
-import { lockWhenLabel } from "@/lib/tournaments/when";
+import { EntryLockWhen } from "@/components/tournaments/EntryLockWhen";
+import { shouldShowEntryLock } from "@/lib/tournaments/when";
 
 export const dynamic = "force-dynamic";
 
@@ -83,7 +84,7 @@ export default async function PublicTournamentPage({ params }: Props) {
   const pickHref = entryOpen ? fillHref : undefined;
   const when =
     formatTournamentDate(event.starts_on, locale, event.ends_on) ?? t("calendar.dateTbc");
-  const lockWhen = lockWhenLabel(event, locale);
+  const showLock = shouldShowEntryLock(event);
 
   const supabase = createClient();
   const official: OfficialResults = {};
@@ -129,10 +130,14 @@ export default async function PublicTournamentPage({ params }: Props) {
               {t(surfaceKey)}
               {" · "}
               <span className="numeral">{when}</span>
-              {lockWhen ? (
+              {showLock && event.lock_at ? (
                 <>
                   {" · "}
-                  <span className="numeral">{lockWhen}</span>
+                  <EntryLockWhen
+                    lockAt={event.lock_at}
+                    locale={locale}
+                    className="numeral"
+                  />
                 </>
               ) : null}
               {" · "}
