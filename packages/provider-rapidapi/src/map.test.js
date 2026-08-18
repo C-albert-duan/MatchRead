@@ -540,6 +540,72 @@ describe("parseOfficialDraw", () => {
     assert.equal(parsed.ok, false);
   });
 
+  it("reads a flat multi-round singles list (Cincinnati / Mega draws shape)", () => {
+    const r128 = Array.from({ length: 64 }, (_, i) => {
+      const draw = i + 1;
+      if (draw === 1) {
+        return {
+          roundId: 4,
+          draw,
+          result: "bye",
+          player1: {
+            id: 24008,
+            name: "Alexander Zverev",
+            countryAcr: "GER",
+            seed: "1",
+          },
+          player2: { id: 3700, name: "Unknown Player" },
+        };
+      }
+      if (draw === 2) {
+        return {
+          roundId: 4,
+          draw,
+          result: "3-6 6-1 6-4",
+          player1: { id: 1, name: "Cameron Norrie", countryAcr: "GBR" },
+          player2: { id: 2, name: "Dino Prizmic", countryAcr: "CRO" },
+        };
+      }
+      return {
+        roundId: 4,
+        draw,
+        result: "6-3 6-4",
+        player1: { id: 100 + i, name: `Alpha${i} Smith`, countryAcr: "USA" },
+        player2: { id: 200 + i, name: `Beta${i} Jones`, countryAcr: "ESP" },
+      };
+    });
+    const r64 = Array.from({ length: 32 }, (_, i) => ({
+      roundId: 5,
+      draw: i + 1,
+      player1: { id: 500 + i, name: `LaterRound${i}`, countryAcr: "USA" },
+      player2: { id: 600 + i, name: `DeepRound${i}`, countryAcr: "ESP" },
+    }));
+    // Deliberately out of draw order in the flat list.
+    const shuffled = [...r128].reverse();
+    const raw = { singles: [...shuffled, ...r64], doubles: [], qualifying: [] };
+    const parsed = parseOfficialDraw(raw, {
+      prefix: "atp",
+      expectedDrawSize: 128,
+    });
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    assert.equal(parsed.drawSize, 128);
+    assert.equal(parsed.seats.length, 128);
+    assert.equal(parsed.seats[0].last_name, "Zverev");
+    assert.equal(parsed.seats[0].seed, 1);
+    assert.equal(parsed.seats[1].seat_kind, "bye");
+    assert.equal(parsed.seats[2].last_name, "Norrie");
+    assert.equal(parsed.seats[3].last_name, "Prizmic");
+    // Later-round names must not leak into the published sheet.
+    assert.equal(
+      parsed.seats.some((s) =>
+        String(s.last_name || "").startsWith("LaterRound") ||
+        String(s.last_name || "").startsWith("DeepRound")
+      ),
+      false
+    );
+  });
+
   it("reads a Round of 64 listed as games", () => {
     const games = Array.from({ length: 32 }, (_, i) => ({
       competitors: [

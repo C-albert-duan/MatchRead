@@ -53,10 +53,78 @@ function isByeName(name) {
   return /^(bye|byes?)$/i.test(String(name || "").trim());
 }
 
+/** Tennis API placeholder opposite a seed bye (often id 3700). */
+function isUnknownPlaceholder(name) {
+  return /^unknown(\s+player)?$/i.test(String(name || "").trim());
+}
+
 function isTbdName(name) {
   return /^(qualifier|qualifiers?|lucky\s*loser|q|ll|tbd|to\s*be\s*determined)$/i.test(
     String(name || "").trim()
   );
+}
+
+function isPowerOfTwo(n) {
+  return Number.isInteger(n) && n >= 8 && (n & (n - 1)) === 0;
+}
+
+function roundKey(row) {
+  if (!row || typeof row !== "object") return null;
+  if (row.roundId != null && row.roundId !== "") return `id:${row.roundId}`;
+  const name =
+    row.round?.name ??
+    row.round?.shortName ??
+    row.roundName ??
+    (typeof row.round === "string" || typeof row.round === "number"
+      ? row.round
+      : null);
+  if (name != null && String(name).trim()) return `name:${String(name).trim()}`;
+  return null;
+}
+
+/** Official first-round order when the API tags matches with `draw` / order. */
+function sortMatchRows(rows) {
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => {
+      const da = Number(
+        a.row.draw ?? a.row.drawNumber ?? a.row.order ?? a.row.position ?? NaN
+      );
+      const db = Number(
+        b.row.draw ?? b.row.drawNumber ?? b.row.order ?? b.row.position ?? NaN
+      );
+      if (Number.isFinite(da) && Number.isFinite(db) && da !== db) return da - db;
+      return a.index - b.index;
+    })
+    .map((x) => x.row);
+}
+
+/**
+ * Flat Tennis API draws mix all rounds in one `singles` array.
+ * Group by roundId / round name and keep power-of-two first-round sheets.
+ */
+function matchSetsFromRoundGroups(rows) {
+  if (!Array.isArray(rows) || rows.length < 8) return [];
+  const groups = new Map();
+  let keyed = 0;
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    if (!matchSides(row)) continue;
+    const key = roundKey(row);
+    if (!key) continue;
+    keyed += 1;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  if (keyed < 8) return [];
+  const out = [];
+  for (const group of groups.values()) {
+    const sides = sortMatchRows(group)
+      .map(matchSides)
+      .filter(Boolean);
+    if (isPowerOfTwo(sides.length)) out.push(sides);
+  }
+  return out;
 }
 
 function parseSeed(raw) {
@@ -79,7 +147,9 @@ function personFromUnknown(raw, seedHint, entryHint) {
   }
   if (typeof raw !== "object") {
     const name = String(raw).trim();
-    if (!name || isByeName(name)) return { kind: "bye" };
+    if (!name || isByeName(name) || isUnknownPlaceholder(name)) {
+      return { kind: "bye" };
+    }
     if (isTbdName(name)) return { kind: "tbd", last_name: "Qualifier" };
     return {
       kind: "player",
@@ -100,7 +170,14 @@ function personFromUnknown(raw, seedHint, entryHint) {
   const last =
     String(raw.lastName ?? raw.last_name ?? "").trim() || lastToken(name);
   const id = String(raw.id ?? raw.playerId ?? raw.player_id ?? "").trim();
-  if (isByeName(name) || isByeName(last)) return { kind: "bye" };
+  if (
+    isByeName(name) ||
+    isByeName(last) ||
+    isUnknownPlaceholder(name) ||
+    isUnknownPlaceholder(last)
+  ) {
+    return { kind: "bye" };
+  }
   if (!name && !last && !id) return { kind: "tbd", last_name: "Qualifier" };
   if (isTbdName(name) || isTbdName(last) || raw.tbd === true) {
     return { kind: "tbd", last_name: last || "Qualifier" };
@@ -163,10 +240,15 @@ function collectMatchArrays(node, out = [], expected = 0) {
     const need = expected ? expected / 2 : 0;
     if (need && sides.length === need) {
       out.push(sides);
-    } else if (sides.length >= 8 && (sides.length & (sides.length - 1)) === 0) {
+    } else if (isPowerOfTwo(sides.length)) {
       out.push(sides);
     } else {
-      for (const item of node) collectMatchArrays(item, out, expected);
+      const grouped = matchSetsFromRoundGroups(node);
+      if (grouped.length > 0) {
+        out.push(...grouped);
+      } else {
+        for (const item of node) collectMatchArrays(item, out, expected);
+      }
     }
     return out;
   }
@@ -176,6 +258,12 @@ function collectMatchArrays(node, out = [], expected = 0) {
   }
   if (Array.isArray(node.rounds)) {
     for (const round of node.rounds) collectMatchArrays(round, out, expected);
+  }
+  // Prefer known draw keys so singles is considered before doubles noise.
+  for (const key of ["singles", "singlesDraw", "mainDraw", "md"]) {
+    if (node[key] && typeof node[key] === "object") {
+      collectMatchArrays(node[key], out, expected);
+    }
   }
   for (const value of Object.values(node)) {
     if (value && typeof value === "object") collectMatchArrays(value, out, expected);

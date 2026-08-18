@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 /**
- * Publish official Mega draws (named / bye / TBD seats) via rebuild-draw.
+ * Publish official Mega draws (named / bye / TBD seats).
+ *
+ * Builds seats locally (for preview), then live-writes via sync-facts
+ * (which re-resolves with the deployed provider and apply-draw).
  *
  * Usage (repo root):
  *   node scripts/publish-draws.mjs --dry-run
  *   node scripts/publish-draws.mjs
- *   node scripts/publish-draws.mjs --ref cin-2026
+ *   node scripts/publish-draws.mjs --slug t-atp-21347
+ *   node scripts/publish-draws.mjs --ref t-atp-21347
  *
- * Env (.env.provider):
+ * Env (.env.provider / apps/web/.env.local):
  *   RAPIDAPI_KEY, RAPIDAPI_HOST
  *   MATCHREAD_INGEST_URL, INGEST_SECRET   (required unless --dry-run)
  *   NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY  (tournament listing)
@@ -40,7 +44,26 @@ function matchupsFromPairs(pairs, prefix) {
   }));
 }
 
-async function listEvents(env, onlyRef) {
+function matchesSlugFilter(event, only) {
+  if (!only) return true;
+  const needle = String(only).trim().toLowerCase();
+  if (!needle) return true;
+  if (event.slug.toLowerCase() === needle) return true;
+  // Legacy refs like cin-2026 → Cincinnati ATP
+  if (needle === "cin-2026" || needle === "cin") {
+    return (
+      event.tour === "atp" && /cincinnati/i.test(event.name)
+    );
+  }
+  if (needle === "cin-wta-2026" || needle === "cin-wta") {
+    return (
+      event.tour === "wta" && /cincinnati/i.test(event.name)
+    );
+  }
+  return false;
+}
+
+async function listEvents(env, onlySlug) {
   const sb = supabaseRest(env);
   if (!sb) {
     throw new Error(
@@ -49,19 +72,21 @@ async function listEvents(env, onlyRef) {
   }
   const rows = await restGet(
     sb,
-    "tournaments?select=ref,name,tour,draw_size,provider_tournament_id&provider_tournament_id=not.is.null"
+    "tournaments?select=slug,name,tour,draw_size,provider_id&provider_id=not.is.null"
   );
   let events = rows
-    .filter((row) => row?.ref && row.provider_tournament_id)
+    .filter((row) => row?.slug && row.provider_id)
     .map((row) => ({
-      ref: row.ref,
+      slug: row.slug,
+      ref: row.slug,
       name: row.name,
       api_name: row.name,
       tour: row.tour === "wta" ? "wta" : "atp",
-      provider_tournament_id: String(row.provider_tournament_id),
+      provider_id: String(row.provider_id),
+      provider_tournament_id: String(row.provider_id),
       draw_size: Number(row.draw_size) || 0,
     }));
-  if (onlyRef) events = events.filter((e) => e.ref === onlyRef);
+  if (onlySlug) events = events.filter((e) => matchesSlugFilter(e, onlySlug));
   return events;
 }
 
@@ -76,12 +101,14 @@ function loadEnvFile(path) {
 }
 
 function parseArgs(argv) {
-  const out = { dryRun: false, ref: null };
+  const out = { dryRun: false, force: false, slug: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--dry-run") out.dryRun = true;
-    else if (a === "--ref") out.ref = argv[++i];
-    else if (a.startsWith("--ref=")) out.ref = a.slice(6);
+    else if (a === "--force") out.force = true;
+    else if (a === "--slug" || a === "--ref") out.slug = argv[++i];
+    else if (a.startsWith("--slug=")) out.slug = a.slice(7);
+    else if (a.startsWith("--ref=")) out.slug = a.slice(6);
   }
   return out;
 }
@@ -117,6 +144,14 @@ async function restGet(sb, path) {
   return text ? JSON.parse(text) : [];
 }
 
+/** Prefer sync-facts; fall back to legacy rebuild-draw URL shape. */
+function syncFactsUrl(ingestUrl) {
+  if (!ingestUrl) return "";
+  return ingestUrl
+    .replace(/\/ingest-events\/?$/, "/sync-facts")
+    .replace(/\/rebuild-draw\/?$/, "/sync-facts");
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const env = {
@@ -133,9 +168,9 @@ async function main() {
     key: env.RAPIDAPI_KEY,
     host: env.RAPIDAPI_HOST,
   });
-  const events = await listEvents(env, args.ref);
+  const events = await listEvents(env, args.slug);
   if (events.length === 0) {
-    console.error(args.ref ? `No event ${args.ref}` : "No events to check");
+    console.error(args.slug ? `No event ${args.slug}` : "No events to check");
     process.exit(1);
   }
 
@@ -146,45 +181,46 @@ async function main() {
 
   const ingestUrl = env.MATCHREAD_INGEST_URL;
   const secret = env.INGEST_SECRET;
-  const rebuildUrl = ingestUrl
-    ? ingestUrl.replace(/\/ingest-events\/?$/, "/rebuild-draw")
-    : "";
+  const factsUrl = syncFactsUrl(ingestUrl);
 
-  async function postRebuild(label, payload) {
+  async function postSyncFacts(label, slug) {
     if (args.dryRun) {
-      console.log(label, "DRY RUN — not posted");
+      console.log(label, "DRY RUN — sync-facts not posted");
       return;
     }
-    if (!rebuildUrl || !secret) {
+    if (!factsUrl || !secret) {
       console.error("Need MATCHREAD_INGEST_URL and INGEST_SECRET for live write");
       process.exit(1);
     }
-    const res = await fetch(rebuildUrl, {
+    const res = await fetch(factsUrl, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${secret}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        slug,
+        force: args.force,
+      }),
     });
     const text = await res.text();
-    console.log(label, "POST", res.status, text.slice(0, 400));
+    console.log(label, "POST sync-facts", res.status, text.slice(0, 600));
     if (!res.ok) process.exit(1);
   }
 
   for (const event of events) {
-    const label = `${event.ref} (${event.tour} ${event.provider_tournament_id})`;
+    const label = `${event.slug} (${event.tour} ${event.provider_id})`;
     const { fixtures } = await getTournamentFixtures(
       client,
       event.tour,
-      event.provider_tournament_id
+      event.provider_id
     );
     let results = [];
     try {
       const archive = await getTournamentResults(
         client,
         event.tour,
-        event.provider_tournament_id
+        event.provider_id
       );
       results = archive.singles ?? [];
     } catch (err) {
@@ -192,18 +228,8 @@ async function main() {
     }
     const pairs = namedFirstRoundPairs(fixtures);
     const matchups = matchupsFromPairs(pairs, event.tour);
-
     if (matchups.length > 0) {
-      const payload = {
-        tournament_ref: event.ref,
-        tournament_patch: {
-          provider_tournament_id: event.provider_tournament_id,
-          tour: event.tour,
-        },
-        matchups,
-      };
-      console.log(label, `announced first round ${matchups.length}`);
-      await postRebuild(label, payload);
+      console.log(label, `announced first round ${matchups.length} (local preview)`);
       announced += 1;
     }
 
@@ -231,10 +257,11 @@ async function main() {
     }
 
     const payload = {
-      tournament_ref: event.ref,
+      tournament_slug: event.slug,
+      tournament_ref: event.slug,
       tournament_patch: {
         draw_size: built.drawSize,
-        provider_tournament_id: event.provider_tournament_id,
+        provider_id: event.provider_id,
         tour: event.tour,
       },
       seats: built.seats,
@@ -244,10 +271,11 @@ async function main() {
       matchups,
       replace_announced: true,
     };
-    const preview = resolve(process.cwd(), `tmp-${event.ref}-draw.json`);
+    const preview = resolve(process.cwd(), `tmp-${event.slug}-draw.json`);
     writeFileSync(preview, JSON.stringify(payload, null, 2) + "\n");
     console.log(label, `complete ${built.drawSize}-draw — wrote`, preview);
-    await postRebuild(label, payload);
+
+    await postSyncFacts(label, event.slug);
     published += 1;
   }
 
