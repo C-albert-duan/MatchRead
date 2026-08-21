@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo, useRef, type CSSProperties } from "react";
+import { useMemo, type CSSProperties } from "react";
 import {
   applyByeAdvances,
   buildRoundStructure,
@@ -11,7 +11,6 @@ import {
   type OfficialResults,
   type SlotOccupant,
 } from "@matchread/core";
-import { BracketConnectors } from "@/components/bracket/BracketConnectors";
 import { PlayerChip } from "@/components/bracket/PlayerChip";
 import { useT } from "@/components/shell/LocaleProvider";
 import {
@@ -95,7 +94,6 @@ export function BracketGrid({
   const tbc = t("calendar.dateTbc");
   const rounds = useMemo(() => buildRoundStructure(drawSize), [drawSize]);
   const r0Slots = drawSize / 2;
-  const gridRef = useRef<HTMLDivElement>(null);
   const regionStyle = {
     ["--r0-slots"]: String(r0Slots),
     ["--round-count"]: String(rounds.length),
@@ -113,19 +111,6 @@ export function BracketGrid({
     return applyByeAdvances(seats, merged, drawSize);
   }, [picks, official, seats, drawSize]);
 
-  const connectorRounds = useMemo(
-    () =>
-      rounds.map((round) => ({
-        index: round.index,
-        matches: round.matches.map((m) => ({
-          key: m.key,
-          round: m.round,
-          indexInRound: m.indexInRound,
-        })),
-      })),
-    [rounds]
-  );
-
   return (
     <div
       className="bracket-region"
@@ -139,15 +124,13 @@ export function BracketGrid({
         <span className="bracket-court-service" />
         <span className="bracket-court-net" />
       </div>
-      <div className="bracket-grid" ref={gridRef}>
-        <BracketConnectors
-          gridRef={gridRef}
-          rounds={connectorRounds}
-          displayPicks={displayPicks}
-          official={official}
-        />
+      <div className="bracket-grid">
         {rounds.map((round) => (
-          <div key={round.index} className="bracket-col">
+          <div
+            key={round.index}
+            className="bracket-col"
+            data-round={round.index}
+          >
             <h3 className="bracket-col-head t-caption">
               {round.label.column}
             </h3>
@@ -228,6 +211,7 @@ export function BracketGrid({
                       data-match-key={match.key}
                       data-round={match.round}
                       data-index={match.indexInRound}
+                      data-has-winner="true"
                     >
                       <div
                         className="slot slot--bye"
@@ -265,6 +249,9 @@ export function BracketGrid({
                     data-match-key={match.key}
                     data-round={match.round}
                     data-index={match.indexInRound}
+                    data-has-winner={
+                      officialWinner || chosen ? "true" : undefined
+                    }
                   >
                     <div
                       className="slot"

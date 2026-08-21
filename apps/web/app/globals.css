@@ -1627,7 +1627,6 @@ a.league-card:hover {
   overscroll-behavior-x: contain;
   padding: clamp(24px, 2.6vw, 38px);
   border-radius: var(--r-xl);
-  isolation: isolate;
 }
 
 .bracket-court {
@@ -1666,12 +1665,7 @@ a.league-card:hover {
 }
 
 .bracket-connectors {
-  position: absolute;
-  left: 0;
-  top: 0;
-  z-index: 3;
-  overflow: visible;
-  pointer-events: none;
+  display: none; /* CSS elbows below are the source of truth */
 }
 
 .bracket-grid {
@@ -1685,6 +1679,7 @@ a.league-card:hover {
       (var(--round-count, 6) - 1) * var(--draw-gap)
   );
   gap: var(--draw-gap);
+  overflow: visible;
 }
 
 .bracket-col {
@@ -1695,16 +1690,7 @@ a.league-card:hover {
   flex: 1 1 0;
   width: 0;
   min-width: var(--bracket-col-min);
-  /* Keep cards above the SVG so text stays crisp; lines still show in the gap. */
-  isolation: isolate;
-}
-
-.bracket-col .slot,
-.bracket-col .match-when,
-.bracket-col .grade-row,
-.bracket-col .confidence-row {
-  position: relative;
-  z-index: 1;
+  overflow: visible;
 }
 
 .bracket-col-head {
@@ -1728,14 +1714,79 @@ a.league-card:hover {
   flex-direction: column;
   height: var(--bracket-body-h);
   min-height: var(--bracket-body-h);
+  overflow: visible;
 }
 
 .match-cell {
+  position: relative;
   flex: 1 1 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
   min-height: 0;
+  overflow: visible;
+}
+
+/* —— Bracket elbows (pure CSS, no JS) —— */
+.bracket-col:not(:last-child) {
+  --conn: #5f6f67;
+  --conn-w: 2px;
+}
+
+.bracket-col:not(:last-child) .match-cell[data-has-winner="true"] {
+  --conn: #1f6b4a;
+}
+
+/* Outbound half: slot center → mid gutter */
+.bracket-col:not(:last-child) .slot::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  width: calc(var(--draw-gap) / 2);
+  height: var(--conn-w);
+  margin-top: calc(var(--conn-w) / -2);
+  background: var(--conn);
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* Inbound half: mid gutter → next-round slot */
+.bracket-col:not(:first-child) .slot::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  width: calc(var(--draw-gap) / 2);
+  height: var(--conn-w);
+  margin-top: calc(var(--conn-w) / -2);
+  background: var(--conn);
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* Vertical join between paired matches (odd → even) in mid gutter */
+.bracket-col:not(:last-child) .match-cell:nth-child(odd)::after {
+  content: "";
+  position: absolute;
+  left: calc(100% + var(--draw-gap) / 2 - var(--conn-w) / 2);
+  width: var(--conn-w);
+  background: var(--conn);
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* R0: fixed slot rhythm */
+.bracket-col[data-round="0"]:not(:last-child) .match-cell:nth-child(odd)::after {
+  top: calc(var(--slot-h) / 2);
+  height: calc(var(--slot-h) + var(--slot-gap));
+}
+
+/* Later rounds: equal flex cells — one cell-height spans center→center */
+.bracket-col:not([data-round="0"]):not(:last-child)
+  .match-cell:nth-child(odd)::after {
+  top: 50%;
+  height: 100%;
 }
 
 .bracket-col[data-round="0"] .match-cell {
