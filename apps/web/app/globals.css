@@ -310,7 +310,9 @@ a {
   border-radius: var(--r-xl);
   border: 1px solid var(--mr-line);
   background: var(--mr-card);
+  /* Horizontal pan only — never a second vertical scrollbar. */
   overflow-x: auto;
+  overflow-y: clip;
 }
 
 .page-header {
@@ -1605,21 +1607,23 @@ a.league-card:hover {
 
 /* bracket — printed draw sheet */
 .bracket-region {
-  --seat-h: 46px;
-  --pair-in: 8px;
-  --pair-out: 44px;
-  --draw-gap: clamp(48px, 5vw, 72px);
-  --slot-h: calc(var(--seat-h) * 2 + var(--pair-in));
+  --seat-h: 56px;
+  --pair-in: 10px;
+  --pair-out: 48px;
+  --draw-gap: clamp(52px, 5vw, 80px);
+  --slot-h: calc(var(--seat-h) * 2 + var(--pair-in) + 8px);
   --slot-gap: var(--pair-out);
-  --bracket-head-h: 32px;
+  --bracket-head-h: 40px;
   --bracket-body-h: calc(
     var(--r0-slots) * var(--slot-h) + (var(--r0-slots) - 1) * var(--slot-gap)
   );
-  --bracket-col-min: 250px;
+  --bracket-col-min: 280px;
   position: relative;
   margin: 0;
   width: 100%;
+  /* Horizontal pan only; page scroll owns vertical. */
   overflow-x: auto;
+  overflow-y: clip;
   overscroll-behavior-x: contain;
   padding: clamp(24px, 2.6vw, 38px);
   border-radius: var(--r-xl);
@@ -1685,12 +1689,12 @@ a.league-card:hover {
 .bracket-col-head {
   flex: 0 0 var(--bracket-head-h);
   height: var(--bracket-head-h);
-  margin: 0 0 12px;
-  padding-bottom: 16px;
+  margin: 0 0 14px;
+  padding-bottom: 14px;
   font-family: var(--mr-font-numeral);
-  font-weight: 500;
-  font-size: 10.5px;
-  letter-spacing: 0.2em;
+  font-weight: 600;
+  font-size: 12.5px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   line-height: var(--bracket-head-h);
   color: var(--mr-text-muted);
@@ -1730,19 +1734,20 @@ a.league-card:hover {
   flex-direction: column;
   height: var(--slot-h);
   box-sizing: border-box;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  border: 1px solid var(--mr-line-strong);
+  border-radius: var(--r-md);
+  background: var(--mr-raised);
   color: var(--mr-text-primary);
   overflow: visible;
   gap: var(--pair-in);
+  padding: 4px;
 }
 
 .bracket-col:not(:last-child) .slot:not(.slot--bye)::after {
   content: "";
   position: absolute;
   left: 100%;
-  top: calc(var(--seat-h) / 2);
+  top: calc(4px + var(--seat-h) / 2);
   height: calc(var(--seat-h) + var(--pair-in));
   width: calc(var(--draw-gap) / 2);
   border: 1px solid var(--mr-line-strong);
@@ -1753,7 +1758,7 @@ a.league-card:hover {
 .bracket-col:not(:last-child) .slot:not(.slot--bye)::before {
   content: "";
   position: absolute;
-  top: calc(var(--seat-h) / 2 + (var(--seat-h) + var(--pair-in)) / 2);
+  top: calc(4px + var(--seat-h) / 2 + (var(--seat-h) + var(--pair-in)) / 2);
   left: calc(100% + (var(--draw-gap) / 2));
   width: calc(var(--draw-gap) / 2);
   border-top: 1px solid var(--mr-line-strong);
@@ -1763,7 +1768,7 @@ a.league-card:hover {
   height: var(--seat-h);
   flex-direction: row;
   align-items: center;
-  padding-right: var(--s-sm);
+  padding: 4px var(--s-sm) 4px 4px;
   background: transparent;
   border: 1px dashed var(--mr-line-strong);
   border-radius: var(--r-md);
@@ -1807,16 +1812,16 @@ a.league-card:hover {
   height: var(--seat-h);
   width: 100%;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   border: 0;
   border-left: 0;
-  padding: 0 14px;
+  padding: 0 12px;
   text-align: left;
-  background: none;
+  background: color-mix(in srgb, var(--mr-canvas) 55%, transparent);
   font-family: inherit;
   color: inherit;
   cursor: default;
-  border-radius: var(--r-md);
+  border-radius: calc(var(--r-md) - 2px);
   position: relative;
   transition: background var(--mr-duration-instant) var(--mr-ease-standard);
 }
@@ -1825,9 +1830,9 @@ a.league-card:hover {
   content: "";
   position: absolute;
   left: 0;
-  top: 11px;
-  bottom: 11px;
-  width: 2px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
   border-radius: 0 2px 2px 0;
   background: transparent;
 }
@@ -1841,11 +1846,11 @@ label.name:hover {
 }
 
 .name-seed {
-  width: 26px;
+  width: 28px;
   flex-shrink: 0;
   font-family: var(--mr-font-numeral);
-  font-size: 11.5px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--mr-text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -1856,9 +1861,9 @@ label.name:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--mr-font-body);
-  font-weight: 500;
-  font-size: 16px;
-  letter-spacing: 0;
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: -0.01em;
   color: var(--mr-text-primary);
 }
 
@@ -1866,8 +1871,8 @@ label.name:hover {
   margin-left: auto;
   flex-shrink: 0;
   font-family: var(--mr-font-numeral);
-  font-size: 11.5px;
-  letter-spacing: 0.08em;
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--mr-text-muted);
 }
@@ -1990,9 +1995,9 @@ label.name:hover {
 }
 
 .match-when {
-  margin: 6px 0 0;
-  font-size: 10.5px;
-  letter-spacing: 0.08em;
+  margin: 8px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--mr-text-muted);
 }
@@ -2743,9 +2748,9 @@ html[data-nav-pending="true"] .shell-main {
   }
 
   .bracket-region {
-    --bracket-col-min: 216px;
-    --seat-h: 44px;
-    --pair-out: 38px;
+    --bracket-col-min: 244px;
+    --seat-h: 52px;
+    --pair-out: 40px;
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
     mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
   }

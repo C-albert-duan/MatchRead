@@ -235,16 +235,18 @@ export default async function PublicTournamentPage({ params }: Props) {
             <h2 id="official-draw" className="section-title">
               {t("publicTournament.officialDraw")}
             </h2>
-            <PublicOfficialDraw
-              drawSize={drawSize}
-              seats={seats}
-              official={official}
-              schedule={schedule}
-              venueTz={event.venue_tz}
-              locale={locale}
-              enterHref={pickHref}
-              entryOpen={Boolean(pickHref)}
-            />
+            <div className="bracket-stage">
+              <PublicOfficialDraw
+                drawSize={drawSize}
+                seats={seats}
+                official={official}
+                schedule={schedule}
+                venueTz={event.venue_tz}
+                locale={locale}
+                enterHref={pickHref}
+                entryOpen={Boolean(pickHref)}
+              />
+            </div>
           </section>
         ) : null}
       </div>
