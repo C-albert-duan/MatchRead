@@ -81,6 +81,8 @@ Deno.serve(async (req) => {
     slug?: string;
     ref?: string;
     force?: boolean;
+    /** Upsert calendar metadata only (surface/tier/ends_on) — skip draw/results. */
+    calendarOnly?: boolean;
   } = {};
   try {
     const text = await req.text();
@@ -91,6 +93,7 @@ Deno.serve(async (req) => {
 
   const dryRun = Boolean(body.dryRun);
   const force = Boolean(body.force);
+  const calendarOnly = Boolean(body.calendarOnly);
   const onlySlug = body.slug?.trim() || body.ref?.trim() || null;
   const year = Number(body.year) || new Date().getUTCFullYear();
 
@@ -115,6 +118,15 @@ Deno.serve(async (req) => {
       dryRun,
       log
     );
+
+    if (calendarOnly) {
+      return json({
+        ok: true,
+        calendarOnly: true,
+        calendar,
+        log,
+      });
+    }
 
     const events = await listSyncedEvents(admin, onlySlug);
     log.push(`events in window: ${events.length}`);
