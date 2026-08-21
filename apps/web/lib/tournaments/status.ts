@@ -141,55 +141,46 @@ export function calendarStatus(
 export function calendarStatusMessageKey(
   status: CalendarStatus
 ):
-  | "calendar.drawPending"
+  | "league.status.drawPending"
   | "calendar.open"
-  | "calendar.locked"
+  | "tournament.locked"
   | "calendar.onCourt"
-  | "calendar.complete" {
+  | "league.status.complete" {
   switch (status) {
     case "drawPending":
-      return "calendar.drawPending";
+      return "league.status.drawPending";
     case "open":
       return "calendar.open";
     case "locked":
-      return "calendar.locked";
+      return "tournament.locked";
     case "live":
       return "calendar.onCourt";
     case "complete":
-      return "calendar.complete";
+      return "league.status.complete";
   }
 }
 
+/** Locale-aware remaining time. Null once the instant has passed. */
 export function formatCountdown(
-  iso: string,
+  target: string | Date,
   locale: string,
   now: Date = new Date()
 ): string | null {
-  const target = new Date(iso);
-  if (Number.isNaN(target.getTime())) return null;
-  const ms = target.getTime() - now.getTime();
+  const at = target instanceof Date ? target : new Date(target);
+  if (Number.isNaN(at.getTime())) return null;
+  const ms = at.getTime() - now.getTime();
   if (ms <= 0) return null;
-  const days = Math.floor(ms / DAY_MS);
-  const hours = Math.floor((ms % DAY_MS) / 3_600_000);
-  try {
-    if (days >= 1) {
-      return new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
-        days,
-        "day"
-      );
-    }
-    if (hours >= 1) {
-      return new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
-        hours,
-        "hour"
-      );
-    }
-    const minutes = Math.max(1, Math.floor(ms / 60_000));
-    return new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
-      minutes,
-      "minute"
-    );
-  } catch {
-    return null;
-  }
+  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "always" });
+  const mins = Math.round(ms / 60_000);
+  if (mins < 60) return rtf.format(Math.max(mins, 1), "minute");
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return rtf.format(hours, "hour");
+  const days = Math.round(hours / 24);
+  return rtf.format(days, "day");
+}
+
+export function startInstant(startsOn: string | null): Date | null {
+  if (!startsOn) return null;
+  const d = new Date(`${startsOn}T12:00:00Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
