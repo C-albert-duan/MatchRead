@@ -1727,31 +1727,18 @@ a.league-card:hover {
   overflow: visible;
 }
 
-/* —— Bracket elbows (pure CSS, no JS) —— */
+/* —— Bracket elbows (pure CSS, lightly rounded) —— */
 .bracket-col:not(:last-child) {
   --conn: #5f6f67;
   --conn-w: 2px;
+  --conn-r: 12px;
 }
 
 .bracket-col:not(:last-child) .match-cell[data-has-winner="true"] {
   --conn: #1f6b4a;
 }
 
-/* Outbound half: slot center → mid gutter */
-.bracket-col:not(:last-child) .slot::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 100%;
-  width: calc(var(--draw-gap) / 2);
-  height: var(--conn-w);
-  margin-top: calc(var(--conn-w) / -2);
-  background: var(--conn);
-  pointer-events: none;
-  z-index: 4;
-}
-
-/* Inbound half: mid gutter → next-round slot */
+/* Inbound half: mid gutter → next-round slot (straight stub into the card) */
 .bracket-col:not(:first-child) .slot::before {
   content: "";
   position: absolute;
@@ -1760,33 +1747,65 @@ a.league-card:hover {
   width: calc(var(--draw-gap) / 2);
   height: var(--conn-w);
   margin-top: calc(var(--conn-w) / -2);
-  background: var(--conn);
+  background: var(--conn, #5f6f67);
   pointer-events: none;
   z-index: 4;
 }
 
-/* Vertical join between paired matches (odd → even) in mid gutter */
-.bracket-col:not(:last-child) .match-cell:nth-child(odd)::after {
+/*
+ * Outbound elbows live on the match-cell so vertical span can follow
+ * flex cell height. Odd = right then down; even = right then up.
+ */
+.bracket-col:not(:last-child) .match-cell:nth-child(odd)::after,
+.bracket-col:not(:last-child) .match-cell:nth-child(even)::after {
   content: "";
   position: absolute;
-  left: calc(100% + var(--draw-gap) / 2 - var(--conn-w) / 2);
-  width: var(--conn-w);
-  background: var(--conn);
+  left: 100%;
+  width: calc(var(--draw-gap) / 2);
+  box-sizing: border-box;
+  border-style: solid;
+  border-color: var(--conn);
+  background: transparent;
   pointer-events: none;
   z-index: 4;
 }
 
-/* R0: fixed slot rhythm */
-.bracket-col[data-round="0"]:not(:last-child) .match-cell:nth-child(odd)::after {
-  top: calc(var(--slot-h) / 2);
-  height: calc(var(--slot-h) + var(--slot-gap));
+/* Odd: curve down into the vertical join */
+.bracket-col:not(:last-child) .match-cell:nth-child(odd)::after {
+  border-width: var(--conn-w) var(--conn-w) 0 0;
+  border-radius: 0 var(--conn-r) 0 0;
 }
 
-/* Later rounds: equal flex cells — one cell-height spans center→center */
+/* Even: curve up into the vertical join */
+.bracket-col:not(:last-child) .match-cell:nth-child(even)::after {
+  border-width: 0 var(--conn-w) var(--conn-w) 0;
+  border-radius: 0 0 var(--conn-r) 0;
+}
+
+/* R0: fixed slot rhythm — elbows start at slot midpoints */
+.bracket-col[data-round="0"]:not(:last-child) .match-cell:nth-child(odd)::after {
+  top: calc(var(--slot-h) / 2);
+  height: calc((var(--slot-h) + var(--slot-gap)) / 2);
+}
+
+.bracket-col[data-round="0"]:not(:last-child) .match-cell:nth-child(even)::after {
+  top: auto;
+  bottom: calc(var(--slot-h) / 2);
+  height: calc((var(--slot-h) + var(--slot-gap)) / 2);
+}
+
+/* Later rounds: equal flex cells — half-cell span meets at the pair mid */
 .bracket-col:not([data-round="0"]):not(:last-child)
   .match-cell:nth-child(odd)::after {
   top: 50%;
-  height: 100%;
+  height: 50%;
+}
+
+.bracket-col:not([data-round="0"]):not(:last-child)
+  .match-cell:nth-child(even)::after {
+  top: auto;
+  bottom: 50%;
+  height: 50%;
 }
 
 .bracket-col[data-round="0"] .match-cell {
