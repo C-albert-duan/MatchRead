@@ -1678,7 +1678,32 @@ a.league-card:hover {
   gap: var(--draw-gap);
 }
 
+.bracket-connectors {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.bracket-connector {
+  stroke: var(--mr-line-strong);
+  stroke-width: 1.5;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  opacity: 0.85;
+}
+
+.bracket-connector--active {
+  stroke: var(--mr-read);
+  stroke-width: 2;
+  opacity: 1;
+}
+
 .bracket-col {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   flex: 1 1 0;
@@ -1741,27 +1766,6 @@ a.league-card:hover {
   overflow: visible;
   gap: var(--pair-in);
   padding: 4px;
-}
-
-.bracket-col:not(:last-child) .slot:not(.slot--bye)::after {
-  content: "";
-  position: absolute;
-  left: 100%;
-  top: calc(4px + var(--seat-h) / 2);
-  height: calc(var(--seat-h) + var(--pair-in));
-  width: calc(var(--draw-gap) / 2);
-  border: 1px solid var(--mr-line-strong);
-  border-left: 0;
-  border-radius: 0 3px 3px 0;
-}
-
-.bracket-col:not(:last-child) .slot:not(.slot--bye)::before {
-  content: "";
-  position: absolute;
-  top: calc(4px + var(--seat-h) / 2 + (var(--seat-h) + var(--pair-in)) / 2);
-  left: calc(100% + (var(--draw-gap) / 2));
-  width: calc(var(--draw-gap) / 2);
-  border-top: 1px solid var(--mr-line-strong);
 }
 
 .slot--bye {
@@ -1960,16 +1964,36 @@ label.name:hover {
 
 .grade-row {
   flex-shrink: 0;
-  padding: 4px 8px;
-  border: 0;
+  margin-top: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--mr-line);
+  border-radius: var(--r-md);
   font-family: var(--mr-font-numeral);
-  font-size: 10.5px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   text-align: center;
+  color: var(--mr-text-primary);
+  background: var(--mr-sunken);
+}
+
+.slot[data-graded="correct"] + .confidence-row + .grade-row,
+.slot[data-graded="correct"] + .grade-row,
+.match-cell:has(.slot[data-graded="correct"]) > .grade-row {
+  color: var(--mr-data);
+  background: var(--mr-data-tint);
+  border-color: color-mix(in srgb, var(--mr-data) 35%, var(--mr-line));
+}
+
+.match-cell:has(.slot[data-graded="incorrect"]) > .grade-row {
+  color: var(--mr-miss);
+  background: color-mix(in srgb, var(--mr-miss) 8%, var(--mr-sunken));
+  border-color: color-mix(in srgb, var(--mr-miss) 30%, var(--mr-line));
+}
+
+.match-cell:has(.slot[data-graded="voided"]) > .grade-row {
   color: var(--mr-text-muted);
-  background: transparent;
 }
 
 .slot[data-graded="correct"] {

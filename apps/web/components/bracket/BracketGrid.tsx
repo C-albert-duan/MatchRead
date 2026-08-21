@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo, type CSSProperties } from "react";
+import { useMemo, useRef, type CSSProperties } from "react";
 import {
   applyByeAdvances,
   buildRoundStructure,
@@ -11,6 +11,7 @@ import {
   type OfficialResults,
   type SlotOccupant,
 } from "@matchread/core";
+import { BracketConnectors } from "@/components/bracket/BracketConnectors";
 import { PlayerChip } from "@/components/bracket/PlayerChip";
 import { useT } from "@/components/shell/LocaleProvider";
 import {
@@ -91,6 +92,7 @@ export function BracketGrid({
   const tbc = t("calendar.dateTbc");
   const rounds = buildRoundStructure(drawSize);
   const r0Slots = drawSize / 2;
+  const gridRef = useRef<HTMLDivElement>(null);
   const regionStyle = {
     ["--r0-slots"]: String(r0Slots),
     ["--round-count"]: String(rounds.length),
@@ -108,6 +110,19 @@ export function BracketGrid({
     return applyByeAdvances(seats, merged, drawSize);
   }, [picks, official, seats, drawSize]);
 
+  const connectorRounds = useMemo(
+    () =>
+      rounds.map((round) => ({
+        index: round.index,
+        matches: round.matches.map((m) => ({
+          key: m.key,
+          round: m.round,
+          indexInRound: m.indexInRound,
+        })),
+      })),
+    [rounds]
+  );
+
   return (
     <div
       className="bracket-region"
@@ -121,12 +136,17 @@ export function BracketGrid({
         <span className="bracket-court-service" />
         <span className="bracket-court-net" />
       </div>
-      <div className="bracket-grid">
+      <div className="bracket-grid" ref={gridRef}>
+        <BracketConnectors
+          gridRef={gridRef}
+          rounds={connectorRounds}
+          displayPicks={displayPicks}
+          official={official}
+        />
         {rounds.map((round) => (
           <div
             key={round.index}
             className="bracket-col"
-            data-round={round.index}
           >
             <h3 className="bracket-col-head t-caption">
               {round.label.column}
@@ -205,13 +225,19 @@ export function BracketGrid({
                       key={match.key}
                       className="match-cell match-cell--bye"
                       data-match-key={match.key}
+                      data-round={match.round}
+                      data-index={match.indexInRound}
                     >
                       <div
                         className="slot slot--bye"
                         role="group"
                         aria-label={`${advancer.lastName} advances (bye)`}
                       >
-                        <PlayerChip occupant={advancer} grade="official" />
+                        <PlayerChip
+                          occupant={advancer}
+                          grade="official"
+                          seat={0}
+                        />
                         <span className="bye-tag">Bye · advances</span>
                       </div>
                       {when ? (
@@ -226,6 +252,8 @@ export function BracketGrid({
                     key={match.key}
                     className="match-cell"
                     data-match-key={match.key}
+                    data-round={match.round}
+                    data-index={match.indexInRound}
                   >
                     <div
                       className="slot"
@@ -254,6 +282,7 @@ export function BracketGrid({
                             name={groupName}
                             value={refOf(a) ?? ""}
                             checked={chosen === refOf(a)}
+                            seat={0}
                             onClick={() =>
                               a.kind === "player" &&
                               onPick?.(match.key, a.ref)
@@ -266,6 +295,7 @@ export function BracketGrid({
                             name={groupName}
                             value={refOf(b) ?? ""}
                             checked={chosen === refOf(b)}
+                            seat={1}
                             onClick={() =>
                               b.kind === "player" &&
                               onPick?.(match.key, b.ref)
@@ -278,11 +308,13 @@ export function BracketGrid({
                             occupant={a}
                             chosen={a.kind === "player" && chosen === a.ref}
                             grade={gradeA}
+                            seat={0}
                           />
                           <PlayerChip
                             occupant={b}
                             chosen={b.kind === "player" && chosen === b.ref}
                             grade={gradeB}
+                            seat={1}
                           />
                         </>
                       )}

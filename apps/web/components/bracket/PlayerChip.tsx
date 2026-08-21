@@ -20,6 +20,8 @@ type Props = {
   name?: string;
   value?: string;
   checked?: boolean;
+  /** Seat index within the match (0 = top, 1 = bottom) for connector targets. */
+  seat?: 0 | 1;
 };
 
 function labelFor(
@@ -99,6 +101,7 @@ export function PlayerChip({
   name,
   value,
   checked,
+  seat,
 }: Props) {
   const t = useT();
   const meta = labelFor(occupant, t);
@@ -114,6 +117,12 @@ export function PlayerChip({
   ]
     .filter(Boolean)
     .join(" ");
+
+  const playerRef = occupant.kind === "player" ? occupant.ref : undefined;
+  const dataAttrs = {
+    ...(seat != null ? { "data-seat": String(seat) } : {}),
+    ...(playerRef ? { "data-player-ref": playerRef } : {}),
+  };
 
   const inner = (
     <>
@@ -135,7 +144,11 @@ export function PlayerChip({
 
   if (as === "button" && occupant.kind === "player") {
     return (
-      <label className={className} data-chosen={chosen ? "true" : "false"}>
+      <label
+        className={className}
+        data-chosen={chosen ? "true" : "false"}
+        {...dataAttrs}
+      >
         <input
           type="radio"
           className="sr-only"
@@ -151,7 +164,7 @@ export function PlayerChip({
   }
 
   return (
-    <span className={className}>
+    <span className={className} {...dataAttrs}>
       {inner}
     </span>
   );
