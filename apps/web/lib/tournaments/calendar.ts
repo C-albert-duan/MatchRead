@@ -60,10 +60,12 @@ export function normalizeTour(value: string | null | undefined): Tour {
 
 export function surfaceClass(surface: string | null | undefined) {
   const s = (surface ?? "").toLowerCase();
+  if (!s) return "unknown";
   if (s.includes("clay")) return "clay";
   if (s.includes("grass")) return "grass";
-  if (s.includes("indoor") || s.includes("carpet")) return "indoor";
-  return "hard";
+  if (s.includes("carpet")) return "carpet";
+  if (s.includes("hard")) return "hard";
+  return "unknown";
 }
 
 export function formatTournamentWhen(
@@ -119,8 +121,9 @@ export async function listCalendarTournaments(): Promise<CalendarTournament[]> {
   const { data: tournaments } = await supabase
     .from("tournaments")
     .select(
-      "id, slug, name, surface, starts_on, ends_on, lock_at, venue_tz, tour, draw_size, published_at"
+      "id, slug, name, surface, starts_on, ends_on, lock_at, venue_tz, tour, draw_size, published_at, bracket_eligible, seats(count)"
     )
+    .eq("bracket_eligible", true)
     .not("slug", "like", "e2e-%")
     .order("starts_on", { ascending: true });
 
@@ -136,7 +139,7 @@ export async function getCalendarTournament(
   const { data: row } = await supabase
     .from("tournaments")
     .select(
-      "id, slug, name, surface, starts_on, ends_on, lock_at, venue_tz, tour, draw_size, published_at"
+      "id, slug, name, surface, starts_on, ends_on, lock_at, venue_tz, tour, draw_size, published_at, seats(count)"
     )
     .eq("slug", trimmed)
     .maybeSingle();
@@ -156,31 +159,70 @@ type TournamentQueryRow = {
   tour?: string | null;
   draw_size?: number | null;
   published_at?: string | null;
+  seats?: { count: number }[] | null;
 };
 
+/** Official sheet: published + seat count matches power-of-two draw_size. */
+export function hasOfficialDrawSheet(row: {
+  published_at?: string | null;
+  draw_size?: number | null;
+  seat_count?: number | null;
+}): boolean {
+  if (!row.published_at) return false;
+  const n = Number(row.draw_size) || 0;
+  const seats = Number(row.seat_count) || 0;
+  if (n < 2 || (n & (n - 1)) !== 0) return false;
+  return seats === n;
+}
+
+function seatCountFromEmbed(
+  seats: { count: number }[] | null | undefined
+): number {
+  if (!Array.isArray(seats) || seats.length === 0) return 0;
+  return Number(seats[0]?.count) || 0;
+}
+
 function mapCalendarRow(row: TournamentQueryRow): CalendarTournament {
+  const drawSize = row.draw_size && row.draw_size > 0 ? row.draw_size : 0;
+  const seatCount = seatCountFromEmbed(row.seats);
   return {
     id: row.id,
     ref: row.slug,
     name: row.name,
-    surface: row.surface ?? "hard",
+    surface: row.surface ?? "",
     starts_on: row.starts_on,
     ends_on: row.ends_on ?? null,
     lock_at: row.lock_at ?? null,
     admin_locked_at: null,
     venue_tz: row.venue_tz || "UTC",
     tour: normalizeTour(row.tour),
-    draw_size: row.draw_size && row.draw_size > 0 ? row.draw_size : 64,
-    hasDraw: Boolean(row.published_at),
+    draw_size: drawSize,
+    hasDraw: hasOfficialDrawSheet({
+      published_at: row.published_at,
+      draw_size: drawSize,
+      seat_count: seatCount,
+    }),
   };
 }
 
-/** Tournament ids with published_at set (official draw live). */
+/** Tournament ids with a verified official sheet (published + seat count). */
 export async function listVerifiedDrawTournamentIds(): Promise<Set<string>> {
   const supabase = createClient();
   const { data } = await supabase
     .from("tournaments")
-    .select("id")
+    .select("id, draw_size, published_at, seats(count)")
     .not("published_at", "is", null);
-  return new Set((data ?? []).map((r) => r.id));
+  return new Set(
+    (data ?? [])
+      .filter((row) =>
+        hasOfficialDrawSheet({
+          published_at: row.published_at,
+          draw_size: Number(row.draw_size) || 0,
+          seat_count: seatCountFromEmbed(
+            row.seats as { count: number }[] | null
+          ),
+        })
+      )
+      .map((r) => r.id)
+  );
 }

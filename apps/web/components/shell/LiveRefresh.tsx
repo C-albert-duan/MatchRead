@@ -10,7 +10,10 @@ type Props = {
   intervalMs?: number;
 };
 
-/** Soft REST poll: revalidate the current RSC tree on an interval. No websockets. */
+/** Soft REST poll: revalidate the current RSC tree on an interval.
+ * Primary live path is backend EventMapper + sync-facts; this is the
+ * browser REST fallback when socket coverage is missing or stale.
+ */
 export function LiveRefresh({ enabled, intervalMs = 45_000 }: Props) {
   const router = useRouter();
 

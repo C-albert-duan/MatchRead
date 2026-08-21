@@ -38,7 +38,7 @@ export type BracketRow = {
 export type DrawSeatRow = DrawSeat;
 
 export const SEAT_SELECT =
-  "position, kind, player_id, seed, entry, tbd_label, players(last_name, country_code)";
+  "position, kind, player_id, seed, entry, tbd_label, players(last_name, display_name, country_code)";
 
 export const DRAW_SEAT_SELECT = SEAT_SELECT;
 
@@ -52,8 +52,16 @@ type SeatQueryRow = {
   last_name?: string | null;
   country_code?: string | null;
   players?:
-    | { last_name?: string | null; country_code?: string | null }
-    | { last_name?: string | null; country_code?: string | null }[]
+    | {
+        last_name?: string | null;
+        display_name?: string | null;
+        country_code?: string | null;
+      }
+    | {
+        last_name?: string | null;
+        display_name?: string | null;
+        country_code?: string | null;
+      }[]
     | null;
 };
 
@@ -64,6 +72,7 @@ export function mapDrawSeat(row: SeatQueryRow): DrawSeat {
     Array.isArray(row.players) ? row.players[0] : row.players ?? null;
   const last =
     row.last_name ??
+    player?.display_name ??
     player?.last_name ??
     (kind === "tbd" ? row.tbd_label ?? "TBD" : kind === "bye" ? "" : "");
   return {

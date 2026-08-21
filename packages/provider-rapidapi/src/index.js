@@ -1,3 +1,8 @@
+import {
+  auxiliaryLastName,
+  canonicalizeDisplayName,
+} from "./normalize.js";
+
 /**
  * @typedef {object} RapidApiClientOptions
  * @property {string} key
@@ -341,13 +346,9 @@ export function firstMainDrawBall(fixtures) {
   return { scheduled_at: pool[0].scheduled_at, has_time: true };
 }
 
-/** Last token of a provider display name. Empty if missing. */
+/** @deprecated Prefer canonicalizeDisplayName; kept for call sites mid-migration. */
 export function playerLastName(full) {
-  const parts = String(full || "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-  return parts[parts.length - 1] || "";
+  return auxiliaryLastName(full);
 }
 
 function parseSeed(raw) {
@@ -363,7 +364,8 @@ function playerFromFixture(row, side) {
     (side === 1 ? row.player1Id : row.player2Id) ?? person?.id ?? ""
   ).trim();
   const name = String(person?.name ?? person?.fullName ?? "").trim();
-  const last = playerLastName(name);
+  const canon = canonicalizeDisplayName(name);
+  const last = canon.lastName;
   const country = String(person?.countryAcr ?? person?.country ?? "XXX")
     .slice(0, 3)
     .toUpperCase();
@@ -373,6 +375,8 @@ function playerFromFixture(row, side) {
   return {
     id,
     last_name: last,
+    display_name: canon.displayName,
+    fallback_formatted: canon.fallback,
     country_code: /^[A-Z]{3}$/.test(country) ? country : "XXX",
     seed,
   };
@@ -654,7 +658,20 @@ export {
   drawNameCandidates,
   drawYear,
   parseOfficialDraw,
+  parseSeedOrEntry,
 } from "./official/parse-draw.js";
+export {
+  canonicalJson,
+  hashDrawSeats,
+  seatsCanonicalPayload,
+  sha256Hex,
+  validateOfficialSeats,
+} from "./official/draw-hash.js";
+export { diffDrawSeats, pairKey } from "./official/draw-diff.js";
+export {
+  drawPollIntervalMs,
+  shouldPollDraw,
+} from "./official/draw-poll.js";
 export {
   getLiveEvents,
   getWsToken,
@@ -665,6 +682,44 @@ export {
   mapLiveFinishedToIngest,
   parseMatchId,
 } from "./live.js";
+export {
+  resolveLiveEvent,
+  normalizePairKey,
+  getExtendEvent,
+} from "./event-mapper.js";
+export {
+  advanceWinnerToParent,
+  bindResultsByPlayerPair,
+  parentMatchKey,
+} from "./settle-advance.js";
+export {
+  createLiveSessionState,
+  onSocketDisconnect,
+  reconcileThenResume,
+  subscriptionDiff,
+  noteSocketMessage,
+  isSilentSubscription,
+  LiveConnectionState,
+} from "./live-session.js";
+export {
+  PUBLIC_TIERS,
+  ALL_TIERS,
+  UnknownProviderValue,
+  parseTour,
+  requireTour,
+  normalizeTier,
+  isBracketProduct,
+  normalizeSurface,
+  normalizeEnvironment,
+  auxiliaryLastName,
+  canonicalizeDisplayName,
+  ADVANCING_OUTCOMES,
+  canAdvanceWinner,
+} from "./normalize.js";
+export {
+  assertDrawBelongsToTournament,
+  evaluateDrawIntegrity,
+} from "./assert.js";
 
 /**
  * Official seats from Tennis API draws. Never invent slot order from match ids.
@@ -697,15 +752,35 @@ export async function fetchOfficialSeats(client, event) {
 }
 
 /**
- * Official sheet from Tennis API, else a complete named first round
- * whose pair count matches the event size. Never pads a partial field.
+ * Official sheet from Tennis API only.
+ * Fixture-built seats are never production structure (slot order ≠ official draw).
+ * Pass `{ allowFixtureDraw: true }` only in unit tests — never production.
  * @param {{ get: (path: string) => Promise<any> }} client
  * @param {{ ref?: string, tour?: string, name?: string, api_name?: string, starts_on?: string|null, draw_size?: number }} event
  * @param {unknown[]} [fixtures]
+ * @param {{ allowFixtureDraw?: boolean }} [opts]
  */
-export async function resolveOfficialSeats(client, event, fixtures = []) {
+export async function resolveOfficialSeats(
+  client,
+  event,
+  fixtures = [],
+  opts = {}
+) {
   const official = await fetchOfficialSeats(client, event);
   if (official.ok) return official;
+
+  // Explicit opt-in only (unit tests). Never env-gated onto a live deploy.
+  const allowFixture = Boolean(opts?.allowFixtureDraw);
+
+  if (!allowFixture) {
+    return {
+      ok: false,
+      reason: official.reason,
+      firstRound: "fixture draw gated (official /draws required)",
+      pairs: namedFirstRoundPairs(fixtures).length,
+    };
+  }
+
   const fallback = buildDrawFromFirstRound(fixtures, {
     prefix: normalizeTour(event?.tour),
     drawSize: Number(event?.draw_size) || 0,

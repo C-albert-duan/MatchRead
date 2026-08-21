@@ -129,20 +129,19 @@ export default async function BracketPage({ params }: Props) {
     ? await loadBracketPicksMap(supabase, myBracket.id)
     : {};
 
-  const hasSheet = seats.length > 0;
   const drawSize = effectiveDrawSize(
     seats.length,
     Number(tournament.draw_size) || 0
   );
-  const official = isOfficialPublicDraw(seats, drawSize);
+  const hasSheet = isOfficialPublicDraw(seats, drawSize);
   const locked = isTournamentLocked({
     lock_at: tournament.lock_at,
     admin_locked_at: null,
     league_locked_at: leagueLockedAt,
-    hasOfficialDraw: official || hasSheet,
+    hasOfficialDraw: hasSheet,
   });
 
-  // Bracket UI follows seats / announced facts — not live vs open.
+  // Full bracket only for official sheet; else announced R0 facts or redirect.
   if (!hasSheet) {
     if (announced.length === 0) {
       redirect(`/leagues/${league.slug}/t/${tournamentRef}`);

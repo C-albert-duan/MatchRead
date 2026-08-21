@@ -233,6 +233,13 @@ async function main() {
       continue;
     }
 
+    // Never publish fixture-ordered seats to live (pure-fact).
+    if (official.source === "first-round") {
+      console.log(label, "skipped — fixture-sourced draw is not official");
+      skipped += 1;
+      continue;
+    }
+
     const built = overlayOfficialDraw(official.seats, fixtures, {
       prefix: event.tour,
       results,

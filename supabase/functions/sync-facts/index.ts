@@ -25,6 +25,15 @@ import {
   namedFirstRoundPairs,
   overlayOfficialDraw,
   resolveOfficialSeats,
+  shouldPollDraw,
+  bindResultsByPlayerPair,
+  resolveLiveEvent,
+  getExtendEvent,
+  normalizeSurface,
+  normalizeEnvironment,
+  normalizeTier,
+  UnknownProviderValue,
+  assertDrawBelongsToTournament,
 } from "../_shared/rapidapi.js";
 
 const cors = {
@@ -214,6 +223,13 @@ type SyncedEvent = {
   provider_id: string;
   draw_size: number;
   starts_on: string | null;
+  lock_at: string | null;
+  published_at: string | null;
+  draw_checked_at: string | null;
+  surface: string | null;
+  tier: string | null;
+  bracket_eligible: boolean;
+  ingestion_enabled: boolean;
   ref: string;
   api_name?: string;
 };
@@ -266,14 +282,18 @@ async function syncTournamentsFromCalendar(
 
   let upserted = 0;
   if (!dryRun && filtered.length) {
-    // One row per provider_id (calendar can list duplicates).
-    const byProvider = new Map<string, (typeof filtered)[number]>();
-    for (const t of filtered) byProvider.set(t.provider_id, t);
-    const rowsOut = [...byProvider.values()].map((t) => ({
+    // One row per (tour, provider_id) — ATP/WTA may share numeric ids.
+    const byKey = new Map<string, (typeof filtered)[number]>();
+    for (const t of filtered) {
+      byKey.set(`${t.tour}:${t.provider_id}`, t);
+    }
+    const rowsOut = [...byKey.values()].map((t) => ({
       slug: t.slug,
       name: t.name,
       tour: t.tour,
       surface: t.surface,
+      environment: t.environment,
+      tier: t.tier,
       starts_on: t.starts_on,
       ends_on: t.ends_on,
       provider_id: t.provider_id,
@@ -284,9 +304,32 @@ async function syncTournamentsFromCalendar(
 
     const { error } = await admin
       .from("tournaments")
-      .upsert(rowsOut, { onConflict: "provider_id" });
+      .upsert(rowsOut, { onConflict: "slug" });
     if (error) throw new Error(`tournaments upsert: ${error.message}`);
     upserted = rowsOut.length;
+
+    // Drop temporary force_on once category mapped a public tier.
+    await admin
+      .from("tournaments")
+      .update({ product_override: null })
+      .eq("product_override", "force_on")
+      .in("tier", [
+        "grand_slam",
+        "tour_finals",
+        "masters_1000",
+        "tour_500",
+        "tour_250",
+      ]);
+
+    for (const t of filtered) {
+      if (t.tierAlert) {
+        await admin.from("ops_events").insert({
+          kind: "ingest",
+          name: "tier_unmapped",
+          payload: { slug: t.slug, alert: t.tierAlert },
+        });
+      }
+    }
   }
 
   return {
@@ -317,7 +360,21 @@ function mapCalendarTournament(
     String(row.endDate || row.end || row.date || row.start || "").slice(0, 10) ||
     starts;
 
-  const surface = normalizeSurface(row.surface);
+  let surface: string | null = null;
+  let environment: string | null = null;
+  try {
+    surface = normalizeSurface(row.surface);
+    environment = normalizeEnvironment(row.surface);
+  } catch (err) {
+    if (err instanceof UnknownProviderValue || (err as Error)?.name === "UnknownProviderValue") {
+      surface = null;
+      environment = normalizeEnvironment(row.surface);
+    } else {
+      throw err;
+    }
+  }
+
+  const tierInfo = normalizeTier(row.category, row.type);
   const drawSize = inferDrawSizeHint(name, blob);
 
   return {
@@ -325,6 +382,9 @@ function mapCalendarTournament(
     name,
     tour,
     surface,
+    environment,
+    tier: tierInfo.tier,
+    tierAlert: tierInfo.alert,
     starts_on: starts,
     ends_on: ends,
     provider_id: providerId,
@@ -332,23 +392,12 @@ function mapCalendarTournament(
   };
 }
 
-function normalizeSurface(raw: unknown): string {
-  const s = String(raw || "").toLowerCase();
-  if (s.includes("clay")) return "clay";
-  if (s.includes("grass")) return "grass";
-  if (s.includes("carpet") || s.includes("indoor")) return "indoor";
-  return "hard";
-}
-
-/** Soft hint only — official publish overwrites from the sheet. */
-function inferDrawSizeHint(name: string, blob: string): number | null {
-  if (/us open|roland|australian|wimbledon/.test(blob)) return 128;
-  if (/masters|1000|cincinnati|indian wells|miami|madrid|rome|shanghai|paris|montreal|toronto|canada/.test(
-    blob
-  )) {
-    return 128;
-  }
-  if (/500|250|challenger/.test(blob)) return 32;
+/** Soft hint from provider category/type only — never city or slam names. Official sheet overwrites. */
+function inferDrawSizeHint(_name: string, blob: string): number | null {
+  if (/\b(grand\s*slam|slam)\b/.test(blob)) return 128;
+  if (/\b(masters|1000)\b/.test(blob)) return 128;
+  if (/\b(500|250)\b/.test(blob)) return 32;
+  if (/\bchallenger\b/.test(blob)) return 32;
   return null;
 }
 
@@ -368,13 +417,16 @@ async function listSyncedEvents(
 ): Promise<SyncedEvent[]> {
   const { data, error } = await admin
     .from("tournaments")
-    .select("id, slug, name, tour, draw_size, provider_id, starts_on")
+    .select(
+      "id, slug, name, tour, draw_size, provider_id, starts_on, lock_at, published_at, draw_checked_at, surface, tier, bracket_eligible, ingestion_enabled"
+    )
     .not("provider_id", "is", null);
   if (error) throw new Error(error.message);
 
   const now = Date.now();
   let events = (data ?? [])
     .filter((row) => row?.slug && row.provider_id)
+    .filter((row) => row.ingestion_enabled !== false)
     .map((row) => ({
       id: row.id as string,
       slug: row.slug as string,
@@ -383,6 +435,13 @@ async function listSyncedEvents(
       provider_id: String(row.provider_id),
       draw_size: Number(row.draw_size) || 0,
       starts_on: (row.starts_on as string) ?? null,
+      lock_at: (row.lock_at as string) ?? null,
+      published_at: (row.published_at as string) ?? null,
+      draw_checked_at: (row.draw_checked_at as string) ?? null,
+      surface: (row.surface as string) ?? null,
+      tier: (row.tier as string) ?? null,
+      bracket_eligible: Boolean(row.bracket_eligible),
+      ingestion_enabled: row.ingestion_enabled !== false,
       ref: row.slug as string,
       api_name: row.name as string,
     }))
@@ -447,6 +506,24 @@ async function syncEventDraw(
   log: string[]
 ): Promise<{ status: "published" | "announced" | "pending" }> {
   const label = event.slug;
+
+  // Adaptive draw poll — still always refresh fixtures/announced matchups.
+  const { count: tbdCount } = await admin
+    .from("seats")
+    .select("position", { count: "exact", head: true })
+    .eq("tournament_id", event.id)
+    .eq("kind", "tbd");
+
+  const pollDraw =
+    env.force ||
+    shouldPollDraw({
+      lock_at: event.lock_at,
+      starts_on: event.starts_on,
+      hasDraw: Boolean(event.published_at),
+      tbdCount: tbdCount ?? 0,
+      draw_checked_at: event.draw_checked_at,
+    });
+
   const { fixtures } = await getTournamentFixtures(
     rapid,
     event.tour,
@@ -468,6 +545,7 @@ async function syncEventDraw(
   const pairs = namedFirstRoundPairs(fixtures);
   const matchups = matchupsFromPairs(pairs, event.tour);
 
+  // Announced R0 pairs only — never seats from fixtures.
   if (matchups.length > 0) {
     await postRebuild(
       admin,
@@ -485,14 +563,67 @@ async function syncEventDraw(
     );
   }
 
+  if (!pollDraw) {
+    log.push(`${label} draw poll skipped (adaptive interval)`);
+    return {
+      status: event.published_at
+        ? "published"
+        : matchups.length
+          ? "announced"
+          : "pending",
+    };
+  }
+
+  // Official /draws only — fixture fallback gated inside resolveOfficialSeats.
   const official = await resolveOfficialSeats(rapid, event, fixtures);
   if (!official.ok) {
+    await admin
+      .from("tournaments")
+      .update({ draw_checked_at: new Date().toISOString() })
+      .eq("id", event.id);
     log.push(
       `${label} pending — ${official.reason}${
         official.firstRound ? ` (${official.firstRound})` : ""
       }`
     );
     return { status: matchups.length ? "announced" : "pending" };
+  }
+
+  try {
+    assertDrawBelongsToTournament(
+      {
+        provider_id: event.provider_id,
+        tour: event.tour,
+      },
+      {
+        provider_id: event.provider_id,
+        tour: event.tour,
+      }
+    );
+  } catch (err) {
+    log.push(
+      `${label} identity assert failed: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+    await admin.from("ops_events").insert({
+      kind: "ingest",
+      name: "draw_identity_reject",
+      payload: { slug: event.slug, error: String(err) },
+    });
+    return { status: "pending" };
+  }
+
+  if ((official as { source?: string }).source === "first-round") {
+    log.push(`${label} rejected fixture-sourced draw`);
+    return { status: matchups.length ? "announced" : "pending" };
+  }
+
+  // Never publish a non-eligible draw unless force_on already made it eligible.
+  if (!event.bracket_eligible) {
+    log.push(`${label} draw held — not bracket_eligible (ingest only)`);
+    // Still store seats for coverage, but apply-draw will refuse published_at
+    // when integrity sees bracket_eligible false.
   }
 
   const built = overlayOfficialDraw(official.seats, fixtures, {
@@ -572,6 +703,52 @@ async function loadProviderMaps(
   return { players, matches };
 }
 
+async function loadMatchSides(
+  admin: ReturnType<typeof createClient>,
+  tournamentId: string
+) {
+  const { data: matchRows } = await admin
+    .from("matches")
+    .select(
+      "id, round, index_in_round, provider_match_id, side_a_player_id, side_b_player_id"
+    )
+    .eq("tournament_id", tournamentId);
+
+  const playerIds = [
+    ...new Set(
+      (matchRows ?? [])
+        .flatMap((m) => [m.side_a_player_id, m.side_b_player_id])
+        .filter(Boolean) as string[]
+    ),
+  ];
+  const providerByUuid = new Map<string, string>();
+  if (playerIds.length) {
+    const { data: people } = await admin
+      .from("players")
+      .select("id, provider_id")
+      .in("id", playerIds);
+    for (const p of people ?? []) {
+      if (p.provider_id) providerByUuid.set(String(p.id), String(p.provider_id));
+    }
+  }
+
+  return (matchRows ?? []).map((m) => ({
+    match_id: m.id as string,
+    match_key: `r${m.round}-m${m.index_in_round}`,
+    round: Number(m.round),
+    index_in_round: Number(m.index_in_round),
+    provider_match_id: m.provider_match_id
+      ? String(m.provider_match_id)
+      : null,
+    side_a_provider_id: m.side_a_player_id
+      ? providerByUuid.get(String(m.side_a_player_id)) ?? null
+      : null,
+    side_b_provider_id: m.side_b_player_id
+      ? providerByUuid.get(String(m.side_b_player_id)) ?? null
+      : null,
+  }));
+}
+
 async function syncEventResults(
   admin: ReturnType<typeof createClient>,
   rapid: ReturnType<typeof createRapid>,
@@ -584,8 +761,9 @@ async function syncEventResults(
   log: string[]
 ): Promise<{ ingested: number }> {
   const maps = await loadProviderMaps(admin, event.id);
-  if (Object.keys(maps.matches).length === 0) {
-    log.push(`${event.slug} no match map yet`);
+  const matchSides = await loadMatchSides(admin, event.id);
+  if (matchSides.length === 0) {
+    log.push(`${event.slug} no match tree yet`);
     return { ingested: 0 };
   }
 
@@ -603,7 +781,29 @@ async function syncEventResults(
     matches: maps.matches,
   };
 
+  // Prefer pair+round binding; fall back to fixture-id map.
+  const bound = bindResultsByPlayerPair(
+    (singles ?? []) as Parameters<typeof bindResultsByPlayerPair>[0],
+    matchSides,
+    maps.players
+  );
   const mapped = mapResultsToIngest(singles ?? [], mapping);
+
+  // Apply provider_match_id bindings discovered via pair match.
+  if (!env.dryRun) {
+    for (const b of bound.bindings) {
+      const parsed = b.match_key.match(/^r(\d+)-m(\d+)$/);
+      if (!parsed) continue;
+      await admin
+        .from("matches")
+        .update({ provider_match_id: b.provider_match_id })
+        .eq("tournament_id", event.id)
+        .eq("round", Number(parsed[1]))
+        .eq("index_in_round", Number(parsed[2]))
+        .is("provider_match_id", null);
+    }
+  }
+
   const liveMapped = mapLiveFinishedToIngest(
     liveEvents.filter((row) => {
       const rec =
@@ -617,28 +817,148 @@ async function syncEventResults(
     mapping
   );
 
-  const results = [...mapped.results, ...liveMapped.results].map((r) => ({
-    match_key: r.match_key,
-    winner_provider_id: r.winner_ref,
-    winner_ref: r.winner_ref,
-    voided: r.voided,
-  }));
+  // Merge: pair-bound wins, then id-mapped, then live.
+  const byKey = new Map<
+    string,
+    {
+      match_key: string;
+      winner_provider_id?: string | null;
+      winner_ref: string | null;
+      voided: boolean;
+      provider_match_id?: string;
+    }
+  >();
+  for (const r of mapped.results) {
+    byKey.set(r.match_key, {
+      match_key: r.match_key,
+      winner_ref: r.winner_ref,
+      winner_provider_id: r.winner_ref,
+      voided: r.voided,
+    });
+  }
+  for (const r of bound.results) {
+    byKey.set(r.match_key, {
+      match_key: r.match_key,
+      winner_ref: r.winner_ref,
+      winner_provider_id: r.winner_provider_id,
+      voided: r.voided,
+    });
+  }
+  for (const r of liveMapped.results) {
+    if (!byKey.has(r.match_key)) {
+      byKey.set(r.match_key, {
+        match_key: r.match_key,
+        winner_ref: r.winner_ref,
+        winner_provider_id: r.winner_ref,
+        voided: r.voided,
+      });
+    }
+  }
+
+  const results = [...byKey.values()];
 
   log.push(
-    `${event.slug} results mapped=${mapped.results.length} live=${liveMapped.results.length}`
+    `${event.slug} results bound=${bound.results.length} mapped=${mapped.results.length} live=${liveMapped.results.length}`
   );
+
+  // EventMapper for active R0/live-capable matches (REST trigger only).
+  await refreshEventMap(admin, rapid, event, matchSides, liveEvents, log);
 
   if (!results.length || env.dryRun) {
     return { ingested: 0 };
   }
 
-  const result = await applyMatchResults(admin, event.id, results, log);
+  const { data: runRow, error: runErr } = await admin
+    .from("sync_repair_runs")
+    .insert({
+      kind: "reconcile",
+      tournament_id: event.id,
+      status: "running",
+      summary: { slug: event.slug },
+    })
+    .select("id")
+    .maybeSingle();
+  if (runErr) log.push(`repair run: ${runErr.message}`);
+  const runId = runRow?.id ? String(runRow.id) : null;
+
+  const result = await applyMatchResults(admin, event.id, results, log, {
+    runId,
+  });
+  if (runId) {
+    await admin
+      .from("sync_repair_runs")
+      .update({
+        finished_at: new Date().toISOString(),
+        status: result.ok ? "ok" : "error",
+        summary: {
+          slug: event.slug,
+          updated: result.ok ? result.updated : 0,
+          advanced: result.ok ? result.advanced : 0,
+          error: result.ok ? null : result.error,
+        },
+      })
+      .eq("id", runId);
+  }
   if (!result.ok) {
     log.push(`ingest-events failed: ${result.error}`);
     throw new Error(`ingest-events failed: ${result.error}`);
   }
   log.push(
-    `ingest-events ok updated=${result.updated} skipped=${result.skipped.length}`
+    `ingest-events ok updated=${result.updated} advanced=${result.advanced ?? 0} skipped=${result.skipped.length} run=${runId ?? "none"}`
   );
   return { ingested: results.length };
+}
+
+async function refreshEventMap(
+  admin: ReturnType<typeof createClient>,
+  rapid: ReturnType<typeof createRapid>,
+  event: SyncedEvent,
+  matchSides: Awaited<ReturnType<typeof loadMatchSides>>,
+  liveEvents: unknown[],
+  log: string[]
+) {
+  let mapped = 0;
+  let missed = 0;
+  for (const m of matchSides) {
+    if (m.round > 2) continue; // focus near-term rounds
+    if (!m.side_a_provider_id || !m.side_b_provider_id) continue;
+    try {
+      const resolved = await resolveLiveEvent(
+        {
+          player1Id: m.side_a_provider_id,
+          player2Id: m.side_b_provider_id,
+          providerTournamentId: event.provider_id,
+        },
+        liveEvents,
+        // Prefer live list; event/get only when no live hit (rate-limit safe).
+        liveEvents.length === 0
+          ? { eventGet: (q) => getExtendEvent(rapid, q) }
+          : {}
+      );
+      await admin.from("event_map").upsert(
+        {
+          tournament_id: event.id,
+          match_id: m.match_id,
+          pair_key: resolved.pair_key,
+          socket_event_id: resolved.socket_event_id,
+          status: resolved.status,
+          confidence: resolved.confidence,
+          method: resolved.method,
+          mapped_at: new Date().toISOString(),
+          expires_at: resolved.expires_at,
+        },
+        { onConflict: "tournament_id,pair_key" }
+      );
+      if (resolved.status === "mapped") mapped += 1;
+      else missed += 1;
+    } catch (err) {
+      missed += 1;
+      log.push(
+        `evmap ${m.match_key}: ${err instanceof Error ? err.message : err}`
+      );
+    }
+  }
+  if (mapped || missed) {
+    log.push(`${event.slug} event_map mapped=${mapped} miss=${missed}`);
+  }
 }

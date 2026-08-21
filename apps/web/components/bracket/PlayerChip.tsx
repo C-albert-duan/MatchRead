@@ -1,3 +1,8 @@
+/**
+ * Sole renderer for seed / display name / country / entry on bracket seats.
+ * Disambiguation relies on seed + country always being present when the
+ * integrity gate allowed duplicate surnames.
+ */
 "use client";
 
 import type { SlotOccupant } from "@matchread/core";
@@ -19,7 +24,15 @@ type Props = {
 
 function labelFor(
   occupant: SlotOccupant,
-  t: (key: "bracket.notPlayed" | "draw.tbd" | "draw.entry.wc" | "draw.entry.pr") => string
+  t: (
+    key:
+      | "bracket.notPlayed"
+      | "draw.tbd"
+      | "draw.entry.wc"
+      | "draw.entry.pr"
+      | "draw.entry.q"
+      | "draw.entry.ll"
+  ) => string
 ): {
   text: string;
   seed: string;
@@ -34,7 +47,11 @@ function labelFor(
           ? t("draw.entry.wc")
           : occupant.entryStatus === "pr"
             ? t("draw.entry.pr")
-            : "";
+            : occupant.entryStatus === "q"
+              ? t("draw.entry.q")
+              : occupant.entryStatus === "ll"
+                ? t("draw.entry.ll")
+                : "";
       return {
         text: occupant.lastName,
         seed: occupant.seed != null ? String(occupant.seed) : "",

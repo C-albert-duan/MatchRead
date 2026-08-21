@@ -161,20 +161,19 @@ export default async function TournamentInLeaguePage({ params }: Props) {
     ? await loadBracketPicksMap(supabase, bracket.id)
     : {};
 
-  // Show the sheet whenever seats exist — live/locked never hides it.
-  const hasSheet = seats.length > 0;
   const drawSize = effectiveDrawSize(
     seats.length,
     Number(tournament.draw_size) || 0
   );
-  const official = isOfficialPublicDraw(seats, drawSize);
+  // Official sheet only — partial/non-fact seats must not open the full bracket.
+  const hasSheet = isOfficialPublicDraw(seats, drawSize);
   const locked = isTournamentLocked({
     lock_at: tournament.lock_at,
     admin_locked_at: null,
     league_locked_at: leagueLockedAt,
-    hasOfficialDraw: official || hasSheet,
+    hasOfficialDraw: hasSheet,
   });
-  const hasDraw = hasSheet || Boolean(tournament.published_at);
+  const hasDraw = hasSheet;
 
   const officialResults: OfficialResults = {};
   for (const [key, row] of Object.entries(officialMap)) {

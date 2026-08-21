@@ -3,6 +3,8 @@
  * Slot order comes from the draw. Names/byes/TBD are copied, never invented.
  */
 
+import { canonicalizeDisplayName, auxiliaryLastName } from "../normalize.js";
+
 function fold(value) {
   return String(value || "")
     .toLowerCase()
@@ -13,13 +15,6 @@ function fold(value) {
 
 function slug(last) {
   return fold(last).replace(/^-|-$/g, "") || "player";
-}
-
-function lastToken(value) {
-  const parts = String(value || "")
-    .split(/[\s,]+/)
-    .filter(Boolean);
-  return parts[parts.length - 1] || "";
 }
 
 function unwrap(raw) {
@@ -138,7 +133,27 @@ function parseEntry(raw, name) {
   const blob = `${raw ?? ""} ${name ?? ""}`.toLowerCase();
   if (/\bwc\b|wild\s*card|wildcard/.test(blob)) return "wc";
   if (/\bpr\b|protected/.test(blob)) return "pr";
+  if (/\bll\b|lucky\s*loser/.test(blob)) return "ll";
+  if (/\bq\b|qualif/.test(blob) && !/quarter/.test(blob)) return "q";
+  // seed1/seed2 sometimes is the tag string itself
+  const tag = String(raw ?? "").trim().toUpperCase();
+  if (tag === "WC") return "wc";
+  if (tag === "PR") return "pr";
+  if (tag === "LL") return "ll";
+  if (tag === "Q") return "q";
   return null;
+}
+
+/** seed1/seed2 is a union: numeric seed OR entry tag. */
+export function parseSeedOrEntry(raw) {
+  if (raw == null || raw === "") {
+    return { seed: null, entry: null };
+  }
+  const asStr = String(raw).trim();
+  const entry = parseEntry(asStr, "");
+  if (entry) return { seed: null, entry };
+  const seed = parseSeed(asStr);
+  return { seed, entry: null };
 }
 
 function personFromUnknown(raw, seedHint, entryHint) {
@@ -151,14 +166,19 @@ function personFromUnknown(raw, seedHint, entryHint) {
       return { kind: "bye" };
     }
     if (isTbdName(name)) return { kind: "tbd", last_name: "Qualifier" };
+    const seedEntry = parseSeedOrEntry(seedHint);
+    const entryFromHint = parseEntry(entryHint, name);
+    const canon = canonicalizeDisplayName(name);
     return {
       kind: "player",
-      last_name: lastToken(name),
+      last_name: canon.lastName,
+      display_name: canon.displayName,
       given_name: name.split(/\s+/)[0] || null,
-      seed: parseSeed(seedHint),
+      seed: seedEntry.seed,
       country_code: "XXX",
-      entry_status: parseEntry(entryHint, name),
+      entry_status: entryFromHint || seedEntry.entry,
       provider_player_id: null,
+      fallback_formatted: canon.fallback,
     };
   }
   if (raw.isBye === true || raw.bye === true || raw.is_bye === true) {
@@ -167,8 +187,12 @@ function personFromUnknown(raw, seedHint, entryHint) {
   const name = String(
     raw.name ?? raw.fullName ?? raw.lastName ?? raw.playerName ?? ""
   ).trim();
-  const last =
-    String(raw.lastName ?? raw.last_name ?? "").trim() || lastToken(name);
+  const providedLast = String(raw.lastName ?? raw.last_name ?? "").trim();
+  const canon = canonicalizeDisplayName(name || providedLast);
+  const last = providedLast
+    ? auxiliaryLastName(providedLast) || providedLast
+    : canon.lastName;
+  const displayName = name ? canon.displayName : providedLast || canon.displayName;
   const id = String(raw.id ?? raw.playerId ?? raw.player_id ?? "").trim();
   if (
     isByeName(name) ||
@@ -180,9 +204,16 @@ function personFromUnknown(raw, seedHint, entryHint) {
   }
   if (!name && !last && !id) return { kind: "tbd", last_name: "Qualifier" };
   if (isTbdName(name) || isTbdName(last) || raw.tbd === true) {
-    return { kind: "tbd", last_name: last || "Qualifier" };
+    const entry = parseEntry(raw.entry ?? raw.entryStatus ?? entryHint, name);
+    return {
+      kind: "tbd",
+      last_name: last || (entry === "ll" ? "Lucky Loser" : "Qualifier"),
+      entry_status: entry,
+    };
   }
-  if (!last || /^player\d*$/i.test(last)) return { kind: "tbd", last_name: "Qualifier" };
+  if (!last || /^player\d*$/i.test(last)) {
+    return { kind: "tbd", last_name: "Qualifier" };
+  }
   const given =
     String(raw.firstName ?? raw.given_name ?? "").trim() ||
     name.split(/\s+/).filter(Boolean)[0] ||
@@ -190,14 +221,21 @@ function personFromUnknown(raw, seedHint, entryHint) {
   const country = String(raw.countryAcr ?? raw.country ?? raw.countryCode ?? "XXX")
     .slice(0, 3)
     .toUpperCase();
+  const fromSeedField = parseSeedOrEntry(raw.seed ?? raw.seeding ?? seedHint);
+  const fromEntryField = parseEntry(
+    raw.entry ?? raw.entryStatus ?? entryHint,
+    name
+  );
   return {
     kind: "player",
     last_name: last,
+    display_name: displayName,
     given_name: given,
-    seed: parseSeed(raw.seed ?? raw.seeding ?? seedHint),
+    seed: fromSeedField.seed ?? parseSeed(raw.seed ?? raw.seeding ?? seedHint),
     country_code: /^[A-Z]{3}$/.test(country) ? country : "XXX",
-    entry_status: parseEntry(raw.entry ?? raw.entryStatus ?? entryHint, name),
+    entry_status: fromEntryField || fromSeedField.entry,
     provider_player_id: id || null,
+    fallback_formatted: !name && Boolean(providedLast),
   };
 }
 
@@ -324,6 +362,7 @@ function toSeat(person, position, prefix) {
     position,
     player_ref: `${prefix}-${position}-${slug(person.last_name)}`,
     last_name: person.last_name,
+    display_name: person.display_name || person.last_name,
     given_name: person.given_name,
     seed: person.seed,
     country_code: person.country_code,
@@ -331,6 +370,7 @@ function toSeat(person, position, prefix) {
     seat_kind: "player",
     entry_status: person.entry_status,
     provider_player_id: person.provider_player_id,
+    fallback_formatted: Boolean(person.fallback_formatted),
   };
 }
 

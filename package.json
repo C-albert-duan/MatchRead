@@ -19,6 +19,8 @@
     "reconcile:results": "node scripts/reconcile-results.mjs",
     "sync:lock-at": "node scripts/sync-lock-at.mjs",
     "publish:draws": "node scripts/publish-draws.mjs",
+    "preflight:trust": "node scripts/preflight-trust-boundary.mjs",
+    "tennis:verify": "node scripts/tennis-verify.mjs",
     "test:provider": "npm run test -w @matchread/provider-rapidapi",
     "test:db": "npx supabase test db"
   }

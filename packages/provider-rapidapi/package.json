@@ -14,6 +14,6 @@
   "scripts": {
     "lint": "node -e \"console.log('provider-rapidapi lint ok')\"",
     "typecheck": "node -e \"console.log('provider-rapidapi typecheck skipped (js)')\"",
-    "test": "node --test src/map.test.js"
+    "test": "node --test src/map.test.js src/architecture.test.js src/normalize.test.js src/rehearsal.test.js"
   }
 }

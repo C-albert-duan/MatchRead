@@ -38,6 +38,7 @@ export default async function FounderPage() {
     resultsRes,
     lastGradedRes,
     opsRes,
+    replacementsRes,
   ] = await Promise.all([
     supabase.from("leagues").select("*", { count: "exact", head: true }),
     supabase.from("members").select("*", { count: "exact", head: true }),
@@ -65,6 +66,13 @@ export default async function FounderPage() {
       .select("id, created_at, kind, name, payload")
       .order("created_at", { ascending: false })
       .limit(25),
+    supabase
+      .from("draw_replacements")
+      .select(
+        "id, detected_at, change_kind, position, old_provider_player_id, new_provider_player_id, tournament_id, tournaments(slug, name)"
+      )
+      .order("detected_at", { ascending: false })
+      .limit(15),
   ]);
 
   const loadError =
@@ -74,7 +82,8 @@ export default async function FounderPage() {
     gradedRes.error ||
     resultsRes.error ||
     lastGradedRes.error ||
-    opsRes.error;
+    opsRes.error ||
+    replacementsRes.error;
 
   const fmt = (count: number | null | undefined, err: unknown) =>
     err || count == null ? "—" : String(count);
@@ -121,6 +130,15 @@ export default async function FounderPage() {
           <p className="eyebrow">{t("founder.eyebrow")}</p>
           <h1 className="t-page-title">{t("founder.title")}</h1>
           <p className="t-lead">{t("founder.lede")}</p>
+          <p>
+            <Link href="/founder/integrity" className="text-link">
+              {t("founder.link.integrity")}
+            </Link>
+            {" · "}
+            <Link href="/founder/disruption" className="text-link">
+              {t("founder.link.disruption")}
+            </Link>
+          </p>
         </div>
 
         {loadError ? (
@@ -167,6 +185,34 @@ export default async function FounderPage() {
             </ul>
           ) : (
             <p className="t-body">{t("founder.ops.empty")}</p>
+          )}
+        </section>
+
+        <section className="stack gap-md" aria-labelledby="draw-replacements">
+          <h2 id="draw-replacements" className="section-title">
+            {t("founder.replacements.title")}
+          </h2>
+          {replacementsRes.data && replacementsRes.data.length > 0 ? (
+            <ul className="stack gap-sm">
+              {replacementsRes.data.map((row) => {
+                const tour = Array.isArray(row.tournaments)
+                  ? row.tournaments[0]
+                  : row.tournaments;
+                return (
+                  <li key={row.id} className="t-body">
+                    <span className="eyebrow">{row.change_kind}</span>{" "}
+                    <span className="numeral">
+                      {new Date(row.detected_at).toISOString()}
+                    </span>{" "}
+                    {tour?.slug ?? row.tournament_id} slot {row.position}:{" "}
+                    {row.old_provider_player_id ?? "—"} →{" "}
+                    {row.new_provider_player_id ?? "—"}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="t-body">{t("founder.replacements.empty")}</p>
           )}
         </section>
 

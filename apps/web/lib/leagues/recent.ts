@@ -90,7 +90,7 @@ export async function loadRecentLeagueActivity(
   const [tournamentRes, myBracketRes, settledRes] = await Promise.all([
     supabase
       .from("tournaments")
-      .select("id, slug, name, published_at")
+      .select("id, slug, name, published_at, draw_size")
       .eq("id", tournamentId)
       .maybeSingle(),
     picked
@@ -136,7 +136,11 @@ export async function loadRecentLeagueActivity(
           id: tournament.id,
           ref: tournament.slug,
           name: tournament.name,
-          hasDraw: Boolean(tournament.published_at),
+          hasDraw: Boolean(
+            tournament.published_at &&
+              tournament.draw_size &&
+              (tournament.draw_size & (tournament.draw_size - 1)) === 0
+          ),
         }
       : null,
     submittedAt: picked?.submitted_at ?? null,

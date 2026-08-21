@@ -1,8 +1,10 @@
 // supabase/functions/_shared/apply-results.ts
 // Apply official match results into matches (used by sync-facts).
+// Advances winners into parent match sides (idempotent).
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { parseMatchKey } from "./core.js";
+import { advanceWinnerToParent } from "./rapidapi.js";
 
 export type MatchResultIn = {
   match_id?: string;
@@ -17,6 +19,7 @@ export type MatchResultIn = {
 export type ApplyMatchResultsOk = {
   ok: true;
   updated: number;
+  advanced: number;
   skipped: { reason: string; id?: string }[];
   log: string[];
 };
@@ -29,7 +32,8 @@ export async function applyMatchResults(
   admin: SupabaseClient,
   tournamentId: string,
   results: MatchResultIn[],
-  log: string[] = []
+  log: string[] = [],
+  opts: { runId?: string | null } = {}
 ): Promise<ApplyMatchResultsResult> {
   const id = tournamentId?.trim();
   if (!id || results.length === 0) {
@@ -43,9 +47,24 @@ export async function applyMatchResults(
   const now = new Date().toISOString();
   const playerCache = new Map<string, string>();
   let updated = 0;
+  let advanced = 0;
   const skipped: { reason: string; id?: string }[] = [];
+  const runId = opts.runId ?? null;
 
-  for (const r of results) {
+  // Round-ordered: settle lower rounds first so parent sides exist.
+  const ordered = [...results].sort((a, b) => {
+    const ka = a.match_key || "";
+    const kb = b.match_key || "";
+    const pa = parseMatchKey(ka);
+    const pb = parseMatchKey(kb);
+    if (pa && pb) {
+      if (pa.round !== pb.round) return pa.round - pb.round;
+      return pa.indexInRound - pb.indexInRound;
+    }
+    return ka.localeCompare(kb);
+  });
+
+  for (const r of ordered) {
     const match = await findMatch(admin, id, r);
     if (!match) {
       skipped.push({
@@ -54,6 +73,13 @@ export async function applyMatchResults(
       });
       continue;
     }
+
+    const before = {
+      winner_player_id: match.winner_player_id,
+      voided: match.voided,
+      side_a_player_id: match.side_a_player_id,
+      side_b_player_id: match.side_b_player_id,
+    };
 
     const voided = Boolean(r.voided);
     let winnerId: string | null = null;
@@ -70,6 +96,17 @@ export async function applyMatchResults(
             reason: "no winner id",
             id: match.id,
           });
+          if (runId) {
+            await admin.from("ops_events").insert({
+              kind: "reconcile",
+              name: "terminal_without_winner",
+              payload: {
+                tournament_id: id,
+                match_key: r.match_key,
+                match_id: match.id,
+              },
+            });
+          }
           continue;
         }
         winnerId = await resolvePlayerId(admin, providerId, playerCache);
@@ -105,6 +142,18 @@ export async function applyMatchResults(
       }
     }
 
+    if (r.provider_match_id && !match.provider_match_id) {
+      patch.provider_match_id = String(r.provider_match_id);
+    }
+
+    const unchanged =
+      before.winner_player_id === (patch.winner_player_id ?? null) &&
+      Boolean(before.voided) === voided;
+    if (unchanged && !patch.side_a_player_id && !patch.side_b_player_id) {
+      skipped.push({ reason: "already settled", id: match.id });
+      continue;
+    }
+
     const { error } = await admin
       .from("matches")
       .update(patch)
@@ -114,10 +163,84 @@ export async function applyMatchResults(
       return { ok: false, error: error.message, log };
     }
     updated += 1;
+
+    if (runId) {
+      await admin.from("sync_repairs").insert({
+        run_id: runId,
+        tournament_id: id,
+        match_key: r.match_key || matchKeyOf(match),
+        provider_match_id: r.provider_match_id
+          ? String(r.provider_match_id)
+          : match.provider_match_id,
+        before,
+        after: patch,
+        note: voided ? "voided" : "winner",
+      });
+    }
+
+    if (!voided && winnerId) {
+      const did = await writeWinnerIntoParent(
+        admin,
+        id,
+        match.round,
+        match.index_in_round,
+        winnerId,
+        now
+      );
+      if (did) advanced += 1;
+    }
   }
 
-  log.push(`applied ${updated} results, skipped ${skipped.length}`);
-  return { ok: true, updated, skipped, log };
+  log.push(
+    `applied ${updated} results, advanced ${advanced}, skipped ${skipped.length}`
+  );
+  return { ok: true, updated, advanced, skipped, log };
+}
+
+function matchKeyOf(match: {
+  round: number;
+  index_in_round: number;
+}): string {
+  return `r${match.round}-m${match.index_in_round}`;
+}
+
+async function writeWinnerIntoParent(
+  admin: SupabaseClient,
+  tournamentId: string,
+  round: number,
+  indexInRound: number,
+  winnerId: string,
+  now: string
+): Promise<boolean> {
+  const parent = advanceWinnerToParent(round, indexInRound, winnerId);
+  if (!parent) return false;
+
+  const { data: parentRow, error } = await admin
+    .from("matches")
+    .select("id, side_a_player_id, side_b_player_id, winner_player_id")
+    .eq("tournament_id", tournamentId)
+    .eq("round", parent.round)
+    .eq("index_in_round", parent.indexInRound)
+    .maybeSingle();
+  if (error || !parentRow) return false;
+
+  const col = parent.sideColumn as "side_a_player_id" | "side_b_player_id";
+  const current = parentRow[col];
+  if (current === winnerId) return false;
+
+  // Do not overwrite a different already-settled occupant unless empty.
+  if (current && parentRow.winner_player_id) return false;
+
+  const { error: upErr } = await admin
+    .from("matches")
+    .update({ [col]: winnerId })
+    .eq("id", parentRow.id);
+  if (upErr) return false;
+
+  // Bye auto-settle if the other side is already a bye-settled winner path —
+  // not applicable here; bye handling is at topology build.
+  void now;
+  return true;
 }
 
 async function findMatch(
@@ -130,13 +253,20 @@ async function findMatch(
   }
 ): Promise<{
   id: string;
+  round: number;
+  index_in_round: number;
   side_a_player_id: string | null;
   side_b_player_id: string | null;
+  provider_match_id: string | null;
+  winner_player_id: string | null;
+  voided: boolean | null;
 } | null> {
+  const cols =
+    "id, round, index_in_round, side_a_player_id, side_b_player_id, provider_match_id, winner_player_id, voided";
   if (r.match_id) {
     const { data } = await admin
       .from("matches")
-      .select("id, side_a_player_id, side_b_player_id")
+      .select(cols)
       .eq("id", r.match_id)
       .eq("tournament_id", tournamentId)
       .maybeSingle();
@@ -146,7 +276,7 @@ async function findMatch(
   if (r.provider_match_id) {
     const { data } = await admin
       .from("matches")
-      .select("id, side_a_player_id, side_b_player_id")
+      .select(cols)
       .eq("tournament_id", tournamentId)
       .eq("provider_match_id", String(r.provider_match_id))
       .maybeSingle();
@@ -158,7 +288,7 @@ async function findMatch(
     if (!parsed) return null;
     const { data } = await admin
       .from("matches")
-      .select("id, side_a_player_id, side_b_player_id")
+      .select(cols)
       .eq("tournament_id", tournamentId)
       .eq("round", parsed.round)
       .eq("index_in_round", parsed.indexInRound)

@@ -242,7 +242,8 @@ export declare function resolveOfficialSeats(
     starts_on?: string | null;
     draw_size?: number;
   },
-  fixtures?: unknown[]
+  fixtures?: unknown[],
+  opts?: { allowFixtureDraw?: boolean }
 ): Promise<
   | { ok: true; drawSize: number; seats: OfficialDrawSeat[]; source: string }
   | { ok: false; reason: string; firstRound?: string; pairs?: number }
@@ -320,3 +321,231 @@ export declare function mapResultsToIngest(
 };
 
 export declare function backoffMs(attempt: number): number;
+
+export declare function validateOfficialSeats(seats: unknown[]):
+  | { ok: true; drawSize: number }
+  | { ok: false; reason: string };
+
+export declare function hashDrawSeats(seats: unknown[]): Promise<string>;
+
+export declare function diffDrawSeats(
+  prevSeats: unknown[],
+  nextSeats: unknown[]
+): Array<{
+  position: number;
+  change_kind: string;
+  old_provider_player_id: string | null;
+  new_provider_player_id: string | null;
+  old_kind: string;
+  new_kind: string;
+}>;
+
+export declare function drawPollIntervalMs(input?: {
+  now?: Date;
+  lock_at?: string | null;
+  starts_on?: string | null;
+  hasDraw?: boolean;
+  tbdCount?: number;
+}): number;
+
+export declare function shouldPollDraw(input?: {
+  now?: Date;
+  lock_at?: string | null;
+  starts_on?: string | null;
+  hasDraw?: boolean;
+  tbdCount?: number;
+  draw_checked_at?: string | null;
+}): boolean;
+
+export declare function parentMatchKey(
+  round: number,
+  indexInRound: number
+): {
+  round: number;
+  indexInRound: number;
+  side: "a" | "b";
+  key: string;
+};
+
+export declare function advanceWinnerToParent(
+  round: number,
+  indexInRound: number,
+  winnerPlayerId: string
+): {
+  round: number;
+  indexInRound: number;
+  side: "a" | "b";
+  key: string;
+  winnerPlayerId: string;
+  sideColumn: "side_a_player_id" | "side_b_player_id";
+} | null;
+
+export declare function bindResultsByPlayerPair(
+  rows: ProviderMatchResult[],
+  matchSides: Array<{
+    match_key: string;
+    round: number;
+    index_in_round: number;
+    side_a_provider_id: string | null;
+    side_b_provider_id: string | null;
+    provider_match_id?: string | null;
+  }>,
+  players?: Record<string, string>
+): {
+  results: Array<{
+    match_key: string;
+    winner_ref: string | null;
+    winner_provider_id: string | null;
+    voided: boolean;
+  }>;
+  skipped: { id: string; reason: string }[];
+  bindings: Array<{ match_key: string; provider_match_id: string }>;
+};
+
+export declare function normalizePairKey(
+  playerA: string,
+  playerB: string
+): string;
+
+export declare function resolveLiveEvent(
+  fixture: {
+    player1Id: string;
+    player2Id: string;
+    providerTournamentId?: string;
+    scheduledDate?: string | null;
+  },
+  liveEvents?: unknown[],
+  apis?: { eventGet?: (q: object) => Promise<unknown> }
+): Promise<{
+  pair_key: string;
+  socket_event_id: string | null;
+  status: "mapped" | "not_found" | "ambiguous" | "stale";
+  confidence: "high" | "medium" | "low";
+  method: string | null;
+  expires_at: string;
+}>;
+
+export declare function getExtendEvent(
+  client: { get: (path: string) => Promise<any> },
+  query: { player1?: string; player2?: string; date?: string }
+): Promise<unknown>;
+
+export declare function createLiveSessionState(): {
+  state: string;
+  desiredEventIds: Set<string>;
+  joinedEventIds: Set<string>;
+  lastRestSyncAt: string | null;
+  lastSocketMessageAt: string | null;
+  reconnectCount: number;
+  allowJoin: boolean;
+};
+
+export declare function onSocketDisconnect(session: {
+  state: string;
+  allowJoin: boolean;
+  joinedEventIds: Set<string>;
+  reconnectCount: number;
+}): unknown;
+
+export declare function reconcileThenResume(
+  session: { state: string; allowJoin: boolean; lastRestSyncAt: string | null },
+  restSweep: () => Promise<void>
+): Promise<unknown>;
+
+export declare function subscriptionDiff(session: {
+  allowJoin: boolean;
+  desiredEventIds: Set<string>;
+  joinedEventIds: Set<string>;
+}): { toJoin: string[]; toLeave: string[] };
+
+export declare function isSilentSubscription(
+  session: {
+    joinedEventIds: Set<string>;
+    lastSocketMessageAt: string | null;
+    lastRestSyncAt: string | null;
+  },
+  silentMs?: number,
+  now?: number
+): boolean;
+
+export declare const LiveConnectionState: Record<string, string>;
+
+export declare function parseSeedOrEntry(raw: unknown): {
+  seed: number | null;
+  entry: "wc" | "pr" | "q" | "ll" | null;
+};
+
+export declare const PUBLIC_TIERS: readonly string[];
+export declare const ALL_TIERS: readonly string[];
+export declare class UnknownProviderValue extends Error {
+  field: string;
+  raw: unknown;
+  constructor(field: string, raw: unknown);
+}
+export declare function parseTour(
+  tour: string | null | undefined
+): "atp" | "wta" | null;
+export declare function requireTour(
+  tour: string | null | undefined
+): "atp" | "wta";
+export declare function normalizeTier(
+  category: string | null | undefined,
+  type?: string | null | undefined
+): { tier: string; alert?: string };
+export declare function isBracketProduct(
+  tour: string | null | undefined,
+  tier: string | null | undefined,
+  override?: "force_on" | "force_off" | null
+): boolean;
+export declare function normalizeSurface(
+  raw: unknown
+): "hard" | "clay" | "grass" | "carpet" | null;
+export declare function normalizeEnvironment(
+  raw: unknown
+): "outdoor" | "indoor" | null;
+export declare function auxiliaryLastName(
+  full: string | null | undefined
+): string;
+export declare function canonicalizeDisplayName(
+  full: string | null | undefined,
+  opts?: { familyNameFirst?: boolean }
+): { displayName: string; lastName: string; fallback: boolean };
+export declare function canAdvanceWinner(
+  outcome: string | null | undefined,
+  winnerId: string | null | undefined
+): boolean;
+export declare function assertDrawBelongsToTournament(
+  draw: {
+    providerTournamentId?: string | null;
+    provider_id?: string | null;
+    tour?: string | null;
+    providerSeasonId?: string | null;
+  },
+  tournament: {
+    provider_id?: string | null;
+    providerTournamentId?: string | null;
+    tour?: string | null;
+    provider_season_id?: string | null;
+  }
+): void;
+export declare function evaluateDrawIntegrity(input: {
+  seats: unknown[];
+  tournament?: {
+    tour?: string;
+    provider_id?: string;
+    surface?: string | null;
+    bracket_eligible?: boolean | null;
+    draw_checked_at?: string | null;
+  };
+  drawTour?: string | null;
+  drawProviderId?: string | null;
+  source?: string | null;
+  sourceSnapshotId?: string | null;
+}): {
+  safeToPublish: boolean;
+  blockingErrors: { code: string; message: string; seat?: number }[];
+  warnings: { code: string; message: string; seat?: number }[];
+  checkedAt: string;
+  sourceSnapshotId?: string | null;
+};
+

@@ -137,6 +137,21 @@ const en = {
   "founder.note.noServiceRole":
     "No service-role key in the browser or Next public env. Writes use the signed-in session and existing RLS.",
   "founder.link.disruption": "Draw disruption / void",
+  "founder.link.integrity": "Draw integrity & repairs",
+  "founder.integrity.title": "Draw integrity",
+  "founder.integrity.lede":
+    "Publication is gated. Blocking errors keep a draw pending; repair runs show what reconcile changed.",
+  "founder.integrity.killSwitch":
+    "Incident kill switch: update tournaments set product_override = 'force_off' where slug = '…';",
+  "founder.integrity.back": "Back to founder health",
+  "founder.integrity.reports": "Integrity reports",
+  "founder.integrity.reportsEmpty": "No integrity reports yet.",
+  "founder.integrity.repairs": "Repair runs",
+  "founder.integrity.repairsEmpty": "No repair runs logged yet.",
+  "founder.integrity.alerts": "Integrity alerts",
+  "founder.integrity.alertsEmpty": "No integrity alerts yet.",
+  "founder.integrity.safe": "Safe",
+  "founder.integrity.blocked": "Blocked",
   "founder.stat.leagues": "Leagues",
   "founder.stat.members": "Members (approx)",
   "founder.stat.submitted": "Submitted brackets",
@@ -146,6 +161,8 @@ const en = {
   "founder.stat.none": "None yet",
   "founder.ops.title": "Errors and events",
   "founder.ops.empty": "Nothing captured yet. Open a public tournament page, then refresh this list.",
+  "founder.replacements.title": "Draw replacements",
+  "founder.replacements.empty": "No lucky-loser / withdrawal seat changes detected yet.",
   "founder.ops.kind.error": "Error",
   "founder.ops.kind.event": "Event",
 
@@ -344,6 +361,8 @@ const en = {
   "draw.tbd": "Qualifier / Lucky Loser",
   "draw.entry.wc": "WC",
   "draw.entry.pr": "PR",
+  "draw.entry.q": "Q",
+  "draw.entry.ll": "LL",
 
   // Settle
   "settle.run": "Run settlement",
@@ -497,7 +516,7 @@ const en = {
     "Anyone can find and read the standings. Members still hold their picks until the lock.",
   "create.tournament": "Which tournament",
   "create.tournament.hint.before":
-    "These are calendar events (US Open, etc.), not your existing leagues. This form always starts a",
+    "These are calendar events from the tour schedule, not your existing leagues. This form always starts a",
   "create.tournament.hint.new": "new",
   "create.tournament.hint.mid": "league. Your private leagues stay on",
   "create.tournament.hint.myLeagues": "My leagues",
@@ -679,6 +698,21 @@ const es: Record<MessageKey, string> = {
   "founder.note.noServiceRole":
     "Sin clave service-role en el navegador ni en env público de Next. Las escrituras usan la sesión y el RLS existente.",
   "founder.link.disruption": "Disrupción del cuadro / anulación",
+  "founder.link.integrity": "Integridad del cuadro y reparaciones",
+  "founder.integrity.title": "Integridad del cuadro",
+  "founder.integrity.lede":
+    "La publicación está condicionada. Los errores bloqueantes dejan el cuadro pendiente; las reparaciones muestran lo que reconcilió el sync.",
+  "founder.integrity.killSwitch":
+    "Apagado de incidente: update tournaments set product_override = 'force_off' where slug = '…';",
+  "founder.integrity.back": "Volver a salud del fundador",
+  "founder.integrity.reports": "Informes de integridad",
+  "founder.integrity.reportsEmpty": "Aún no hay informes de integridad.",
+  "founder.integrity.repairs": "Ejecuciones de reparación",
+  "founder.integrity.repairsEmpty": "Aún no hay ejecuciones de reparación.",
+  "founder.integrity.alerts": "Alertas de integridad",
+  "founder.integrity.alertsEmpty": "Aún no hay alertas de integridad.",
+  "founder.integrity.safe": "Seguro",
+  "founder.integrity.blocked": "Bloqueado",
   "founder.stat.leagues": "Ligas",
   "founder.stat.members": "Miembros (aprox.)",
   "founder.stat.submitted": "Cuadros enviados",
@@ -688,6 +722,8 @@ const es: Record<MessageKey, string> = {
   "founder.stat.none": "Todavía ninguno",
   "founder.ops.title": "Errores y eventos",
   "founder.ops.empty": "Aún no hay capturas. Abre una página pública de torneo y vuelve a esta lista.",
+  "founder.replacements.title": "Reemplazos en el cuadro",
+  "founder.replacements.empty": "Aún no se detectaron cambios de asiento (LL / baja).",
   "founder.ops.kind.error": "Error",
   "founder.ops.kind.event": "Evento",
 
@@ -892,6 +928,8 @@ const es: Record<MessageKey, string> = {
   "draw.tbd": "Clasificado / Lucky loser",
   "draw.entry.wc": "WC",
   "draw.entry.pr": "PR",
+  "draw.entry.q": "Q",
+  "draw.entry.ll": "LL",
 
   // Settle
   "settle.run": "Ejecutar settlement",
@@ -1046,7 +1084,7 @@ const es: Record<MessageKey, string> = {
     "Cualquiera puede encontrar y leer la clasificación. Los miembros guardan sus picks hasta el cierre.",
   "create.tournament": "Qué torneo",
   "create.tournament.hint.before":
-    "Estos son eventos del calendario (US Open, etc.), no tus ligas existentes. Este formulario siempre crea una liga",
+    "Estos son eventos del calendario del tour, no tus ligas existentes. Este formulario siempre crea una liga",
   "create.tournament.hint.new": "nueva",
   "create.tournament.hint.mid": ". Tus ligas privadas siguen en",
   "create.tournament.hint.myLeagues": "Mis ligas",
@@ -1223,6 +1261,21 @@ const ja: Record<MessageKey, string> = {
   "founder.note.noServiceRole":
     "ブラウザや Next の公開 env に service-role キーはありません。書き込みはサインインセッションと既存 RLS を使います。",
   "founder.link.disruption": "ドロー中断 / ボイド",
+  "founder.link.integrity": "ドロー整合性と修復",
+  "founder.integrity.title": "ドロー整合性",
+  "founder.integrity.lede":
+    "公開はゲート制です。ブロッキングエラーはドロー保留のままにし、修復ランは reconcile の変更を示します。",
+  "founder.integrity.killSwitch":
+    "障害時キルスイッチ: update tournaments set product_override = 'force_off' where slug = '…';",
+  "founder.integrity.back": "ファウンダーヘルスに戻る",
+  "founder.integrity.reports": "整合性レポート",
+  "founder.integrity.reportsEmpty": "まだ整合性レポートがありません。",
+  "founder.integrity.repairs": "修復ラン",
+  "founder.integrity.repairsEmpty": "まだ修復ランがありません。",
+  "founder.integrity.alerts": "整合性アラート",
+  "founder.integrity.alertsEmpty": "まだ整合性アラートがありません。",
+  "founder.integrity.safe": "安全",
+  "founder.integrity.blocked": "ブロック",
   "founder.stat.leagues": "リーグ",
   "founder.stat.members": "メンバー（概算）",
   "founder.stat.submitted": "提出済みブラケット",
@@ -1232,6 +1285,8 @@ const ja: Record<MessageKey, string> = {
   "founder.stat.none": "まだなし",
   "founder.ops.title": "エラーとイベント",
   "founder.ops.empty": "まだ記録がありません。公開トーナメントページを開いてから、この一覧を更新してください。",
+  "founder.replacements.title": "ドロー交代",
+  "founder.replacements.empty": "ラッキールーザー／棄権による座席変更はまだ検出されていません。",
   "founder.ops.kind.error": "エラー",
   "founder.ops.kind.event": "イベント",
 
@@ -1431,6 +1486,8 @@ const ja: Record<MessageKey, string> = {
   "draw.tbd": "予選通過 / ラッキールーザー",
   "draw.entry.wc": "WC",
   "draw.entry.pr": "PR",
+  "draw.entry.q": "Q",
+  "draw.entry.ll": "LL",
 
   // Settle
   "settle.run": "settlement を実行",
@@ -1577,7 +1634,7 @@ const ja: Record<MessageKey, string> = {
     "誰でも順位を見つけ読めます。メンバーのピックはロックまで非公開です。",
   "create.tournament": "どの大会か",
   "create.tournament.hint.before":
-    "これらはカレンダー上の大会（全米オープンなど）で、既存のリーグではありません。このフォームは常に",
+    "これらはツアーカレンダー上の大会で、既存のリーグではありません。このフォームは常に",
   "create.tournament.hint.new": "新しい",
   "create.tournament.hint.mid": "リーグを作ります。非公開リーグは",
   "create.tournament.hint.myLeagues": "マイリーグ",

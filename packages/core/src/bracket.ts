@@ -71,7 +71,7 @@ export function totalMatches(drawSize: number): number {
 }
 
 export type SeatKind = "player" | "bye" | "tbd";
-export type EntryStatus = "wc" | "pr";
+export type EntryStatus = "wc" | "pr" | "q" | "ll";
 
 /** Official draw seat. player_id is set only for kind=player. */
 export type DrawSeat = {

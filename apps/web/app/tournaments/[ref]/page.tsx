@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { OfficialResults } from "@matchread/core";
+import { isOfficialPublicDraw, type OfficialResults } from "@matchread/core";
 import { AppShell } from "@/components/shell/AppShell";
 import { AnnouncedFirstRound } from "@/components/bracket/AnnouncedFirstRound";
 import { PublicOfficialDraw } from "@/components/bracket/PublicOfficialDraw";
@@ -107,8 +107,9 @@ export default async function PublicTournamentPage({ params }: Props) {
   }
   Object.assign(schedule, scheduleMap);
 
-  const showDraw = seats.length > 0;
   const drawSize = effectiveDrawSize(seats.length, event.draw_size);
+  // Full bracket UI only for an official sheet — never partial/fixture fiction.
+  const showDraw = isOfficialPublicDraw(seats, drawSize);
   const showMatchups = !showDraw && announced.length > 0;
 
   return (
@@ -147,7 +148,7 @@ export default async function PublicTournamentPage({ params }: Props) {
             </p>
           </div>
           <div className="page-actions">
-            {entryOpen ? (
+            {entryOpen && status !== "complete" ? (
               <>
                 <Link
                   href={fillHref}

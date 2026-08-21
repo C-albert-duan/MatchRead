@@ -1,0 +1,251 @@
+/**
+ * Shared provider → MatchRead normalization.
+ * Pure: no I/O. Used by sync-facts, apply-draw path, verify CLI, and tests.
+ */
+
+export const PUBLIC_TIERS = Object.freeze([
+  "grand_slam",
+  "tour_finals",
+  "masters_1000",
+  "tour_500",
+  "tour_250",
+]);
+
+export const ALL_TIERS = Object.freeze([
+  ...PUBLIC_TIERS,
+  "challenger",
+  "wta_125",
+  "itf",
+  "other",
+]);
+
+export class UnknownProviderValue extends Error {
+  /**
+   * @param {string} field
+   * @param {unknown} raw
+   */
+  constructor(field, raw) {
+    super(`unknown provider ${field}: ${JSON.stringify(raw)}`);
+    this.name = "UnknownProviderValue";
+    this.field = field;
+    this.raw = raw;
+  }
+}
+
+/**
+ * @param {string|null|undefined} tour
+ * @returns {'atp'|'wta'|null}
+ */
+export function parseTour(tour) {
+  const t = String(tour || "")
+    .trim()
+    .toLowerCase();
+  if (t === "atp") return "atp";
+  if (t === "wta") return "wta";
+  return null;
+}
+
+/**
+ * Require an explicit tour for writes. Do not default to ATP.
+ * @param {string|null|undefined} tour
+ * @returns {'atp'|'wta'}
+ */
+export function requireTour(tour) {
+  const t = parseTour(tour);
+  if (!t) {
+    throw new UnknownProviderValue("tour", tour);
+  }
+  return t;
+}
+
+/**
+ * Map provider category / type blob → closed tier set.
+ * Does not guess from tournament name when category is absent.
+ * @param {string|null|undefined} category
+ * @param {string|null|undefined} type
+ * @returns {{ tier: string, alert?: string }}
+ */
+export function normalizeTier(category, type) {
+  const blob = `${category ?? ""} ${type ?? ""}`.toLowerCase().trim();
+  if (!blob) {
+    return { tier: "other", alert: "missing category" };
+  }
+
+  if (/grand\s*slam|slam/.test(blob)) return { tier: "grand_slam" };
+  if (/tour\s*finals|atp\s*finals|wta\s*finals|finals/.test(blob) && !/500|250|1000/.test(blob)) {
+    return { tier: "tour_finals" };
+  }
+  if (/masters|1000|wta\s*1000|atp\s*1000/.test(blob)) return { tier: "masters_1000" };
+  if (/\b500\b|tour\s*500|atp\s*500|wta\s*500/.test(blob)) return { tier: "tour_500" };
+  if (/\b250\b|tour\s*250|atp\s*250|wta\s*250/.test(blob)) return { tier: "tour_250" };
+  if (/wta\s*125|125k|\b125\b/.test(blob)) return { tier: "wta_125" };
+  if (/challenger/.test(blob)) return { tier: "challenger" };
+  if (/\bitf\b|\bm15\b|\bm25\b|\bw15\b|\bw35\b|\bw75\b|\bw100\b/.test(blob)) {
+    return { tier: "itf" };
+  }
+
+  return { tier: "other", alert: `unmapped category: ${blob}` };
+}
+
+/**
+ * @param {string|null|undefined} tour
+ * @param {string|null|undefined} tier
+ * @param {'force_on'|'force_off'|null|undefined} override
+ */
+export function isBracketProduct(tour, tier, override = null) {
+  if (override === "force_on") return true;
+  if (override === "force_off") return false;
+  const t = parseTour(tour);
+  if (!t) return false;
+  return PUBLIC_TIERS.includes(String(tier || "other"));
+}
+
+/**
+ * Surface only. Indoor is environment, not surface.
+ * Unknown → null (never coerce to hard).
+ * @param {unknown} raw
+ * @returns {'hard'|'clay'|'grass'|'carpet'|null}
+ */
+export function normalizeSurface(raw) {
+  if (raw == null || raw === "") return null;
+  const v = String(raw).trim().toLowerCase();
+  if (!v) return null;
+  if (v.includes("clay")) return "clay";
+  if (v.includes("grass")) return "grass";
+  if (v.includes("carpet")) return "carpet";
+  if (v.includes("hard")) return "hard";
+  // "indoor" alone is environment — not a surface guess
+  if (v === "indoor" || v === "outdoor") return null;
+  throw new UnknownProviderValue("surface", raw);
+}
+
+/**
+ * @param {unknown} raw
+ * @returns {'outdoor'|'indoor'|null}
+ */
+export function normalizeEnvironment(raw) {
+  if (raw == null || raw === "") return null;
+  const v = String(raw).trim().toLowerCase();
+  if (!v) return null;
+  if (v.includes("indoor")) return "indoor";
+  if (v.includes("outdoor")) return "outdoor";
+  if (v.includes("carpet") && !v.includes("outdoor")) return "indoor";
+  return null;
+}
+
+/** Western surname particles kept with the family name. */
+const PARTICLES = new Set([
+  "de",
+  "del",
+  "della",
+  "der",
+  "di",
+  "du",
+  "la",
+  "le",
+  "van",
+  "von",
+  "da",
+  "dos",
+  "das",
+  "do",
+]);
+
+/**
+ * Conservative auxiliary last-name for indexes / fiction checks.
+ * Prefer canonicalizeDisplayName for UI.
+ * @param {string|null|undefined} full
+ */
+export function auxiliaryLastName(full) {
+  const parts = String(full || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+
+  // Keep trailing particle + name (de Minaur, van de Zandschulp)
+  let i = parts.length - 1;
+  const out = [parts[i]];
+  i -= 1;
+  let sawParticle = false;
+  while (i >= 0 && PARTICLES.has(parts[i].toLowerCase().replace(/\./g, ""))) {
+    sawParticle = true;
+    out.unshift(parts[i]);
+    i -= 1;
+  }
+  if (sawParticle) return out.join(" ");
+
+  // Two-word family name without particle (Carreño Busta)
+  if (parts.length >= 3) {
+    return parts.slice(-2).join(" ");
+  }
+  return parts[parts.length - 1];
+}
+
+/**
+ * Canonical user-facing display name from provider.
+ * Preserves particles, hyphens, accents, multiword surnames.
+ * Family-name-first (comma form "Last, First") → "First Last" for display
+ * when comma is present; otherwise preserve provider order.
+ * @param {string|null|undefined} full
+ * @param {{ familyNameFirst?: boolean }} [opts]
+ * @returns {{ displayName: string, lastName: string, fallback: boolean }}
+ */
+export function canonicalizeDisplayName(full, opts = {}) {
+  const raw = String(full || "").trim().replace(/\s+/g, " ");
+  if (!raw) {
+    return { displayName: "", lastName: "", fallback: true };
+  }
+
+  if (raw.includes(",")) {
+    const [family, ...rest] = raw.split(",").map((s) => s.trim());
+    const given = rest.join(" ").trim();
+    const displayName = given ? `${given} ${family}` : family;
+    return {
+      displayName,
+      lastName: auxiliaryLastName(family) || family,
+      fallback: false,
+    };
+  }
+
+  if (opts.familyNameFirst) {
+    const parts = raw.split(" ");
+    if (parts.length >= 2) {
+      const family = parts[0];
+      const given = parts.slice(1).join(" ");
+      return {
+        displayName: `${given} ${family}`.trim(),
+        lastName: family,
+        fallback: true,
+      };
+    }
+  }
+
+  return {
+    displayName: raw,
+    lastName: auxiliaryLastName(raw),
+    fallback: false,
+  };
+}
+
+/**
+ * Terminal outcomes that advance a bracket winner.
+ * @type {ReadonlySet<string>}
+ */
+export const ADVANCING_OUTCOMES = Object.freeze(
+  new Set(["COMPLETED", "WALKOVER", "RETIREMENT", "DEFAULT", "completed", "walkover", "retirement", "default", "WO", "RET"])
+);
+
+/**
+ * @param {string|null|undefined} outcome
+ * @param {string|null|undefined} winnerId
+ */
+export function canAdvanceWinner(outcome, winnerId) {
+  if (!winnerId) return false;
+  if (!outcome) return true; // provider often omits when winner id present
+  const o = String(outcome).trim();
+  if (ADVANCING_OUTCOMES.has(o)) return true;
+  const u = o.toUpperCase();
+  return ADVANCING_OUTCOMES.has(u);
+}

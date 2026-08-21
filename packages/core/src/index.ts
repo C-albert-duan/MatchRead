@@ -31,6 +31,9 @@ export type {
   SlotOccupant,
 } from "./bracket";
 
+export { isBracketProduct, PUBLIC_TIERS } from "./eligibility";
+export type { PublicTier, TournamentTier } from "./eligibility";
+
 export {
   computeAlive,
   detailBracketGrade,
