@@ -12,6 +12,7 @@ import {
   formatTournamentDate,
   listCalendarTournaments,
   surfaceClass,
+  surfaceLabelKey,
   tournamentHref,
 } from "@/lib/tournaments/calendar";
 import { shouldShowEntryLock } from "@/lib/tournaments/when";
@@ -86,15 +87,7 @@ export default async function TournamentsPage({
                       name={row.name}
                       tour={row.tour}
                       surface={surface}
-                      surfaceLabel={t(
-                        surface === "clay"
-                          ? "surface.clay"
-                          : surface === "grass"
-                            ? "surface.grass"
-                            : surface === "indoor"
-                              ? "surface.indoor"
-                              : "surface.hard"
-                      )}
+                      surfaceLabel={t(surfaceLabelKey(row.surface))}
                       when={
                         formatTournamentDate(row.starts_on, locale, row.ends_on) ??
                         t("calendar.dateTbc")

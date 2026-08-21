@@ -1071,6 +1071,20 @@ a.league-card:hover {
 .court-indoor {
   background: var(--mr-court-indoor);
 }
+.court-carpet {
+  background: var(--mr-court-indoor);
+}
+.court-unknown {
+  background: var(--mr-border);
+}
+
+.page--court-carpet .page-header--court::before {
+  background: var(--mr-court-indoor);
+}
+
+.page--court-unknown .page-header--court::before {
+  background: var(--mr-border);
+}
 
 .trow {
   flex-direction: column;

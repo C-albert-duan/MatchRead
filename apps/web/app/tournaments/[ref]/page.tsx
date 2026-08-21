@@ -30,6 +30,7 @@ import {
   signInNextHref,
   startInstant,
   surfaceClass,
+  surfaceLabelKey,
   tournamentHref,
   type MatchScheduleRow,
 } from "@/lib/tournaments/calendar";
@@ -62,14 +63,7 @@ export default async function PublicTournamentPage({ params }: Props) {
   const status = calendarStatus(event);
   const entryOpen = isEntryOpen(event);
   const surface = surfaceClass(event.surface);
-  const surfaceKey =
-    surface === "clay"
-      ? "surface.clay"
-      : surface === "grass"
-        ? "surface.grass"
-        : surface === "indoor"
-          ? "surface.indoor"
-          : "surface.hard";
+  const surfaceKey = surfaceLabelKey(event.surface);
   const start = startInstant(event.starts_on);
   const startCountdown = start ? formatCountdown(start, locale) : null;
   const lockCountdown = event.lock_at

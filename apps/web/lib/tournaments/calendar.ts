@@ -68,6 +68,18 @@ export function surfaceClass(surface: string | null | undefined) {
   return "unknown";
 }
 
+/** i18n key for a surface class — never invent Hard for unknown. */
+export function surfaceLabelKey(
+  surface: string | null | undefined
+): "surface.hard" | "surface.clay" | "surface.grass" | "surface.carpet" | "surface.unknown" {
+  const kind = surfaceClass(surface);
+  if (kind === "clay") return "surface.clay";
+  if (kind === "grass") return "surface.grass";
+  if (kind === "carpet") return "surface.carpet";
+  if (kind === "hard") return "surface.hard";
+  return "surface.unknown";
+}
+
 export function formatTournamentWhen(
   row: Pick<CalendarTournament, "starts_on" | "hasDraw" | "surface">,
   labels: { drawOpen: string; drawPending: string }

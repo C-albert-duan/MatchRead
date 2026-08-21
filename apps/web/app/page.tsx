@@ -18,6 +18,7 @@ import {
   listCalendarTournaments,
   partitionLandingCalendar,
   surfaceClass,
+  surfaceLabelKey,
   tournamentHref,
   type CalendarTournament,
   type Tour,
@@ -40,12 +41,8 @@ const LADDER = ["R128", "R64", "R32", "R16", "QF", "SF", "F"] as const;
 
 function surfaceKey(
   surface: string
-): "surface.hard" | "surface.clay" | "surface.grass" | "surface.indoor" {
-  const kind = surfaceClass(surface);
-  if (kind === "clay") return "surface.clay";
-  if (kind === "grass") return "surface.grass";
-  if (kind === "indoor") return "surface.indoor";
-  return "surface.hard";
+): "surface.hard" | "surface.clay" | "surface.grass" | "surface.carpet" | "surface.unknown" {
+  return surfaceLabelKey(surface);
 }
 
 function UpcomingEmpty({

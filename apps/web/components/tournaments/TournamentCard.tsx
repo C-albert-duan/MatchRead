@@ -11,7 +11,7 @@ type Props = {
   href: string;
   name: string;
   tour: Tour;
-  surface: "hard" | "clay" | "grass" | "indoor";
+  surface: "hard" | "clay" | "grass" | "indoor" | "carpet" | "unknown";
   surfaceLabel: string;
   when: string;
   /** ISO lock instant — formatted in the viewer’s local timezone. */
