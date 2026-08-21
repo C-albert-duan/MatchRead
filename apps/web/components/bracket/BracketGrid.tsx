@@ -75,14 +75,17 @@ function chipGrade(input: {
   return null;
 }
 
+const EMPTY_OFFICIAL: OfficialResults = {};
+const EMPTY_SCHEDULE: Record<string, MatchScheduleRow> = {};
+
 export function BracketGrid({
   drawSize,
   seats,
   picks,
   confidence,
   locked,
-  official = {},
-  schedule = {},
+  official = EMPTY_OFFICIAL,
+  schedule = EMPTY_SCHEDULE,
   venueTz = "UTC",
   locale = "en",
   onPick,
@@ -90,16 +93,16 @@ export function BracketGrid({
 }: Props) {
   const t = useT();
   const tbc = t("calendar.dateTbc");
-  const rounds = buildRoundStructure(drawSize);
+  const rounds = useMemo(() => buildRoundStructure(drawSize), [drawSize]);
   const r0Slots = drawSize / 2;
-  const regionRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
   const regionStyle = {
     ["--r0-slots"]: String(r0Slots),
     ["--round-count"]: String(rounds.length),
   } as CSSProperties;
 
   // Later rounds must show official winners (and bye advances), not only
-  // the member's picks — otherwise decided matches look empty with "Won: …".
+  // the member's picks — otherwise decided matches look empty.
   const displayPicks = useMemo(() => {
     const merged: BracketPicks = { ...picks };
     for (const [key, result] of Object.entries(official)) {
@@ -126,24 +129,23 @@ export function BracketGrid({
   return (
     <div
       className="bracket-region"
-      ref={regionRef}
       tabIndex={0}
       role="region"
       aria-label="Tournament bracket"
       style={regionStyle}
     >
-      <BracketConnectors
-        regionRef={regionRef}
-        rounds={connectorRounds}
-        displayPicks={displayPicks}
-        official={official}
-      />
       <div className="bracket-court" aria-hidden>
         <span className="bracket-court-baseline" />
         <span className="bracket-court-service" />
         <span className="bracket-court-net" />
       </div>
-      <div className="bracket-grid">
+      <div className="bracket-grid" ref={gridRef}>
+        <BracketConnectors
+          gridRef={gridRef}
+          rounds={connectorRounds}
+          displayPicks={displayPicks}
+          official={official}
+        />
         {rounds.map((round) => (
           <div key={round.index} className="bracket-col">
             <h3 className="bracket-col-head t-caption">
