@@ -27,8 +27,8 @@ export type LandingEvent = {
 };
 
 /**
- * Homepage "Open now" — published draw, picks still fillable.
- * (Typically before lock / start; still Open if the week started but lock has not fired.)
+ * Homepage "Open now" — published draw, picks still fillable
+ * (future start, or late fill while a real lock_at is still ahead).
  */
 export function isOpenNow(
   row: LandingEvent,
@@ -53,10 +53,11 @@ function startsInFuture(row: LandingEvent, now: Date): boolean {
 }
 
 /**
- * Split the landing calendar.
- * - Open now: published draw, picks still fillable.
- * - On court: published draw locked, event started — bracket view only.
- * - Upcoming: not started yet, no fillable bracket — next few within the horizon.
+ * Split the landing calendar (mutually exclusive).
+ * - Open now: published draw, picks fillable (future, or late fill with lock_at).
+ * - On court: published draw locked + week in play.
+ * - Upcoming: not started, no published draw — next few within the horizon.
+ * Hidden: finished; started with no draw; started with draw but no lock_at.
  */
 export function partitionLandingCalendar<T extends LandingEvent>(
   events: T[],

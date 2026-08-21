@@ -60,17 +60,47 @@ describe("partitionLandingCalendar", () => {
     assert.deepEqual(upcoming.map((e) => e.id), []);
   });
 
-  it("puts a started fillable draw in Open now until lock", () => {
-    const live = event({
-      id: "live-fillable",
+  it("hides a started draw with no lock_at (not Open, not On court)", () => {
+    const astana = event({
+      id: "astana",
       starts_on: "2026-08-10",
       lock_at: null,
     });
     const { openNow, onCourt, upcoming } = partitionLandingCalendar(
-      [live],
+      [astana],
       now
     );
-    assert.deepEqual(openNow.map((e) => e.id), ["live-fillable"]);
+    assert.deepEqual(openNow.map((e) => e.id), []);
+    assert.deepEqual(onCourt.map((e) => e.id), []);
+    assert.deepEqual(upcoming.map((e) => e.id), []);
+  });
+
+  it("keeps a started draw in Open while a real lock_at is still ahead", () => {
+    const late = event({
+      id: "late-fill",
+      starts_on: "2026-08-10",
+      lock_at: "2026-08-16T15:00:00.000Z",
+    });
+    const { openNow, onCourt, upcoming } = partitionLandingCalendar(
+      [late],
+      now
+    );
+    assert.deepEqual(openNow.map((e) => e.id), ["late-fill"]);
+    assert.deepEqual(onCourt.map((e) => e.id), []);
+    assert.deepEqual(upcoming.map((e) => e.id), []);
+  });
+
+  it("does not put a locked draw on court before the week starts", () => {
+    const earlyLock = event({
+      id: "early-lock",
+      starts_on: "2026-08-20",
+      lock_at: "2026-08-13T18:00:00.000Z",
+    });
+    const { openNow, onCourt, upcoming } = partitionLandingCalendar(
+      [earlyLock],
+      now
+    );
+    assert.deepEqual(openNow.map((e) => e.id), []);
     assert.deepEqual(onCourt.map((e) => e.id), []);
     assert.deepEqual(upcoming.map((e) => e.id), []);
   });

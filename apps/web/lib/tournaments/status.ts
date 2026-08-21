@@ -51,14 +51,23 @@ export function isEntryLocked(
 }
 
 /**
- * Entry is fillable: verified draw exists, lock has not passed, and the
- * event is not past the in-play window (finished calendars are never open).
+ * Entry is fillable (Open now):
+ * - verified draw exists, lock has not passed, event not finished
+ * - not started yet, OR started with a real lock_at still ahead (late fill)
+ * Started weeks with no lock_at are not Open (no invented pick window).
  */
 export function isEntryOpen(
   row: StatusTournament,
   now: Date = new Date()
 ) {
-  return row.hasDraw && !isEntryLocked(row, now) && !isComplete(row, now);
+  if (!row.hasDraw || isEntryLocked(row, now) || isComplete(row, now)) {
+    return false;
+  }
+  const age = daysFromStart(row, now);
+  if (age == null) return false;
+  if (age < 0) return true;
+  // Late fill only when provider/admin gave a real lock still ahead.
+  return Boolean(row.lock_at);
 }
 
 /**
@@ -84,25 +93,22 @@ export function isComplete(
 }
 
 /**
- * On court: published draw is locked and the event has started
- * (starts_on reached, or lock_at / admin lock already fired).
+ * On court: published draw is locked and the week has started (in play).
+ * Locked-before-start does not count — that is not yet on court.
  */
 export function isOnCourt(
   row: StatusTournament,
   now: Date = new Date()
 ): boolean {
   if (!row.hasDraw) return false;
-  if (isComplete(row, now)) return false;
   if (!isEntryLocked(row, now)) return false;
-  if (isInPlay(row, now)) return true;
-  // Locked via lock_at / admin before the calendar start day still counts
-  // as started for the bracket-view bucket.
-  return Boolean(row.admin_locked_at) || Boolean(row.lock_at);
+  return isInPlay(row, now);
 }
 
 /**
  * Label for a calendar / public-page status chip.
- * On court only when there is a locked published draw — never for bare calendar rows.
+ * On court chip only for locked published draws in play.
+ * Started + draw + no lock → not "open" (picks closed / viewing only).
  */
 export function calendarStatus(
   row: StatusTournament,
@@ -111,7 +117,10 @@ export function calendarStatus(
   if (isComplete(row, now)) return "complete";
   if (isOnCourt(row, now)) return "live";
   if (!row.hasDraw) return "drawPending";
+  if (isEntryOpen(row, now)) return "open";
   if (isEntryLocked(row, now)) return "locked";
+  // Published draw, week underway, no lock_at — not fillable.
+  if (isInPlay(row, now)) return "live";
   return "open";
 }
 

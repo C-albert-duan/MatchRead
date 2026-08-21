@@ -82,6 +82,28 @@ test("an unlocked draw before start is Open", () => {
   assert.equal(isOnCourt(cin, beforeLock), false);
 });
 
+test("a started draw with no lock_at is not entry-open", () => {
+  const astana = {
+    hasDraw: true,
+    starts_on: "2026-08-10",
+    lock_at: null as string | null,
+  };
+  assert.equal(isEntryOpen(astana, rehearsal), false);
+  assert.equal(isOnCourt(astana, rehearsal), false);
+  assert.equal(calendarStatus(astana, rehearsal), "live");
+});
+
+test("a locked draw is not on court before the week starts", () => {
+  const early = {
+    hasDraw: true,
+    starts_on: "2026-08-20",
+    lock_at: "2026-08-11T12:00:00.000Z",
+  };
+  assert.equal(isOnCourt(early, rehearsal), false);
+  assert.equal(isEntryOpen(early, rehearsal), false);
+  assert.equal(calendarStatus(early, rehearsal), "locked");
+});
+
 test("a finished draw is not entry-open even without lock_at", () => {
   const done = {
     hasDraw: true,
