@@ -31,6 +31,7 @@ export {
   normalizePairKey,
   normalizeSurface,
   normalizeTier,
+  defaultTournamentSpanDays,
   noteSocketMessage,
   onSocketDisconnect,
   overlayOfficialDraw,

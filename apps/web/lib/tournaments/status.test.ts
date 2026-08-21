@@ -4,6 +4,7 @@ import {
   calendarStatus,
   calendarStatusMessageKey,
   formatCountdown,
+  isComplete,
   isEntryLocked,
   isEntryOpen,
   isInPlay,
@@ -102,6 +103,21 @@ test("a locked draw is not on court before the week starts", () => {
   assert.equal(isOnCourt(early, rehearsal), false);
   assert.equal(isEntryOpen(early, rehearsal), false);
   assert.equal(calendarStatus(early, rehearsal), "locked");
+});
+
+test("ends_on ends the in-play window before the 14-day fallback", () => {
+  const hamburg = {
+    hasDraw: true,
+    starts_on: "2026-08-10",
+    ends_on: "2026-08-16",
+    lock_at: "2026-08-10T15:33:00.000Z",
+  };
+  const midWeek = new Date("2026-08-14T12:00:00.000Z");
+  const afterEnd = new Date("2026-08-21T12:00:00.000Z");
+  assert.equal(isInPlay(hamburg, midWeek), true);
+  assert.equal(isOnCourt(hamburg, midWeek), true);
+  assert.equal(isComplete(hamburg, afterEnd), true);
+  assert.equal(isOnCourt(hamburg, afterEnd), false);
 });
 
 test("a finished draw is not entry-open even without lock_at", () => {

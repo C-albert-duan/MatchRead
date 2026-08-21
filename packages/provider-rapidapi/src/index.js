@@ -708,6 +708,7 @@ export {
   parseTour,
   requireTour,
   normalizeTier,
+  defaultTournamentSpanDays,
   isBracketProduct,
   normalizeSurface,
   normalizeEnvironment,

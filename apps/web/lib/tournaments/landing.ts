@@ -1,10 +1,8 @@
 import {
   DAY_MS,
-  IN_PLAY_DAYS,
   daysFromStart,
   eventMoment,
   isComplete,
-  isEntryLocked,
   isEntryOpen,
   isOnCourt,
 } from "./status.ts";
@@ -22,6 +20,7 @@ export type LandingEvent = {
   tour: LandingTour;
   hasDraw: boolean;
   starts_on: string | null;
+  ends_on?: string | null;
   lock_at: string | null;
   admin_locked_at?: string | null;
 };
@@ -105,11 +104,9 @@ export function partitionLandingCalendar<T extends LandingEvent>(
       .filter((e) => {
         if (e.tour !== tour) return false;
         if (shownIds.has(e.id)) return false;
-        const age = daysFromStart(e, now);
-        if (age != null && age > IN_PLAY_DAYS) return false;
-        if (isEntryLocked(e, now) && e.hasDraw) return false;
-        // Prefer a real next event that has not started (or is still open).
-        if (!e.hasDraw && age != null && age >= 0) return false;
+        if (isComplete(e, now)) return false;
+        // Next-up copy: not-yet-started only (never a past Astana).
+        if (!startsInFuture(e, now)) return false;
         return true;
       })
       .sort((a, b) => {

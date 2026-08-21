@@ -32,6 +32,7 @@ import {
   normalizeSurface,
   normalizeEnvironment,
   normalizeTier,
+  defaultTournamentSpanDays,
   UnknownProviderValue,
   assertDrawBelongsToTournament,
 } from "../_shared/rapidapi.js";
@@ -210,9 +211,14 @@ type CalendarRow = {
   start?: string;
   end?: string;
   endDate?: string;
-  surface?: string;
+  /** Legacy string; live API usually sends `court`. */
+  surface?: string | { id?: number; name?: string } | null;
+  /** Tennis API calendar court object — primary surface source. */
+  court?: string | { id?: number; name?: string } | null;
   type?: string;
   category?: string;
+  /** Tennis API level label, e.g. "Challenger 75". */
+  tier?: string;
 };
 
 type SyncedEvent = {
@@ -351,30 +357,45 @@ function mapCalendarTournament(
   if (!name) return null;
 
   // Skip obvious doubles-only noise when the API labels it.
-  const blob = `${name} ${row?.type ?? ""} ${row?.category ?? ""}`.toLowerCase();
+  const blob = `${name} ${row?.type ?? ""} ${row?.category ?? ""} ${
+    row?.tier ?? ""
+  }`.toLowerCase();
   if (/\bdoubles\b/.test(blob) && !/\bsingles\b/.test(blob)) return null;
 
   const starts =
     String(row.date || row.start || "").slice(0, 10) || `${year}-01-01`;
-  const ends =
-    String(row.endDate || row.end || row.date || row.start || "").slice(0, 10) ||
-    starts;
 
+  const tierInfo = normalizeTier(row.category, row.type, row.tier);
+
+  const providerEnd = String(row.endDate || row.end || "").slice(0, 10);
+  let ends = providerEnd;
+  if (!ends || ends < starts) {
+    const span = defaultTournamentSpanDays(tierInfo.tier);
+    const startMs = Date.parse(`${starts}T12:00:00.000Z`);
+    ends = Number.isNaN(startMs)
+      ? starts
+      : new Date(startMs + span * DAY_MS).toISOString().slice(0, 10);
+  }
+
+  // Live calendar: surface lives on `court`; some feeds still use `surface`.
+  const surfaceRaw = row.court ?? row.surface;
   let surface: string | null = null;
   let environment: string | null = null;
   try {
-    surface = normalizeSurface(row.surface);
-    environment = normalizeEnvironment(row.surface);
+    surface = normalizeSurface(surfaceRaw);
+    environment = normalizeEnvironment(surfaceRaw);
   } catch (err) {
-    if (err instanceof UnknownProviderValue || (err as Error)?.name === "UnknownProviderValue") {
+    if (
+      err instanceof UnknownProviderValue ||
+      (err as Error)?.name === "UnknownProviderValue"
+    ) {
       surface = null;
-      environment = normalizeEnvironment(row.surface);
+      environment = normalizeEnvironment(surfaceRaw);
     } else {
       throw err;
     }
   }
 
-  const tierInfo = normalizeTier(row.category, row.type);
   const drawSize = inferDrawSizeHint(name, blob);
 
   return {

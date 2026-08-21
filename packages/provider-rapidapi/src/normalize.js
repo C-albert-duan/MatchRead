@@ -59,14 +59,18 @@ export function requireTour(tour) {
 }
 
 /**
- * Map provider category / type blob → closed tier set.
- * Does not guess from tournament name when category is absent.
+ * Map provider category / type / tier label → closed tier set.
+ * Tennis API calendar uses `tier` (e.g. "Challenger 75"); older shapes use category/type.
+ * Does not guess from tournament name when those fields are absent.
  * @param {string|null|undefined} category
  * @param {string|null|undefined} type
+ * @param {string|null|undefined} [tierLabel] provider `tier` string
  * @returns {{ tier: string, alert?: string }}
  */
-export function normalizeTier(category, type) {
-  const blob = `${category ?? ""} ${type ?? ""}`.toLowerCase().trim();
+export function normalizeTier(category, type, tierLabel) {
+  const blob = `${category ?? ""} ${type ?? ""} ${tierLabel ?? ""}`
+    .toLowerCase()
+    .trim();
   if (!blob) {
     return { tier: "other", alert: "missing category" };
   }
@@ -78,13 +82,26 @@ export function normalizeTier(category, type) {
   if (/masters|1000|wta\s*1000|atp\s*1000/.test(blob)) return { tier: "masters_1000" };
   if (/\b500\b|tour\s*500|atp\s*500|wta\s*500/.test(blob)) return { tier: "tour_500" };
   if (/\b250\b|tour\s*250|atp\s*250|wta\s*250/.test(blob)) return { tier: "tour_250" };
-  if (/wta\s*125|125k|\b125\b/.test(blob)) return { tier: "wta_125" };
+  // Challenger before bare "125" so "Challenger 125" stays challenger.
   if (/challenger/.test(blob)) return { tier: "challenger" };
-  if (/\bitf\b|\bm15\b|\bm25\b|\bw15\b|\bw35\b|\bw75\b|\bw100\b/.test(blob)) {
+  if (/wta\s*125|125k|\b125\b/.test(blob)) return { tier: "wta_125" };
+  if (/\bitf\b|\bm15\b|\bm25\b|\bw15\b|\bw35\b|\bw50\b|\bw75\b|\bw100\b/.test(blob)) {
     return { tier: "itf" };
   }
 
   return { tier: "other", alert: `unmapped category: ${blob}` };
+}
+
+/**
+ * When the calendar has no end date, infer week length from tier (Mon start → Sun end = +6).
+ * Grand Slam / Masters use a two-week window. Never invent players — only a calendar bound.
+ * @param {string|null|undefined} tier
+ * @returns {number}
+ */
+export function defaultTournamentSpanDays(tier) {
+  const t = String(tier || "");
+  if (t === "grand_slam" || t === "masters_1000" || t === "tour_finals") return 13;
+  return 6;
 }
 
 /**
@@ -101,15 +118,33 @@ export function isBracketProduct(tour, tier, override = null) {
 }
 
 /**
+ * Unwrap Tennis API court/surface objects to a string label.
+ * @param {unknown} raw
+ * @returns {unknown}
+ */
+function surfaceLabel(raw) {
+  if (raw == null || raw === "") return null;
+  if (typeof raw === "object") {
+    const o = /** @type {Record<string, unknown>} */ (raw);
+    return o.name ?? o.Name ?? o.type ?? o.surface ?? null;
+  }
+  return raw;
+}
+
+/**
  * Surface only. Indoor is environment, not surface.
+ * Accepts string or `{ name: "Hard" }` (API `court` / `surface` objects).
  * Unknown → null (never coerce to hard).
  * @param {unknown} raw
  * @returns {'hard'|'clay'|'grass'|'carpet'|null}
  */
 export function normalizeSurface(raw) {
-  if (raw == null || raw === "") return null;
-  const v = String(raw).trim().toLowerCase();
-  if (!v) return null;
+  const label = surfaceLabel(raw);
+  if (label == null || label === "") return null;
+  const v = String(label).trim().toLowerCase();
+  if (!v || v === "[object object]") {
+    throw new UnknownProviderValue("surface", raw);
+  }
   if (v.includes("clay")) return "clay";
   if (v.includes("grass")) return "grass";
   if (v.includes("carpet")) return "carpet";
@@ -124,9 +159,10 @@ export function normalizeSurface(raw) {
  * @returns {'outdoor'|'indoor'|null}
  */
 export function normalizeEnvironment(raw) {
-  if (raw == null || raw === "") return null;
-  const v = String(raw).trim().toLowerCase();
-  if (!v) return null;
+  const label = surfaceLabel(raw);
+  if (label == null || label === "") return null;
+  const v = String(label).trim().toLowerCase();
+  if (!v || v === "[object object]") return null;
   if (v.includes("indoor")) return "indoor";
   if (v.includes("outdoor")) return "outdoor";
   if (v.includes("carpet") && !v.includes("outdoor")) return "indoor";

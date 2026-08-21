@@ -1,11 +1,12 @@
 export const DAY_MS = 86_400_000;
 
-/** Rough in-play window after start (On court / live chip). */
+/** Fallback in-play window after start when ends_on is missing. */
 export const IN_PLAY_DAYS = 14;
 
 export type StatusTournament = {
   hasDraw: boolean;
   starts_on: string | null;
+  ends_on?: string | null;
   lock_at: string | null;
   admin_locked_at?: string | null;
 };
@@ -27,6 +28,16 @@ export function eventMoment(row: Pick<StatusTournament, "starts_on" | "lock_at">
     if (!Number.isNaN(d.getTime())) return d;
   }
   return null;
+}
+
+/** Inclusive end of the tournament calendar day (UTC). */
+export function eventEndMoment(
+  row: Pick<StatusTournament, "ends_on">
+): Date | null {
+  if (!row.ends_on) return null;
+  const d = new Date(`${row.ends_on}T23:59:59.999Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
 }
 
 export function daysFromStart(
@@ -71,22 +82,25 @@ export function isEntryOpen(
 }
 
 /**
- * Tournament week is underway (starts_on reached, within the in-play window).
- * Independent of whether a draw exists.
+ * Tournament week is underway: started and not yet complete.
+ * Prefers ends_on when present; otherwise falls back to IN_PLAY_DAYS.
  */
 export function isInPlay(
-  row: Pick<StatusTournament, "starts_on" | "lock_at">,
+  row: Pick<StatusTournament, "starts_on" | "ends_on" | "lock_at">,
   now: Date = new Date()
 ) {
   const age = daysFromStart(row, now);
   if (age == null) return false;
-  return age >= 0 && age <= IN_PLAY_DAYS;
+  if (age < 0) return false;
+  return !isComplete(row, now);
 }
 
 export function isComplete(
-  row: Pick<StatusTournament, "starts_on" | "lock_at">,
+  row: Pick<StatusTournament, "starts_on" | "ends_on" | "lock_at">,
   now: Date = new Date()
 ) {
+  const end = eventEndMoment(row);
+  if (end) return now.getTime() > end.getTime();
   const age = daysFromStart(row, now);
   if (age == null) return false;
   return age > IN_PLAY_DAYS;
@@ -127,46 +141,55 @@ export function calendarStatus(
 export function calendarStatusMessageKey(
   status: CalendarStatus
 ):
-  | "league.status.drawPending"
+  | "calendar.drawPending"
   | "calendar.open"
-  | "tournament.locked"
+  | "calendar.locked"
   | "calendar.onCourt"
-  | "league.status.complete" {
+  | "calendar.complete" {
   switch (status) {
     case "drawPending":
-      return "league.status.drawPending";
+      return "calendar.drawPending";
     case "open":
       return "calendar.open";
     case "locked":
-      return "tournament.locked";
+      return "calendar.locked";
     case "live":
       return "calendar.onCourt";
     case "complete":
-      return "league.status.complete";
+      return "calendar.complete";
   }
 }
 
-/** Locale-aware remaining time. Null once the instant has passed. */
 export function formatCountdown(
-  target: string | Date,
+  iso: string,
   locale: string,
   now: Date = new Date()
 ): string | null {
-  const at = target instanceof Date ? target : new Date(target);
-  if (Number.isNaN(at.getTime())) return null;
-  const ms = at.getTime() - now.getTime();
+  const target = new Date(iso);
+  if (Number.isNaN(target.getTime())) return null;
+  const ms = target.getTime() - now.getTime();
   if (ms <= 0) return null;
-  const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "always" });
-  const mins = Math.round(ms / 60_000);
-  if (mins < 60) return rtf.format(Math.max(mins, 1), "minute");
-  const hours = Math.round(mins / 60);
-  if (hours < 48) return rtf.format(hours, "hour");
-  const days = Math.round(hours / 24);
-  return rtf.format(days, "day");
-}
-
-export function startInstant(startsOn: string | null): Date | null {
-  if (!startsOn) return null;
-  const d = new Date(`${startsOn}T12:00:00Z`);
-  return Number.isNaN(d.getTime()) ? null : d;
+  const days = Math.floor(ms / DAY_MS);
+  const hours = Math.floor((ms % DAY_MS) / 3_600_000);
+  try {
+    if (days >= 1) {
+      return new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
+        days,
+        "day"
+      );
+    }
+    if (hours >= 1) {
+      return new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
+        hours,
+        "hour"
+      );
+    }
+    const minutes = Math.max(1, Math.floor(ms / 60_000));
+    return new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
+      minutes,
+      "minute"
+    );
+  } catch {
+    return null;
+  }
 }

@@ -490,8 +490,12 @@ export declare function requireTour(
 ): "atp" | "wta";
 export declare function normalizeTier(
   category: string | null | undefined,
-  type?: string | null | undefined
+  type?: string | null | undefined,
+  tierLabel?: string | null | undefined
 ): { tier: string; alert?: string };
+export declare function defaultTournamentSpanDays(
+  tier: string | null | undefined
+): number;
 export declare function isBracketProduct(
   tour: string | null | undefined,
   tier: string | null | undefined,

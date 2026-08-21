@@ -34,6 +34,12 @@ describe("normalizeTier", () => {
     assert.ok(normalizeTier(null, null).alert);
   });
 
+  it("maps Tennis API calendar tier labels", () => {
+    assert.equal(normalizeTier(null, null, "Challenger 75").tier, "challenger");
+    assert.equal(normalizeTier(null, null, "Challenger 125").tier, "challenger");
+    assert.equal(normalizeTier(null, null, "Challenger 50").tier, "challenger");
+  });
+
   it("PUBLIC_TIERS matches isBracketProduct", () => {
     for (const tier of PUBLIC_TIERS) {
       assert.equal(isBracketProduct("atp", tier), true);
@@ -52,6 +58,12 @@ describe("normalizeSurface", () => {
     assert.equal(normalizeSurface("Grass"), "grass");
     assert.equal(normalizeSurface("Hard"), "hard");
     assert.throws(() => normalizeSurface("wood"), UnknownProviderValue);
+  });
+
+  it("accepts Tennis API court objects", () => {
+    assert.equal(normalizeSurface({ id: 1, name: "Hard" }), "hard");
+    assert.equal(normalizeSurface({ id: 2, name: "Clay" }), "clay");
+    assert.equal(normalizeEnvironment({ id: 1, name: "Indoor Hard" }), "indoor");
   });
 
   it("splits indoor as environment", () => {
