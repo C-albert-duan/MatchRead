@@ -25,7 +25,8 @@ type PathSeg = {
 };
 
 type Props = {
-  gridRef: RefObject<HTMLElement | null>;
+  /** Scrollport that contains the grid (`.bracket-region`). */
+  regionRef: RefObject<HTMLElement | null>;
   rounds: RoundCol[];
   displayPicks: BracketPicks;
   official: OfficialResults;
@@ -41,15 +42,20 @@ function winnerRefFor(
   return displayPicks[matchKey] ?? null;
 }
 
-function pointIn(
+/** Content coordinates inside a scrollport (includes scroll offset). */
+function pointInScrollport(
   el: Element,
-  grid: DOMRect,
+  root: HTMLElement,
   edge: "right" | "left"
 ): { x: number; y: number } {
+  const rootBox = root.getBoundingClientRect();
   const r = el.getBoundingClientRect();
   return {
-    x: (edge === "right" ? r.right : r.left) - grid.left,
-    y: r.top + r.height / 2 - grid.top,
+    x:
+      (edge === "right" ? r.right : r.left) -
+      rootBox.left +
+      root.scrollLeft,
+    y: r.top + r.height / 2 - rootBox.top + root.scrollTop,
   };
 }
 
@@ -58,7 +64,7 @@ function pointIn(
  * into the matching seat of the next round. Recomputed on layout change.
  */
 export function BracketConnectors({
-  gridRef,
+  regionRef,
   rounds,
   displayPicks,
   official,
@@ -67,14 +73,19 @@ export function BracketConnectors({
   const [size, setSize] = useState({ w: 0, h: 0 });
 
   useLayoutEffect(() => {
-    const grid = gridRef.current;
-    if (!grid) return;
+    const root = regionRef.current;
+    if (!root) return;
 
     let raf = 0;
     const measure = () => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
-        const box = grid.getBoundingClientRect();
+        const grid = root.querySelector(".bracket-grid");
+        if (!grid) {
+          setPaths([]);
+          return;
+        }
+
         const next: PathSeg[] = [];
 
         for (const col of rounds) {
@@ -82,15 +93,15 @@ export function BracketConnectors({
           for (const match of col.matches) {
             const cell = grid.querySelector(
               `[data-match-key="${CSS.escape(match.key)}"]`
-            );
+            ) as HTMLElement | null;
             if (!cell) continue;
 
             const parentRound = match.round + 1;
             const parentIndex = Math.floor(match.indexInRound / 2);
-            const seat = match.indexInRound % 2; // 0 top, 1 bottom
+            const seat = match.indexInRound % 2;
             const parentCell = grid.querySelector(
               `[data-round="${parentRound}"][data-index="${parentIndex}"]`
-            );
+            ) as HTMLElement | null;
             if (!parentCell) continue;
 
             const winner = winnerRefFor(match.key, displayPicks, official);
@@ -113,9 +124,18 @@ export function BracketConnectors({
               parentCell.querySelector(".slot") ??
               parentCell;
 
-            const from = pointIn(sourceEl, box, "right");
-            const to = pointIn(targetEl, box, "left");
-            const mid = (from.x + to.x) / 2;
+            const from = pointInScrollport(sourceEl, root, "right");
+            const to = pointInScrollport(targetEl, root, "left");
+            // Elbow in the gutter between columns.
+            const mid = from.x + (to.x - from.x) * 0.5;
+            if (
+              !Number.isFinite(from.x) ||
+              !Number.isFinite(from.y) ||
+              !Number.isFinite(to.x) ||
+              !Number.isFinite(to.y)
+            ) {
+              continue;
+            }
             next.push({
               id: `${match.key}->${parentRound}-${parentIndex}-${seat}`,
               d: `M ${from.x.toFixed(1)} ${from.y.toFixed(1)} H ${mid.toFixed(1)} V ${to.y.toFixed(1)} H ${to.x.toFixed(1)}`,
@@ -124,24 +144,33 @@ export function BracketConnectors({
           }
         }
 
-        setSize({ w: grid.scrollWidth, h: grid.scrollHeight });
+        setSize({
+          w: Math.max(root.scrollWidth, root.clientWidth),
+          h: Math.max(root.scrollHeight, root.clientHeight),
+        });
         setPaths(next);
       });
     };
 
     measure();
     const ro = new ResizeObserver(measure);
-    ro.observe(grid);
+    ro.observe(root);
+    const grid = root.querySelector(".bracket-grid");
+    if (grid) ro.observe(grid);
+    root.addEventListener("scroll", measure, { passive: true });
     window.addEventListener("resize", measure);
-    // Fonts / images can shift chip boxes after first paint.
     document.fonts?.ready?.then(measure).catch(() => {});
+    // Second pass after layout settles (fonts, flex).
+    const t = window.setTimeout(measure, 50);
 
     return () => {
       cancelAnimationFrame(raf);
+      window.clearTimeout(t);
       ro.disconnect();
+      root.removeEventListener("scroll", measure);
       window.removeEventListener("resize", measure);
     };
-  }, [gridRef, rounds, displayPicks, official]);
+  }, [regionRef, rounds, displayPicks, official]);
 
   if (size.w <= 0 || size.h <= 0 || paths.length === 0) return null;
 
@@ -163,6 +192,7 @@ export function BracketConnectors({
               : "bracket-connector"
           }
           fill="none"
+          vectorEffect="non-scaling-stroke"
         />
       ))}
     </svg>

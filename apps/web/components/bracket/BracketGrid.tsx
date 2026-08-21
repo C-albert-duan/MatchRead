@@ -92,7 +92,7 @@ export function BracketGrid({
   const tbc = t("calendar.dateTbc");
   const rounds = buildRoundStructure(drawSize);
   const r0Slots = drawSize / 2;
-  const gridRef = useRef<HTMLDivElement>(null);
+  const regionRef = useRef<HTMLDivElement>(null);
   const regionStyle = {
     ["--r0-slots"]: String(r0Slots),
     ["--round-count"]: String(rounds.length),
@@ -126,28 +126,26 @@ export function BracketGrid({
   return (
     <div
       className="bracket-region"
+      ref={regionRef}
       tabIndex={0}
       role="region"
       aria-label="Tournament bracket"
       style={regionStyle}
     >
+      <BracketConnectors
+        regionRef={regionRef}
+        rounds={connectorRounds}
+        displayPicks={displayPicks}
+        official={official}
+      />
       <div className="bracket-court" aria-hidden>
         <span className="bracket-court-baseline" />
         <span className="bracket-court-service" />
         <span className="bracket-court-net" />
       </div>
-      <div className="bracket-grid" ref={gridRef}>
-        <BracketConnectors
-          gridRef={gridRef}
-          rounds={connectorRounds}
-          displayPicks={displayPicks}
-          official={official}
-        />
+      <div className="bracket-grid">
         {rounds.map((round) => (
-          <div
-            key={round.index}
-            className="bracket-col"
-          >
+          <div key={round.index} className="bracket-col">
             <h3 className="bracket-col-head t-caption">
               {round.label.column}
             </h3>
@@ -183,16 +181,17 @@ export function BracketGrid({
                 const unpicked = Boolean(pickable && !chosen);
                 const level = confidence[match.key] ?? null;
                 const showConfidence = Boolean(chosen) && !graded;
-                const showGrade = graded && !byeMatch;
-
+                // Winner chip highlight is enough — no "Won: …" block.
+                const showPickGrade =
+                  graded && !byeMatch && chosen != null && !voided;
                 let gradeLabel: string | null = null;
-                if (showGrade) {
-                  if (voided) gradeLabel = "Void";
-                  else if (!chosen)
-                    gradeLabel = `Won: ${seatName(seats, officialWinner)}`;
-                  else if (chosen === officialWinner) gradeLabel = "Correct";
-                  else
-                    gradeLabel = `Miss · Won: ${seatName(seats, officialWinner)}`;
+                if (showPickGrade) {
+                  gradeLabel =
+                    chosen === officialWinner
+                      ? "Correct"
+                      : `Miss · ${seatName(seats, officialWinner)}`;
+                } else if (graded && voided && chosen != null) {
+                  gradeLabel = "Void";
                 }
 
                 const gradeA = chipGrade({
@@ -247,6 +246,16 @@ export function BracketGrid({
                   );
                 }
 
+                const resultTone = graded
+                  ? voided
+                    ? "voided"
+                    : chosen && chosen === officialWinner
+                      ? "correct"
+                      : chosen
+                        ? "incorrect"
+                        : "result"
+                  : undefined;
+
                 return (
                   <div
                     key={match.key}
@@ -258,20 +267,14 @@ export function BracketGrid({
                     <div
                       className="slot"
                       role="radiogroup"
-                      aria-label={`${round.label.match} match ${match.indexInRound + 1}${unpicked ? ", unpicked" : ""}${gradeLabel ? `, ${gradeLabel}` : ""}`}
+                      aria-label={`${round.label.match} match ${match.indexInRound + 1}${unpicked ? ", unpicked" : ""}${
+                        officialWinner
+                          ? `, won by ${seatName(seats, officialWinner)}`
+                          : ""
+                      }`}
                       data-unpicked={unpicked ? "true" : undefined}
                       data-confidence={showConfidence ? "true" : undefined}
-                      data-graded={
-                        showGrade
-                          ? voided
-                            ? "voided"
-                            : chosen && chosen === officialWinner
-                              ? "correct"
-                              : chosen
-                                ? "incorrect"
-                                : "result"
-                          : undefined
-                      }
+                      data-graded={resultTone}
                     >
                       {pickable ? (
                         <>
@@ -344,7 +347,7 @@ export function BracketGrid({
                         ))}
                       </div>
                     ) : null}
-                    {showGrade && gradeLabel ? (
+                    {gradeLabel ? (
                       <div className="grade-row" aria-hidden="true">
                         {gradeLabel}
                       </div>

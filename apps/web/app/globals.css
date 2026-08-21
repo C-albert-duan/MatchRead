@@ -1665,6 +1665,29 @@ a.league-card:hover {
   transform: translateX(-50%);
 }
 
+.bracket-connectors {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.bracket-connector {
+  stroke: var(--mr-text-muted, #5c6b63);
+  stroke-width: 2;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  opacity: 0.9;
+}
+
+.bracket-connector--active {
+  stroke: var(--mr-read, #1f6b4a);
+  stroke-width: 2.5;
+  opacity: 1;
+}
+
 .bracket-grid {
   position: relative;
   z-index: 1;
@@ -1676,29 +1699,6 @@ a.league-card:hover {
       (var(--round-count, 6) - 1) * var(--draw-gap)
   );
   gap: var(--draw-gap);
-}
-
-.bracket-connectors {
-  position: absolute;
-  left: 0;
-  top: 0;
-  overflow: visible;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.bracket-connector {
-  stroke: var(--mr-line-strong);
-  stroke-width: 1.5;
-  stroke-linecap: square;
-  stroke-linejoin: miter;
-  opacity: 0.85;
-}
-
-.bracket-connector--active {
-  stroke: var(--mr-read);
-  stroke-width: 2;
-  opacity: 1;
 }
 
 .bracket-col {
