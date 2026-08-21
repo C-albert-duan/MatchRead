@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { partitionLandingCalendar, type LandingEvent } from "./landing.ts";
+import {
+  partitionLandingCalendar,
+  UPCOMING_MAX,
+  type LandingEvent,
+} from "./landing.ts";
 
 function event(
   partial: Partial<LandingEvent> & Pick<LandingEvent, "id">
@@ -87,20 +91,47 @@ describe("partitionLandingCalendar", () => {
     assert.deepEqual(upcoming.map((e) => e.id), ["wsal"]);
   });
 
-  it("puts a started event with no draw in Upcoming, not On court", () => {
-    const tashkent = event({
-      id: "tashkent",
+  it("excludes a started draw-pending event from Upcoming", () => {
+    const started = event({
+      id: "asuncion",
       hasDraw: false,
-      starts_on: "2026-08-17",
+      starts_on: "2026-08-10",
       lock_at: null,
     });
-    const mid = new Date("2026-08-18T12:00:00.000Z");
     const { openNow, onCourt, upcoming } = partitionLandingCalendar(
-      [tashkent],
-      mid
+      [started],
+      now
     );
     assert.deepEqual(openNow.map((e) => e.id), []);
     assert.deepEqual(onCourt.map((e) => e.id), []);
-    assert.deepEqual(upcoming.map((e) => e.id), ["tashkent"]);
+    assert.deepEqual(upcoming.map((e) => e.id), []);
+  });
+
+  it("caps Upcoming to the next few by start date", () => {
+    const many = Array.from({ length: UPCOMING_MAX + 4 }, (_, i) =>
+      event({
+        id: `u${i}`,
+        hasDraw: false,
+        starts_on: `2026-08-${String(20 + i).padStart(2, "0")}`,
+        lock_at: null,
+      })
+    );
+    const { upcoming } = partitionLandingCalendar(many, now);
+    assert.equal(upcoming.length, UPCOMING_MAX);
+    assert.deepEqual(
+      upcoming.map((e) => e.id),
+      Array.from({ length: UPCOMING_MAX }, (_, i) => `u${i}`)
+    );
+  });
+
+  it("drops Upcoming beyond the horizon even if not started", () => {
+    const far = event({
+      id: "far",
+      hasDraw: false,
+      starts_on: "2026-10-01",
+      lock_at: null,
+    });
+    const { upcoming } = partitionLandingCalendar([far], now);
+    assert.deepEqual(upcoming.map((e) => e.id), []);
   });
 });

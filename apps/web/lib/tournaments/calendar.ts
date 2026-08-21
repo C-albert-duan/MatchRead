@@ -27,6 +27,7 @@ export {
   isOpenNow,
   partitionLandingCalendar,
   UPCOMING_HORIZON_DAYS,
+  UPCOMING_MAX,
 } from "@/lib/tournaments/landing";
 export type { LandingCalendar } from "@/lib/tournaments/landing";
 export {
