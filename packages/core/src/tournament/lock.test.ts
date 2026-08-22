@@ -4,7 +4,7 @@ import {
   assertLockIsSound,
   isLockUnsound,
   LockSoundnessError,
-} from "./lock";
+} from "./lock.ts";
 
 test("eligible tournament without zone fails", () => {
   assert.throws(
