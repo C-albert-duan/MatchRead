@@ -5,7 +5,10 @@ export const IN_PLAY_DAYS = 14;
 
 export type StatusTournament = {
   hasDraw: boolean;
+  /** @deprecated Prefer main_draw_starts_on for product calendar. */
   starts_on: string | null;
+  /** Official main-draw first day when known. */
+  main_draw_starts_on?: string | null;
   ends_on?: string | null;
   lock_at: string | null;
   admin_locked_at?: string | null;
@@ -18,9 +21,12 @@ export type CalendarStatus =
   | "live"
   | "complete";
 
-export function eventMoment(row: Pick<StatusTournament, "starts_on" | "lock_at">): Date | null {
-  if (row.starts_on) {
-    const d = new Date(`${row.starts_on}T12:00:00Z`);
+export function eventMoment(
+  row: Pick<StatusTournament, "starts_on" | "main_draw_starts_on" | "lock_at">
+): Date | null {
+  const day = row.main_draw_starts_on || row.starts_on;
+  if (day) {
+    const d = new Date(`${day}T12:00:00Z`);
     if (!Number.isNaN(d.getTime())) return d;
   }
   if (row.lock_at) {
@@ -41,7 +47,7 @@ export function eventEndMoment(
 }
 
 export function daysFromStart(
-  row: Pick<StatusTournament, "starts_on" | "lock_at">,
+  row: Pick<StatusTournament, "starts_on" | "main_draw_starts_on" | "lock_at">,
   now: Date
 ): number | null {
   const start = eventMoment(row);

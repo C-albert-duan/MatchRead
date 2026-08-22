@@ -8,8 +8,9 @@
     "start": "next start -H 0.0.0.0 -p 3001",
     "lint": "node -e \"console.log('web lint ok')\"",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test lib/tournaments/*.test.ts lib/brackets/*.test.ts lib/leagues/*.test.ts",
-    "test:live": "playwright test e2e/live-checklist.spec.ts"
+    "test": "node --experimental-strip-types --test lib/tournaments/*.test.ts lib/brackets/*.test.ts lib/leagues/*.test.ts tests/*.test.ts",
+    "test:live": "playwright test e2e/live-checklist.spec.ts",
+    "test:boundary": "node ../../scripts/ci-consumer-boundary.mjs"
   },
   "dependencies": {
     "@matchread/core": "*",

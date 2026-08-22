@@ -6,6 +6,7 @@ import { isEntryLocked } from "@/lib/tournaments/status";
 
 export type TournamentTimeRow = {
   starts_on: string | null;
+  main_draw_starts_on?: string | null;
   ends_on?: string | null;
   lock_at?: string | null;
   admin_locked_at?: string | null;
@@ -30,7 +31,11 @@ export function tournamentTimeFacts(
   timeZone?: string | null
 ) {
   const start =
-    formatTournamentDate(row.starts_on, locale, row.ends_on) ?? labels.tbc;
+    formatTournamentDate(
+      row.main_draw_starts_on || row.starts_on,
+      locale,
+      row.ends_on
+    ) ?? labels.tbc;
   const locked = isEntryLocked(
     {
       lock_at: row.lock_at ?? null,

@@ -20,6 +20,7 @@ export type LandingEvent = {
   tour: LandingTour;
   hasDraw: boolean;
   starts_on: string | null;
+  main_draw_starts_on?: string | null;
   ends_on?: string | null;
   lock_at: string | null;
   admin_locked_at?: string | null;

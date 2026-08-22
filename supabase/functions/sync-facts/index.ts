@@ -27,6 +27,8 @@ import {
   resolveOfficialSeats,
   shouldPollDraw,
   bindResultsByPlayerPair,
+  diffProviderAuthoritative,
+  unboundProviderFixtures,
   resolveLiveEvent,
   getExtendEvent,
   normalizeSurface,
@@ -313,6 +315,7 @@ async function syncTournamentsFromCalendar(
       environment: t.environment,
       tier: t.tier,
       starts_on: t.starts_on,
+      main_draw_starts_on: t.main_draw_starts_on ?? t.starts_on,
       ends_on: t.ends_on,
       provider_id: t.provider_id,
       ...("draw_size" in t && t.draw_size != null
@@ -326,18 +329,11 @@ async function syncTournamentsFromCalendar(
     if (error) throw new Error(`tournaments upsert: ${error.message}`);
     upserted = rowsOut.length;
 
-    // Drop temporary force_on once category mapped a public tier.
+    // Clear legacy force_on if any rows remain (override can only subtract).
     await admin
       .from("tournaments")
       .update({ product_override: null })
-      .eq("product_override", "force_on")
-      .in("tier", [
-        "grand_slam",
-        "tour_finals",
-        "masters_1000",
-        "tour_500",
-        "tour_250",
-      ]);
+      .eq("product_override", "force_on");
 
     for (const t of filtered) {
       if (t.tierAlert) {
@@ -419,6 +415,7 @@ function mapCalendarTournament(
     tier: tierInfo.tier,
     tierAlert: tierInfo.alert,
     starts_on: starts,
+    main_draw_starts_on: starts,
     ends_on: ends,
     provider_id: providerId,
     ...(drawSize ? { draw_size: drawSize } : {}),
@@ -652,7 +649,7 @@ async function syncEventDraw(
     return { status: matchups.length ? "announced" : "pending" };
   }
 
-  // Never publish a non-eligible draw unless force_on already made it eligible.
+  // Never publish a non-eligible draw (override cannot promote).
   if (!event.bracket_eligible) {
     log.push(`${label} draw held — not bracket_eligible (ingest only)`);
     // Still store seats for coverage, but apply-draw will refuse published_at
@@ -890,14 +887,55 @@ async function syncEventResults(
 
   const results = [...byKey.values()];
 
+  // Provider-authoritative: fixtures present remotely but unbound → audit (never silent).
+  const knownPm = new Set(Object.keys(maps.matches || {}));
+  for (const m of matchSides) {
+    if (m.provider_match_id) knownPm.add(String(m.provider_match_id));
+  }
+  const unbound = unboundProviderFixtures(
+    singles ?? [],
+    [
+      ...bound.results.map((r) => ({
+        match_key: r.match_key,
+        provider_match_id: r.provider_match_id,
+      })),
+      ...bound.bindings.map((b) => ({
+        match_key: b.match_key,
+        provider_match_id: b.provider_match_id,
+      })),
+    ],
+    knownPm
+  );
+  const authDiff = diffProviderAuthoritative(
+    singles ?? [],
+    matchSides.map((m) => ({
+      id: m.match_key,
+      provider_match_id: m.provider_match_id,
+      match_key: m.match_key,
+    }))
+  );
+
   log.push(
-    `${event.slug} results bound=${bound.results.length} mapped=${mapped.results.length} live=${liveMapped.results.length}`
+    `${event.slug} results bound=${bound.results.length} mapped=${mapped.results.length} live=${liveMapped.results.length} unbound=${unbound.length} orphans=${authDiff.orphans.length}`
   );
 
   // EventMapper for active R0/live-capable matches (REST trigger only).
   await refreshEventMap(admin, rapid, event, matchSides, liveEvents, log);
 
   if (!results.length || env.dryRun) {
+    if (!env.dryRun && (unbound.length || authDiff.orphans.length)) {
+      await admin.from("ops_events").insert({
+        kind: "reconcile",
+        name: "provider_authoritative_gap",
+        payload: {
+          tournament_id: event.id,
+          slug: event.slug,
+          unbound: unbound.slice(0, 40),
+          orphans: authDiff.orphans.slice(0, 40),
+          missing_from_store: authDiff.missingFromStore.slice(0, 40),
+        },
+      });
+    }
     return { ingested: 0 };
   }
 
@@ -907,12 +945,41 @@ async function syncEventResults(
       kind: "reconcile",
       tournament_id: event.id,
       status: "running",
-      summary: { slug: event.slug },
+      summary: {
+        slug: event.slug,
+        unbound: unbound.length,
+        orphans: authDiff.orphans.length,
+      },
     })
     .select("id")
     .maybeSingle();
   if (runErr) log.push(`repair run: ${runErr.message}`);
   const runId = runRow?.id ? String(runRow.id) : null;
+
+  if (runId && authDiff.orphans.length) {
+    for (const orphan of authDiff.orphans.slice(0, 100)) {
+      await admin.from("sync_repairs").insert({
+        run_id: runId,
+        tournament_id: event.id,
+        match_key: orphan.match_key,
+        provider_match_id: orphan.provider_match_id,
+        before: orphan,
+        after: null,
+        note: "orphan_flagged",
+      });
+    }
+  }
+  if (runId && unbound.length) {
+    await admin.from("sync_repairs").insert({
+      run_id: runId,
+      tournament_id: event.id,
+      match_key: null,
+      provider_match_id: null,
+      before: null,
+      after: { unbound: unbound.slice(0, 50) },
+      note: "unbound_provider_fixtures",
+    });
+  }
 
   const result = await applyMatchResults(admin, event.id, results, log, {
     runId,
@@ -927,6 +994,8 @@ async function syncEventResults(
           slug: event.slug,
           updated: result.ok ? result.updated : 0,
           advanced: result.ok ? result.advanced : 0,
+          unbound: unbound.length,
+          orphans: authDiff.orphans.length,
           error: result.ok ? null : result.error,
         },
       })

@@ -35,6 +35,13 @@ export { isBracketProduct, PUBLIC_TIERS } from "./eligibility";
 export type { PublicTier, TournamentTier } from "./eligibility";
 
 export {
+  assertLockIsSound,
+  isLockUnsound,
+  LockSoundnessError,
+} from "./tournament/lock";
+export type { LockFixture, LockTournament } from "./tournament/lock";
+
+export {
   computeAlive,
   detailBracketGrade,
   expectedPickCount,

@@ -48,6 +48,8 @@ const en = {
   "landing.calendar.openNow": "Open now",
   "landing.calendar.openNow.empty":
     "No draws open right now — brackets unlock when the next draw lands.",
+  "landing.calendar.openNow.empty.next":
+    "No draws open — next up for {tour}: {name}.",
   "landing.calendar.onCourt": "On court",
   "landing.calendar.upcoming": "Upcoming",
   "landing.calendar.upcoming.empty.next":
@@ -610,6 +612,8 @@ const es: Record<MessageKey, string> = {
   "landing.calendar.openNow": "Abiertos ahora",
   "landing.calendar.openNow.empty":
     "No hay sorteos abiertos ahora — los cuadros se abren cuando llegue el próximo sorteo.",
+  "landing.calendar.openNow.empty.next":
+    "No hay sorteos abiertos — próximo en {tour}: {name}.",
   "landing.calendar.onCourt": "En pista",
   "landing.calendar.upcoming": "Próximos",
   "landing.calendar.upcoming.empty.next":
@@ -1176,6 +1180,8 @@ const ja: Record<MessageKey, string> = {
   "landing.calendar.openNow": "受付中",
   "landing.calendar.openNow.empty":
     "いま公開中のドローはない——次のドローが出るとブラケットが開く。",
+  "landing.calendar.openNow.empty.next":
+    "公開中のドローはない——次は{tour}: {name}。",
   "landing.calendar.onCourt": "コート上",
   "landing.calendar.upcoming": "今後の大会",
   "landing.calendar.upcoming.empty.next":

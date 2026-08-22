@@ -10,6 +10,7 @@ export {
   createClient,
   createLiveSessionState,
   diffDrawSeats,
+  diffProviderAuthoritative,
   drawPollIntervalMs,
   evaluateDrawIntegrity,
   fetchOfficialSeats,
@@ -45,5 +46,6 @@ export {
   shouldPollDraw,
   subscriptionDiff,
   UnknownProviderValue,
+  unboundProviderFixtures,
   validateOfficialSeats,
 } from "../../../packages/provider-rapidapi/src/index.js";

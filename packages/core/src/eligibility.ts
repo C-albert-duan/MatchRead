@@ -21,9 +21,8 @@ export type TournamentTier =
 export function isBracketProduct(
   tour: string | null | undefined,
   tier: string | null | undefined,
-  override: "force_on" | "force_off" | null | undefined = null
+  override: "force_off" | null | undefined = null
 ): boolean {
-  if (override === "force_on") return true;
   if (override === "force_off") return false;
   if (tour !== "atp" && tour !== "wta") return false;
   return (PUBLIC_TIERS as readonly string[]).includes(tier || "other");

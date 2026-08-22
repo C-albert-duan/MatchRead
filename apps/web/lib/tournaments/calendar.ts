@@ -45,7 +45,10 @@ export type CalendarTournament = {
   ref: string;
   name: string;
   surface: string;
+  /** Provider week anchor — prefer main_draw_starts_on for display. */
   starts_on: string | null;
+  /** Official main-draw first day. */
+  main_draw_starts_on: string | null;
   lock_at: string | null;
   admin_locked_at: string | null;
   venue_tz: string;
@@ -82,11 +85,12 @@ export function surfaceLabelKey(
 }
 
 export function formatTournamentWhen(
-  row: Pick<CalendarTournament, "starts_on" | "hasDraw" | "surface">,
+  row: Pick<CalendarTournament, "starts_on" | "main_draw_starts_on" | "hasDraw" | "surface">,
   labels: { drawOpen: string; drawPending: string }
 ) {
   const parts: string[] = [];
-  if (row.starts_on) parts.push(row.starts_on);
+  const day = row.main_draw_starts_on || row.starts_on;
+  if (day) parts.push(day);
   parts.push(row.hasDraw ? labels.drawOpen : labels.drawPending);
   return parts.join(" · ");
 }
@@ -94,7 +98,7 @@ export function formatTournamentWhen(
 export function formatUpcomingAction(
   row: Pick<
     CalendarTournament,
-    "hasDraw" | "lock_at" | "venue_tz" | "starts_on" | "surface"
+    "hasDraw" | "lock_at" | "venue_tz" | "starts_on" | "main_draw_starts_on" | "surface"
   >,
   labels: {
     drawOpen: string;
@@ -120,10 +124,13 @@ export function formatUpcomingAction(
         now
       )}`
     );
-  } else if (row.starts_on) {
-    parts.push(
-      `${labels.starts} ${formatTournamentDate(row.starts_on, locale) ?? row.starts_on}`
-    );
+  } else {
+    const day = row.main_draw_starts_on || row.starts_on;
+    if (day) {
+      parts.push(
+        `${labels.starts} ${formatTournamentDate(day, locale) ?? day}`
+      );
+    }
   }
   return parts.join(" · ");
 }
@@ -132,15 +139,33 @@ export function formatUpcomingAction(
 export async function listCalendarTournaments(): Promise<CalendarTournament[]> {
   const supabase = createClient();
   const { data: tournaments } = await supabase
-    .from("tournaments")
+    .from("public_calendar")
     .select(
-      "id, slug, name, surface, starts_on, ends_on, lock_at, venue_tz, tour, draw_size, published_at, bracket_eligible, seats(count)"
+      "id, slug, name, surface, starts_on, main_draw_starts_on, ends_on, lock_at, venue_tz, tour, draw_size, published_at, bracket_eligible"
     )
-    .eq("bracket_eligible", true)
-    .not("slug", "like", "e2e-%")
-    .order("starts_on", { ascending: true });
+    .order("main_draw_starts_on", { ascending: true, nullsFirst: false });
 
-  return (tournaments ?? []).map((row) => mapCalendarRow(row));
+  // Seat counts still live on tournaments; batch via eligible ids.
+  const rows = tournaments ?? [];
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((r) => r.id);
+  const { data: seatRows } = await supabase
+    .from("seats")
+    .select("tournament_id")
+    .in("tournament_id", ids);
+  const seatCount = new Map<string, number>();
+  for (const s of seatRows ?? []) {
+    const tid = String(s.tournament_id);
+    seatCount.set(tid, (seatCount.get(tid) ?? 0) + 1);
+  }
+
+  return rows.map((row) =>
+    mapCalendarRow({
+      ...row,
+      seats: [{ count: seatCount.get(String(row.id)) ?? 0 }],
+    })
+  );
 }
 
 export async function getCalendarTournament(
@@ -150,14 +175,23 @@ export async function getCalendarTournament(
   if (!trimmed) return null;
   const supabase = createClient();
   const { data: row } = await supabase
-    .from("tournaments")
+    .from("public_calendar")
     .select(
-      "id, slug, name, surface, starts_on, ends_on, lock_at, venue_tz, tour, draw_size, published_at, seats(count)"
+      "id, slug, name, surface, starts_on, main_draw_starts_on, ends_on, lock_at, venue_tz, tour, draw_size, published_at, bracket_eligible"
     )
     .eq("slug", trimmed)
     .maybeSingle();
   if (!row) return null;
-  return mapCalendarRow(row);
+
+  const { count } = await supabase
+    .from("seats")
+    .select("id", { count: "exact", head: true })
+    .eq("tournament_id", row.id);
+
+  return mapCalendarRow({
+    ...row,
+    seats: [{ count: count ?? 0 }],
+  });
 }
 
 type TournamentQueryRow = {
@@ -166,6 +200,7 @@ type TournamentQueryRow = {
   name: string;
   surface: string | null;
   starts_on: string | null;
+  main_draw_starts_on?: string | null;
   ends_on?: string | null;
   lock_at: string | null;
   venue_tz: string | null;
@@ -198,12 +233,14 @@ function seatCountFromEmbed(
 function mapCalendarRow(row: TournamentQueryRow): CalendarTournament {
   const drawSize = row.draw_size && row.draw_size > 0 ? row.draw_size : 0;
   const seatCount = seatCountFromEmbed(row.seats);
+  const mainDraw = row.main_draw_starts_on || row.starts_on;
   return {
     id: row.id,
     ref: row.slug,
     name: row.name,
     surface: row.surface ?? "",
     starts_on: row.starts_on,
+    main_draw_starts_on: mainDraw,
     ends_on: row.ends_on ?? null,
     lock_at: row.lock_at ?? null,
     admin_locked_at: null,

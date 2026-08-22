@@ -380,6 +380,40 @@ export declare function advanceWinnerToParent(
   sideColumn: "side_a_player_id" | "side_b_player_id";
 } | null;
 
+export declare function diffProviderAuthoritative(
+  providerRows: Array<{ id?: string | number | null }>,
+  storedMatches: Array<{
+    id: string;
+    provider_match_id?: string | null;
+    match_key?: string;
+  }>
+): {
+  providerCount: number;
+  missingFromStore: string[];
+  orphans: Array<{
+    match_id: string;
+    provider_match_id: string;
+    match_key: string | null;
+  }>;
+};
+
+export declare function unboundProviderFixtures(
+  providerRows: Array<{
+    id?: string | number;
+    match_winner?: unknown;
+    player1Id?: string | number;
+    player2Id?: string | number;
+  }>,
+  boundResults: Array<{ match_key: string; provider_match_id?: string }>,
+  knownProviderMatchIds: Set<string>
+): Array<{
+  provider_match_id: string;
+  has_winner: boolean;
+  player1Id: string | null;
+  player2Id: string | null;
+  match_winner: string | null;
+}>;
+
 export declare function bindResultsByPlayerPair(
   rows: ProviderMatchResult[],
   matchSides: Array<{
@@ -499,7 +533,7 @@ export declare function defaultTournamentSpanDays(
 export declare function isBracketProduct(
   tour: string | null | undefined,
   tier: string | null | undefined,
-  override?: "force_on" | "force_off" | null
+  override?: "force_off" | null
 ): boolean;
 export declare function normalizeSurface(
   raw: unknown

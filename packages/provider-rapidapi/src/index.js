@@ -693,6 +693,10 @@ export {
   parentMatchKey,
 } from "./settle-advance.js";
 export {
+  diffProviderAuthoritative,
+  unboundProviderFixtures,
+} from "./reconcile-provider.js";
+export {
   createLiveSessionState,
   onSocketDisconnect,
   reconcileThenResume,

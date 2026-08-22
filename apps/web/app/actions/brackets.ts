@@ -136,7 +136,7 @@ export async function adminLockTournament(input: {
     .eq("slug", input.leagueSlug)
     .maybeSingle();
   const { data: tournament } = await supabase
-    .from("tournaments")
+    .from("public_calendar")
     .select("id")
     .eq("slug", input.tournamentRef)
     .maybeSingle();

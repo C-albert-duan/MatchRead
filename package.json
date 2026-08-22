@@ -21,6 +21,8 @@
     "publish:draws": "node scripts/publish-draws.mjs",
     "preflight:trust": "node scripts/preflight-trust-boundary.mjs",
     "tennis:verify": "node scripts/tennis-verify.mjs",
+    "probe:event-dates": "node scripts/probe-event-dates.mjs",
+    "ci:consumer-boundary": "node scripts/ci-consumer-boundary.mjs",
     "test:provider": "npm run test -w @matchread/provider-rapidapi",
     "test:db": "npx supabase test db"
   }

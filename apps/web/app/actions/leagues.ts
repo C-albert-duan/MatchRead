@@ -39,7 +39,7 @@ export async function ensureSoloLeague(tournamentRef: string): Promise<ActionRes
   await supabase.rpc("ensure_profile");
 
   const { data: tournament, error: tErr } = await supabase
-    .from("tournaments")
+    .from("public_calendar")
     .select("id, slug")
     .eq("slug", ref)
     .maybeSingle();
@@ -106,7 +106,7 @@ export async function createLeague(formData: FormData): Promise<ActionResult> {
   let tournamentId: string | null = null;
   if (format === "single") {
     const { data: t } = await supabase
-      .from("tournaments")
+      .from("public_calendar")
       .select("id")
       .eq("slug", tournamentLabel)
       .maybeSingle();

@@ -45,8 +45,9 @@ describe("normalizeTier", () => {
       assert.equal(isBracketProduct("atp", tier), true);
     }
     assert.equal(isBracketProduct("atp", "itf"), false);
-    assert.equal(isBracketProduct("atp", "itf", "force_on"), true);
+    assert.equal(isBracketProduct("atp", "itf", "force_off"), false);
     assert.equal(isBracketProduct("atp", "grand_slam", "force_off"), false);
+    assert.equal(isBracketProduct("atp", "itf", null), false);
   });
 });
 

@@ -154,6 +154,28 @@ export async function applyMatchResults(
       continue;
     }
 
+    const claimOutcome = voided ? "void" : "winner";
+    const { data: claimStatus, error: claimErr } = await admin.rpc(
+      "claim_settlement",
+      {
+        p_match: match.id,
+        p_outcome: claimOutcome,
+        p_winner: voided ? null : winnerId,
+        p_run: runId,
+      }
+    );
+    if (claimErr) {
+      // Migration not applied yet — fall through without claim guard.
+      if (!/claim_settlement|function .* does not exist/i.test(claimErr.message)) {
+        log.push(`claim_settlement failed: ${claimErr.message}`);
+        skipped.push({ reason: `claim: ${claimErr.message}`, id: match.id });
+        continue;
+      }
+    } else if (claimStatus === "noop") {
+      skipped.push({ reason: "claim noop", id: match.id });
+      continue;
+    }
+
     const { error } = await admin
       .from("matches")
       .update(patch)
@@ -173,7 +195,7 @@ export async function applyMatchResults(
           ? String(r.provider_match_id)
           : match.provider_match_id,
         before,
-        after: patch,
+        after: { ...patch, claim: claimStatus ?? "legacy" },
         note: voided ? "voided" : "winner",
       });
     }

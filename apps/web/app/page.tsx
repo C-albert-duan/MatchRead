@@ -45,6 +45,26 @@ function surfaceKey(
   return surfaceLabelKey(surface);
 }
 
+function OpenNowEmpty({
+  next,
+}: {
+  next: CalendarTournament | null;
+}) {
+  if (next) {
+    return (
+      <p className="calendar-fact">
+        {tf("landing.calendar.openNow.empty.next", {
+          tour: next.tour === "wta" ? t("tour.wta") : t("tour.atp"),
+          name: next.name,
+        })}
+      </p>
+    );
+  }
+  return (
+    <p className="calendar-fact">{t("landing.calendar.openNow.empty")}</p>
+  );
+}
+
 function UpcomingEmpty({
   nextNamed,
 }: {
@@ -103,7 +123,7 @@ function TournamentRows({
               tour={event.tour}
               surface={surface}
               surfaceLabel={t(surfaceKey(event.surface))}
-              when={formatTournamentDate(event.starts_on, locale, event.ends_on) ?? t("calendar.dateTbc")}
+              when={formatTournamentDate(event.main_draw_starts_on || event.starts_on, locale, event.ends_on) ?? t("calendar.dateTbc")}
               lockAt={
                 shouldShowEntryLock(event) ? event.lock_at : null
               }
@@ -260,9 +280,7 @@ export default async function HomePage() {
                   {t("landing.calendar.openNow")}
                 </h3>
                 {openNow.length === 0 ? (
-                  <p className="calendar-fact">
-                    {t("landing.calendar.openNow.empty")}
-                  </p>
+                  <OpenNowEmpty next={upcoming[0] ?? nextNamed.atp ?? nextNamed.wta ?? null} />
                 ) : (
                   <TournamentRows
                     events={openNow}

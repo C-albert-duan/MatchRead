@@ -107,10 +107,9 @@ export function defaultTournamentSpanDays(tier) {
 /**
  * @param {string|null|undefined} tour
  * @param {string|null|undefined} tier
- * @param {'force_on'|'force_off'|null|undefined} override
+ * @param {'force_off'|null|undefined} override
  */
 export function isBracketProduct(tour, tier, override = null) {
-  if (override === "force_on") return true;
   if (override === "force_off") return false;
   const t = parseTour(tour);
   if (!t) return false;

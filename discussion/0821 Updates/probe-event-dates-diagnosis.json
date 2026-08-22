@@ -1,0 +1,201 @@
+{
+  "generated_at": "2026-08-22T01:56:27.027Z",
+  "directive": "MatchRead Sprint Directive 2.1 §2.2 / §3.2",
+  "provider_date_fields": [
+    {
+      "label": "Cincinnati",
+      "tour": "atp",
+      "id": "21347",
+      "name": "Cincinnati Open - Cincinnati",
+      "type": "ATP Masters 1000",
+      "surface": null,
+      "startDate": "2026-08-10T00:00:00.000Z",
+      "endDate": null,
+      "city": null,
+      "country": {
+        "acronym": "USA",
+        "name": "United States"
+      },
+      "raw_keys": [
+        "id",
+        "name",
+        "courtId",
+        "date",
+        "rankId",
+        "tier",
+        "link",
+        "court",
+        "round",
+        "country",
+        "_tour"
+      ]
+    },
+    {
+      "label": "Cincinnati",
+      "tour": "wta",
+      "id": "16740",
+      "name": "Cincinnati Open - Cincinnati",
+      "type": "WTA 1000",
+      "surface": null,
+      "startDate": "2026-08-10T00:00:00.000Z",
+      "endDate": null,
+      "city": null,
+      "country": {
+        "acronym": "USA",
+        "name": "United States"
+      },
+      "raw_keys": [
+        "id",
+        "name",
+        "courtId",
+        "date",
+        "rankId",
+        "tier",
+        "link",
+        "court",
+        "round",
+        "country",
+        "_tour"
+      ]
+    },
+    {
+      "label": "Winston-Salem",
+      "tour": "atp",
+      "id": "21348",
+      "name": "Winston-Salem Open - Winston-Salem",
+      "type": "ATP 250",
+      "surface": null,
+      "startDate": "2026-08-24T00:00:00.000Z",
+      "endDate": null,
+      "city": null,
+      "country": {
+        "acronym": "USA",
+        "name": "United States"
+      },
+      "raw_keys": [
+        "id",
+        "name",
+        "courtId",
+        "date",
+        "rankId",
+        "tier",
+        "link",
+        "court",
+        "round",
+        "country",
+        "_tour"
+      ]
+    },
+    {
+      "label": "US Open",
+      "tour": "atp",
+      "id": "21349",
+      "name": "U.S. Open - New York",
+      "type": "Grand Slam",
+      "surface": null,
+      "startDate": "2026-08-31T00:00:00.000Z",
+      "endDate": null,
+      "city": null,
+      "country": {
+        "acronym": "USA",
+        "name": "United States"
+      },
+      "raw_keys": [
+        "id",
+        "name",
+        "courtId",
+        "date",
+        "rankId",
+        "tier",
+        "link",
+        "court",
+        "round",
+        "country",
+        "_tour"
+      ]
+    },
+    {
+      "label": "US Open",
+      "tour": "wta",
+      "id": "16743",
+      "name": "U.S. Open - New York",
+      "type": "Grand Slam",
+      "surface": null,
+      "startDate": "2026-08-31T00:00:00.000Z",
+      "endDate": null,
+      "city": null,
+      "country": {
+        "acronym": "USA",
+        "name": "United States"
+      },
+      "raw_keys": [
+        "id",
+        "name",
+        "courtId",
+        "date",
+        "rankId",
+        "tier",
+        "link",
+        "court",
+        "round",
+        "country",
+        "_tour"
+      ]
+    },
+    {
+      "label": "Monterrey",
+      "tour": "wta",
+      "id": "16741",
+      "name": "Abierto GNP Seguros - Monterrey",
+      "type": "WTA 500",
+      "surface": null,
+      "startDate": "2026-08-24T00:00:00.000Z",
+      "endDate": null,
+      "city": null,
+      "country": {
+        "acronym": "MEX",
+        "name": "Mexico"
+      },
+      "raw_keys": [
+        "id",
+        "name",
+        "courtId",
+        "date",
+        "rankId",
+        "tier",
+        "link",
+        "court",
+        "round",
+        "country",
+        "_tour"
+      ]
+    }
+  ],
+  "stored_tournaments": {
+    "ok": false,
+    "reason": "no supabase service env",
+    "rows": []
+  },
+  "cincinnati_fixture_diagnosis": {
+    "atp_fonseca_oconnell": {
+      "http": 200,
+      "provider_singles": 90,
+      "shape": "missing_from_provider_or_name_mismatch",
+      "provider_rows": 0,
+      "detail": "No provider result naming both Fonseca and Connell"
+    },
+    "wta_wang_svitolina": {
+      "http": 200,
+      "provider_singles": 90,
+      "shape": "missing_from_provider_or_name_mismatch",
+      "provider_rows": 0,
+      "detail": "No provider result naming both Wang and Svitolina"
+    }
+  },
+  "cincinnati_stored_match_diagnosis": {},
+  "interpretation": {
+    "date_semantics": "Compare provider startDate/endDate to stored starts_on/ends_on/lock_at. Opposite-direction errors imply starts_on is not main_draw_starts_on.",
+    "atp_branch": "null_winner_row → stored-row diff finds it. timestamp_no_winner on provider → result never applied.",
+    "wta_branch": "missing_match_row → provider-first upsert required; stored-first sweep cannot heal."
+  }
+}
