@@ -49,6 +49,20 @@ const DAY_MS = 86_400_000;
 /** Keep events starting in this window (past → future). */
 const WINDOW_PAST_DAYS = 21;
 const WINDOW_FUTURE_DAYS = 60;
+/** Cron/full runs: cap draw+results work so Edge does not idle-timeout (504). */
+const MAX_EVENTS_PER_RUN = 10;
+
+/**
+ * Known main-draw first days when provider calendar `date` is the week banner.
+ * Sprint Directive 2.1 §3 — do not equate starts_on with main_draw_starts_on.
+ */
+const PRODUCT_MAIN_DRAW: Record<string, string> = {
+  "t-atp-21349": "2026-08-30", // US Open ATP
+  "t-wta-16743": "2026-08-30", // US Open WTA
+  "t-atp-21348": "2026-08-23", // Winston-Salem
+  "t-atp-21347": "2026-08-13", // Cincinnati ATP
+  "t-wta-16740": "2026-08-13", // Cincinnati WTA
+};
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -307,21 +321,45 @@ async function syncTournamentsFromCalendar(
     for (const t of filtered) {
       byKey.set(`${t.tour}:${t.provider_id}`, t);
     }
-    const rowsOut = [...byKey.values()].map((t) => ({
-      slug: t.slug,
-      name: t.name,
-      tour: t.tour,
-      surface: t.surface,
-      environment: t.environment,
-      tier: t.tier,
-      starts_on: t.starts_on,
-      main_draw_starts_on: t.main_draw_starts_on ?? t.starts_on,
-      ends_on: t.ends_on,
-      provider_id: t.provider_id,
-      ...("draw_size" in t && t.draw_size != null
-        ? { draw_size: t.draw_size }
-        : {}),
-    }));
+    const rows = [...byKey.values()];
+
+    // Preserve product main_draw_starts_on — provider calendar `date` is the
+    // week banner, not main-draw day. Never overwrite a known product date.
+    const slugs = rows.map((t) => t.slug);
+    const { data: existingRows } = await admin
+      .from("tournaments")
+      .select("slug, main_draw_starts_on")
+      .in("slug", slugs);
+    const existingMain = new Map<string, string | null>();
+    for (const row of existingRows ?? []) {
+      existingMain.set(
+        String(row.slug),
+        row.main_draw_starts_on ? String(row.main_draw_starts_on).slice(0, 10) : null
+      );
+    }
+
+    const rowsOut = rows.map((t) => {
+      const productMain =
+        PRODUCT_MAIN_DRAW[t.slug] ||
+        existingMain.get(t.slug) ||
+        t.main_draw_starts_on ||
+        t.starts_on;
+      return {
+        slug: t.slug,
+        name: t.name,
+        tour: t.tour,
+        surface: t.surface,
+        environment: t.environment,
+        tier: t.tier,
+        starts_on: t.starts_on,
+        main_draw_starts_on: productMain,
+        ends_on: t.ends_on,
+        provider_id: t.provider_id,
+        ...("draw_size" in t && t.draw_size != null
+          ? { draw_size: t.draw_size }
+          : {}),
+      };
+    });
 
     const { error } = await admin
       .from("tournaments")
@@ -415,7 +453,7 @@ function mapCalendarTournament(
     tier: tierInfo.tier,
     tierAlert: tierInfo.alert,
     starts_on: starts,
-    main_draw_starts_on: starts,
+    // Provider week date only — product main_draw_starts_on is preserved on upsert.
     ends_on: ends,
     provider_id: providerId,
     ...(drawSize ? { draw_size: drawSize } : {}),
@@ -478,6 +516,24 @@ async function listSyncedEvents(
     .filter((e) => inWindow(e.starts_on, now) || onlySlug === e.slug);
 
   if (onlySlug) events = events.filter((e) => e.slug === onlySlug);
+  else {
+    // Prefer published / in-window bracket product so cron finishes under timeout.
+    const nowMs = Date.now();
+    events.sort((a, b) => {
+      const ap = a.published_at ? 0 : 1;
+      const bp = b.published_at ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      const ae = a.bracket_eligible ? 0 : 1;
+      const be = b.bracket_eligible ? 0 : 1;
+      if (ae !== be) return ae - be;
+      const as = a.starts_on ? Date.parse(a.starts_on) : nowMs;
+      const bs = b.starts_on ? Date.parse(b.starts_on) : nowMs;
+      return Math.abs(as - nowMs) - Math.abs(bs - nowMs);
+    });
+    if (events.length > MAX_EVENTS_PER_RUN) {
+      events = events.slice(0, MAX_EVENTS_PER_RUN);
+    }
+  }
   return events;
 }
 
