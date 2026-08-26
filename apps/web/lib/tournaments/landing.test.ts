@@ -128,12 +128,11 @@ describe("partitionLandingCalendar", () => {
       starts_on: "2026-08-10",
       lock_at: null,
     });
-    const { openNow, onCourt, upcoming } = partitionLandingCalendar(
-      [started],
-      now
-    );
+    const { openNow, onCourt, awaitingDraw, upcoming } =
+      partitionLandingCalendar([started], now);
     assert.deepEqual(openNow.map((e) => e.id), []);
     assert.deepEqual(onCourt.map((e) => e.id), []);
+    assert.deepEqual(awaitingDraw.map((e) => e.id), ["asuncion"]);
     assert.deepEqual(upcoming.map((e) => e.id), []);
   });
 

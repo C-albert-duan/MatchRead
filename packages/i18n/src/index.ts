@@ -51,6 +51,7 @@ const en = {
   "landing.calendar.openNow.empty.next":
     "No draws open — next up for {tour}: {name}.",
   "landing.calendar.onCourt": "On court",
+  "landing.calendar.awaitingDraw": "Awaiting official draw",
   "landing.calendar.upcoming": "Upcoming",
   "landing.calendar.upcoming.empty.next":
     "Between events. Next up for {tour}: {name}.",
@@ -615,6 +616,7 @@ const es: Record<MessageKey, string> = {
   "landing.calendar.openNow.empty.next":
     "No hay sorteos abiertos — próximo en {tour}: {name}.",
   "landing.calendar.onCourt": "En pista",
+  "landing.calendar.awaitingDraw": "Esperando cuadro oficial",
   "landing.calendar.upcoming": "Próximos",
   "landing.calendar.upcoming.empty.next":
     "Entre eventos. Siguiente en {tour}: {name}.",
@@ -1183,6 +1185,7 @@ const ja: Record<MessageKey, string> = {
   "landing.calendar.openNow.empty.next":
     "公開中のドローはない——次は{tour}: {name}。",
   "landing.calendar.onCourt": "コート上",
+  "landing.calendar.awaitingDraw": "公式ドロー待ち",
   "landing.calendar.upcoming": "今後の大会",
   "landing.calendar.upcoming.empty.next":
     "大会のあいだ。{tour}の次は {name}。",

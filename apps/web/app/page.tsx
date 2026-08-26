@@ -154,10 +154,11 @@ export default async function HomePage() {
   const signedIn = Boolean(user);
   const locale = getLocale();
   const calendar = await listCalendarTournaments();
-  const { openNow, onCourt, upcoming, nextNamed } =
+  const { openNow, onCourt, awaitingDraw, upcoming, nextNamed } =
     partitionLandingCalendar(calendar);
   const onCourtCount = onCourt.length;
-  const lookEvent = onCourt[0] ?? openNow[0] ?? upcoming[0] ?? calendar[0];
+  const lookEvent =
+    onCourt[0] ?? openNow[0] ?? awaitingDraw[0] ?? upcoming[0] ?? calendar[0];
   const lookHref = lookEvent ? tournamentHref(lookEvent.ref) : "/tournaments";
 
   const recent = signedIn && user
@@ -275,6 +276,19 @@ export default async function HomePage() {
                 </div>
               ) : null}
 
+              {awaitingDraw.length > 0 ? (
+                <div className="calendar-panel">
+                  <h3 className="calendar-panel-title">
+                    {t("landing.calendar.awaitingDraw")}
+                  </h3>
+                  <TournamentRows
+                    events={awaitingDraw}
+                    variant="onCourt"
+                    locale={locale}
+                  />
+                </div>
+              ) : null}
+
               <div className="calendar-panel">
                 <h3 className="calendar-panel-title">
                   {t("landing.calendar.openNow")}
@@ -311,6 +325,7 @@ export default async function HomePage() {
             {calendar.length > 0 &&
             openNow.length === 0 &&
             onCourt.length === 0 &&
+            awaitingDraw.length === 0 &&
             upcoming.length === 0 ? (
               <p className="calendar-fact">
                 {t("landing.calendar.upcoming.empty.none")}

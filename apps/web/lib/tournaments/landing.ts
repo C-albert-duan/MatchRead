@@ -4,6 +4,7 @@ import {
   eventMoment,
   isComplete,
   isEntryOpen,
+  isInPlay,
   isOnCourt,
 } from "./status.ts";
 
@@ -40,6 +41,8 @@ export function isOpenNow(
 export type LandingCalendar<T extends LandingEvent = LandingEvent> = {
   openNow: T[];
   onCourt: T[];
+  /** Started, in play, official sheet not published yet. */
+  awaitingDraw: T[];
   upcoming: T[];
   /** Next event per tour beyond the lists — for fact empty states. */
   nextNamed: Partial<Record<LandingTour, T>>;
@@ -56,8 +59,9 @@ function startsInFuture(row: LandingEvent, now: Date): boolean {
  * Split the landing calendar (mutually exclusive).
  * - Open now: published draw, picks fillable (future, or late fill with lock_at).
  * - On court: published draw locked + week in play.
+ * - Awaiting draw: week started, official sheet not published yet (still visible).
  * - Upcoming: not started, no published draw — next few within the horizon.
- * Hidden: finished; started with no draw; started with draw but no lock_at.
+ * Hidden: finished; locked draw before week starts (hasDraw, not open/on court).
  */
 export function partitionLandingCalendar<T extends LandingEvent>(
   events: T[],
@@ -74,12 +78,21 @@ export function partitionLandingCalendar<T extends LandingEvent>(
   });
   const onCourtIds = new Set(onCourt.map((e) => e.id));
 
+  const awaitingDraw = events.filter((e) => {
+    if (openIds.has(e.id) || onCourtIds.has(e.id)) return false;
+    if (isComplete(e, now)) return false;
+    if (e.hasDraw) return false;
+    const age = daysFromStart(e, now);
+    return age != null && age >= 0 && isInPlay(e, now);
+  });
+  const awaitingIds = new Set(awaitingDraw.map((e) => e.id));
+
   const upcoming = events
     .filter((e) => {
-      if (openIds.has(e.id) || onCourtIds.has(e.id)) return false;
+      if (openIds.has(e.id) || onCourtIds.has(e.id) || awaitingIds.has(e.id)) {
+        return false;
+      }
       if (isComplete(e, now)) return false;
-      // Already fillable elsewhere, or already started without a public draw —
-      // do not label either as Upcoming.
       if (e.hasDraw) return false;
       if (!startsInFuture(e, now)) return false;
       const moment = eventMoment(e);
@@ -96,6 +109,7 @@ export function partitionLandingCalendar<T extends LandingEvent>(
   const shownIds = new Set([
     ...openNow.map((e) => e.id),
     ...onCourt.map((e) => e.id),
+    ...awaitingDraw.map((e) => e.id),
     ...upcoming.map((e) => e.id),
   ]);
   const nextNamed: Partial<Record<LandingTour, T>> = {};
@@ -118,5 +132,5 @@ export function partitionLandingCalendar<T extends LandingEvent>(
     if (later[0]) nextNamed[tour] = later[0];
   }
 
-  return { openNow, onCourt, upcoming, nextNamed };
+  return { openNow, onCourt, awaitingDraw, upcoming, nextNamed };
 }
