@@ -198,10 +198,12 @@ export async function loadDailyCheck(input: {
   const submittedCount = brackets.filter((b) => b.submitted_at).length;
   const youSubmitted = Boolean(myBracket?.submitted_at);
 
-  const hasDraw = isOfficialPublicDraw(
-    seats,
-    effectiveDrawSize(seats.length, Number(tournament.draw_size) || 0)
-  );
+  const hasDraw =
+    Boolean(tournamentRow.published_at) &&
+    isOfficialPublicDraw(
+      seats,
+      effectiveDrawSize(seats.length, Number(tournament.draw_size) || 0)
+    );
   const locked = isTournamentLocked({
     ...tournament,
     league_locked_at: leagueLockedAt,

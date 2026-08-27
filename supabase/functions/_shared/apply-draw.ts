@@ -529,7 +529,9 @@ export async function applyDrawFacts(
 
   const { data: tourMeta } = await admin
     .from("tournaments")
-    .select("tour, provider_id, surface, bracket_eligible, draw_checked_at")
+    .select(
+      "tour, provider_id, surface, bracket_eligible, draw_checked_at, draw_size"
+    )
     .eq("id", tournamentId)
     .maybeSingle();
 
@@ -552,6 +554,7 @@ export async function applyDrawFacts(
       surface: tourMeta?.surface,
       bracket_eligible: tourMeta?.bracket_eligible,
       draw_checked_at: tourMeta?.draw_checked_at,
+      draw_size: tourMeta?.draw_size ?? drawSize,
     },
     drawTour: tourMeta?.tour,
     drawProviderId: tourMeta?.provider_id
@@ -574,12 +577,13 @@ export async function applyDrawFacts(
   );
 
   if (!integrity.safeToPublish) {
+    // Do not leave an unpublished sheet that the public page could render.
+    await admin.from("seats").delete().eq("tournament_id", tournamentId);
     await admin
       .from("tournaments")
       .update({
-        draw_size: drawSize,
         published_at: null,
-        draw_hash: revisionHash,
+        draw_hash: null,
         draw_checked_at: now,
       })
       .eq("id", tournamentId);
@@ -597,29 +601,12 @@ export async function applyDrawFacts(
         .map((e: { code: string }) => e.code)
         .join(",")}`
     );
-    // Seats are stored for ops; public stays draw-pending.
-    const facts = await applyMatchFacts(
-      admin,
-      tournamentId,
-      drawSize,
-      playerByProvider,
-      body.matches,
-      body.schedule,
-      body.results,
-      /* replaceTopology */ true,
+    return fail(
+      `integrity blocked: ${integrity.blockingErrors
+        .map((e: { code: string; message: string }) => e.message)
+        .join("; ")}`,
       log
     );
-    if (facts.error) return fail(facts.error, log);
-    return {
-      ok: true,
-      tournament_id: tournamentId,
-      seats: seatRows.length,
-      results: facts.results,
-      schedule: facts.schedule,
-      lock_at: facts.lockAt,
-      published_at: undefined,
-      log,
-    };
   }
 
   const { error: pubErr } = await admin

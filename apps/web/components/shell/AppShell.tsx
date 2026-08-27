@@ -3,6 +3,7 @@ import { signOut } from "@/app/actions/auth";
 import { BackButton } from "@/components/shell/BackButton";
 import { LocaleSwitcher } from "@/components/shell/LocaleSwitcher";
 import { ShellHeader } from "@/components/shell/ShellHeader";
+import { LiveRefresh } from "@/components/shell/LiveRefresh";
 import { NavigationProgressHost } from "@/components/shell/NavigationProgressHost";
 import { OfflineBanner } from "@/components/shell/OfflineBanner";
 import { DisplayNameBootstrap } from "@/components/shell/DisplayNameBootstrap";
@@ -29,6 +30,7 @@ export function AppShell({
   return (
     <LocaleProvider locale={locale}>
       <div className={arena ? "shell shell--arena" : "shell"}>
+        <LiveRefresh enabled />
         <NavigationProgressHost />
         <OfflineBanner message={t("offline.banner")} />
         {signedIn ? <DisplayNameBootstrap /> : null}

@@ -273,6 +273,40 @@ export const ADVANCING_OUTCOMES = Object.freeze(
 );
 
 /**
+ * MapStat-style result_type → advance / grade disposition (CEO Aug 24 §4.5).
+ * Live `matches` forbids voided∧winner together; walkover with a winner advances
+ * (voided=false) so the bracket does not stall. Walkover without winner voids.
+ *
+ * @param {string|null|undefined} resultType
+ * @returns {{ kind: 'settle'|'void'|'skip'|'unknown', advances: boolean, grades: boolean, voided: boolean }}
+ */
+export function outcomeDisposition(resultType) {
+  const raw = String(resultType || "")
+    .trim()
+    .toLowerCase();
+  if (!raw || raw === "completed" || raw === "final") {
+    return { kind: "settle", advances: true, grades: true, voided: false };
+  }
+  if (raw === "retired" || raw === "retirement" || raw === "ret") {
+    return { kind: "settle", advances: true, grades: true, voided: false };
+  }
+  if (raw === "default") {
+    return { kind: "settle", advances: true, grades: true, voided: false };
+  }
+  if (raw === "walkover" || raw === "wo") {
+    // Prefer advance when winner id present (caller); voided flag for no-winner case.
+    return { kind: "settle", advances: true, grades: false, voided: false };
+  }
+  if (raw === "cancelled" || raw === "canceled") {
+    return { kind: "void", advances: false, grades: false, voided: true };
+  }
+  if (raw === "suspended") {
+    return { kind: "skip", advances: false, grades: false, voided: false };
+  }
+  return { kind: "unknown", advances: false, grades: false, voided: false };
+}
+
+/**
  * @param {string|null|undefined} outcome
  * @param {string|null|undefined} winnerId
  */

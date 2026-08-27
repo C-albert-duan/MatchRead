@@ -1,0 +1,44 @@
+---
+description: Keep architecture/ docs in sync with every architectural code change
+alwaysApply: true
+---
+
+# Architecture docs stay current (non-negotiable)
+
+Every code change that alters how the system is shaped, wired, or operated **must** update `architecture/` in the same turn so the folder reflects reality in real time.
+
+## When you must update docs
+
+Update the matching file(s) if the change does any of the following:
+
+- Adds, removes, or renames a module/package/app responsibility
+- Changes a data flow (ingest, calendar, picks, lock, settle)
+- Adds/changes tables, views, RPCs, RLS, or entity relationships
+- Adds/changes Edge functions, cron, CI, deploy, or env/secrets placement
+- Moves a trust boundary (who may read/write what)
+
+Pure cosmetic edits (copy, styling with no new surface) do not require doc edits.
+
+## Where to edit
+
+| Change type | Update |
+|-------------|--------|
+| System map / trust boundaries | `architecture/overview.md`, `architecture/README.md` |
+| Request/data path | `architecture/data-flows.md` |
+| Tables / ER / invariants | `architecture/data-model.md` |
+| App or package responsibility | `architecture/modules/<module>.md` (+ index if new module) |
+| DB / Edge / CI / env / ops scripts | `architecture/infrastructure/<topic>.md` |
+
+New responsible module → add `architecture/modules/<name>.md` and link it from `architecture/modules/README.md` and `architecture/README.md`.
+
+## How to ship the update
+
+1. Make the code change.
+2. Patch the architecture doc(s) in the **same** response — do not defer.
+3. Keep docs accurate and short: ownership, boundaries, flow steps, links to real paths.
+4. Do not invent architecture that the code does not implement.
+
+```text
+❌ Code merges with stale architecture/
+✅ Code + architecture/ updated together
+```

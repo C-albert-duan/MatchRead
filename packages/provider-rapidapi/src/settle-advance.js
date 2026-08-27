@@ -4,6 +4,7 @@
  */
 
 import { matchKey } from "./settle-keys.js";
+import { outcomeDisposition } from "./normalize.js";
 
 export function parentMatchKey(round, indexInRound) {
   return {
@@ -96,6 +97,19 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
       }
     }
 
+    // Partial sides: one side filled, other empty — unique hit only.
+    if (!target && p1 && p2) {
+      const partial = matchSides.filter((m) => {
+        const a = m.side_a_provider_id ? String(m.side_a_provider_id) : "";
+        const b = m.side_b_provider_id ? String(m.side_b_provider_id) : "";
+        if (a && b) return false;
+        if (!a && !b) return false;
+        const known = a || b;
+        return known === p1 || known === p2;
+      });
+      if (partial.length === 1) target = partial[0];
+    }
+
     if (!target) {
       skipped.push({ id: id || pairKey(p1, p2), reason: "no match_key mapping" });
       continue;
@@ -105,32 +119,58 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
       bindings.push({
         match_key: target.match_key,
         provider_match_id: id,
+        side_a_provider_id: p1 || null,
+        side_b_provider_id: p2 || null,
       });
     }
 
-    const resultType = String(row.result_type || "").toLowerCase();
-    const voidLike =
-      resultType === "walkover" ||
-      resultType === "default" ||
-      resultType === "cancelled" ||
-      resultType === "canceled";
+    const disposition = outcomeDisposition(row.result_type);
+    if (disposition.kind === "unknown") {
+      skipped.push({ id: id || target.match_key, reason: "unknown outcome" });
+      continue;
+    }
+    if (disposition.kind === "skip") {
+      skipped.push({ id: id || target.match_key, reason: "non-terminal outcome" });
+      continue;
+    }
 
     const winnerId =
       row.match_winner != null && row.match_winner !== ""
         ? String(row.match_winner)
         : null;
 
+    if (disposition.kind === "void" || (!winnerId && disposition.voided)) {
+      results.push({
+        match_key: target.match_key,
+        winner_ref: null,
+        winner_provider_id: null,
+        voided: true,
+        provider_match_id: id || undefined,
+      });
+      continue;
+    }
+
     if (!winnerId) {
-      if (voidLike || !row.result) {
+      const rt = String(row.result_type || "").toLowerCase();
+      const voidWithoutWinner =
+        disposition.kind === "void" ||
+        rt === "walkover" ||
+        rt === "wo" ||
+        rt === "default" ||
+        rt === "cancelled" ||
+        rt === "canceled" ||
+        !row.result;
+      if (voidWithoutWinner) {
         results.push({
           match_key: target.match_key,
           winner_ref: null,
           winner_provider_id: null,
           voided: true,
+          provider_match_id: id || undefined,
         });
-      } else {
-        skipped.push({ id: id || target.match_key, reason: "finished but no match_winner" });
+        continue;
       }
+      skipped.push({ id: id || target.match_key, reason: "finished but no match_winner" });
       continue;
     }
 
@@ -140,6 +180,7 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
       winner_ref: winnerRef,
       winner_provider_id: winnerId,
       voided: false,
+      provider_match_id: id || undefined,
     });
   }
 

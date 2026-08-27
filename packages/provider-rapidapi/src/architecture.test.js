@@ -90,6 +90,19 @@ describe("drawPollIntervalMs / shouldPollDraw", () => {
   it("should poll when never checked", () => {
     assert.equal(shouldPollDraw({ hasDraw: false }), true);
   });
+
+  it("force-polls unpublished near main draw even if recently checked", () => {
+    const now = new Date("2026-08-24T12:00:00Z");
+    assert.equal(
+      shouldPollDraw({
+        hasDraw: false,
+        main_draw_starts_on: "2026-08-25",
+        draw_checked_at: "2026-08-24T11:55:00Z",
+        now,
+      }),
+      true
+    );
+  });
 });
 
 describe("parent advance", () => {

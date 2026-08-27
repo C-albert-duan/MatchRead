@@ -28,8 +28,9 @@ export function drawPollIntervalMs(input = {}) {
     if (untilLock > 0 && untilLock < 7 * 24 * HOUR) return 30 * MIN;
   }
 
-  const startMs = input.starts_on
-    ? Date.parse(`${String(input.starts_on).slice(0, 10)}T12:00:00Z`)
+  const startDay = input.main_draw_starts_on || input.starts_on;
+  const startMs = startDay
+    ? Date.parse(`${String(startDay).slice(0, 10)}T12:00:00Z`)
     : NaN;
   if (!Number.isNaN(startMs)) {
     const untilStart = startMs - now.getTime();
@@ -45,13 +46,31 @@ export function drawPollIntervalMs(input = {}) {
 /**
  * Whether this sync tick should poll /draws for the event.
  * Uses draw_checked_at vs adaptive interval.
+ * Force-poll unpublished events within 5 days of main-draw / start.
  */
 export function shouldPollDraw(input = {}) {
+  const now = (input.now ?? new Date()).getTime();
+  const hasDraw = Boolean(input.hasDraw);
+
+  if (!hasDraw) {
+    const day =
+      input.main_draw_starts_on || input.starts_on
+        ? String(input.main_draw_starts_on || input.starts_on).slice(0, 10)
+        : null;
+    if (day) {
+      const startMs = Date.parse(`${day}T12:00:00Z`);
+      if (!Number.isNaN(startMs)) {
+        const until = startMs - now;
+        // From 5 days before main draw through 2 days after — always poll.
+        if (until < 5 * HOUR * 24 && until > -2 * HOUR * 24) return true;
+      }
+    }
+  }
+
   const interval = drawPollIntervalMs(input);
   const checked = input.draw_checked_at
     ? Date.parse(input.draw_checked_at)
     : NaN;
   if (Number.isNaN(checked)) return true;
-  const now = (input.now ?? new Date()).getTime();
   return now - checked >= interval;
 }

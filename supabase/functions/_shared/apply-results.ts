@@ -84,6 +84,41 @@ export async function applyMatchResults(
     const voided = Boolean(r.voided);
     let winnerId: string | null = null;
 
+    // Settled + different winner → conflict (never overwrite).
+    if (
+      match.settled_at &&
+      match.winner_player_id &&
+      !voided
+    ) {
+      // Resolve candidate winner early for conflict check when already settled.
+      let candidate: string | null = r.winner_player_id ?? null;
+      if (!candidate) {
+        const providerId =
+          (r.winner_provider_id && String(r.winner_provider_id).trim()) ||
+          extractProviderId(r.winner_ref);
+        if (providerId) {
+          candidate = await resolvePlayerId(admin, providerId, playerCache);
+        }
+      }
+      if (candidate && candidate !== match.winner_player_id) {
+        skipped.push({ reason: "winner conflict", id: match.id });
+        if (runId) {
+          await admin.from("ops_events").insert({
+            kind: "reconcile",
+            name: "winner_conflict",
+            payload: {
+              tournament_id: id,
+              match_id: match.id,
+              match_key: r.match_key,
+              existing: match.winner_player_id,
+              incoming: candidate,
+            },
+          });
+        }
+        continue;
+      }
+    }
+
     if (!voided) {
       if (r.winner_player_id) {
         winnerId = r.winner_player_id;
@@ -282,9 +317,10 @@ async function findMatch(
   provider_match_id: string | null;
   winner_player_id: string | null;
   voided: boolean | null;
+  settled_at: string | null;
 } | null> {
   const cols =
-    "id, round, index_in_round, side_a_player_id, side_b_player_id, provider_match_id, winner_player_id, voided";
+    "id, round, index_in_round, side_a_player_id, side_b_player_id, provider_match_id, winner_player_id, voided, settled_at";
   if (r.match_id) {
     const { data } = await admin
       .from("matches")

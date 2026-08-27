@@ -1,9 +1,15 @@
 /**
  * Turn a Tennis API draw payload into official seats.
  * Slot order comes from the draw. Names/byes/TBD are copied, never invented.
+ * Qualifying / doubles sheets are rejected — size alone never selects the draw.
  */
 
 import { canonicalizeDisplayName, auxiliaryLastName } from "../normalize.js";
+import {
+  classifyDraw,
+  countSeeds,
+  nonMainDrawKind,
+} from "./classify-draw.js";
 
 function fold(value) {
   return String(value || "")
@@ -271,62 +277,134 @@ function matchSides(row) {
   ];
 }
 
-function collectMatchArrays(node, out = [], expected = 0) {
+/**
+ * @param {unknown} node
+ * @param {Array<{ sides: any[][], pathHint: string }>} out
+ * @param {number} expected
+ * @param {string} pathHint
+ */
+function collectMatchArrays(node, out = [], expected = 0, pathHint = "main") {
   if (!node) return out;
+  if (nonMainDrawKind(pathHint)) return out;
   if (Array.isArray(node)) {
     const sides = node.map(matchSides).filter(Boolean);
     const need = expected ? expected / 2 : 0;
     if (need && sides.length === need) {
-      out.push(sides);
+      out.push({ sides, pathHint });
     } else if (isPowerOfTwo(sides.length)) {
-      out.push(sides);
+      out.push({ sides, pathHint });
     } else {
       const grouped = matchSetsFromRoundGroups(node);
       if (grouped.length > 0) {
-        out.push(...grouped);
+        for (const g of grouped) out.push({ sides: g, pathHint });
       } else {
-        for (const item of node) collectMatchArrays(item, out, expected);
+        for (const item of node) {
+          collectMatchArrays(item, out, expected, pathHint);
+        }
       }
     }
     return out;
   }
   if (typeof node !== "object") return out;
   for (const key of ["matches", "games", "ties", "encounters", "fixtures"]) {
-    if (Array.isArray(node[key])) collectMatchArrays(node[key], out, expected);
-  }
-  if (Array.isArray(node.rounds)) {
-    for (const round of node.rounds) collectMatchArrays(round, out, expected);
-  }
-  // Prefer known draw keys so singles is considered before doubles noise.
-  for (const key of ["singles", "singlesDraw", "mainDraw", "md"]) {
-    if (node[key] && typeof node[key] === "object") {
-      collectMatchArrays(node[key], out, expected);
+    if (Array.isArray(node[key])) {
+      collectMatchArrays(node[key], out, expected, pathHint);
     }
   }
-  for (const value of Object.values(node)) {
-    if (value && typeof value === "object") collectMatchArrays(value, out, expected);
+  if (Array.isArray(node.rounds)) {
+    for (const round of node.rounds) {
+      collectMatchArrays(round, out, expected, pathHint);
+    }
+  }
+  // Prefer known main-singles keys; never walk qualifying/doubles branches.
+  for (const key of ["singles", "singlesDraw", "mainDraw", "md"]) {
+    if (node[key] && typeof node[key] === "object") {
+      collectMatchArrays(node[key], out, expected, key);
+    }
+  }
+  for (const [key, value] of Object.entries(node)) {
+    if (!value || typeof value !== "object") continue;
+    if (
+      [
+        "matches",
+        "games",
+        "ties",
+        "encounters",
+        "fixtures",
+        "rounds",
+        "singles",
+        "singlesDraw",
+        "mainDraw",
+        "md",
+      ].includes(key)
+    ) {
+      continue;
+    }
+    if (nonMainDrawKind(key)) continue;
+    collectMatchArrays(value, out, expected, key);
   }
   return out;
 }
 
-function collectSeatArrays(node, out = []) {
+/**
+ * @param {unknown} node
+ * @param {Array<{ people: any[], pathHint: string }>} out
+ * @param {string} pathHint
+ */
+function collectSeatArrays(node, out = [], pathHint = "main") {
   if (!node) return out;
+  if (nonMainDrawKind(pathHint)) return out;
   if (Array.isArray(node)) {
     const people = node.map((row) => personFromUnknown(row));
     if (people.length >= 16 && (people.length & (people.length - 1)) === 0) {
-      out.push(people);
+      out.push({ people, pathHint });
     } else {
-      for (const item of node) collectSeatArrays(item, out);
+      for (const item of node) collectSeatArrays(item, out, pathHint);
     }
     return out;
   }
   if (typeof node !== "object") return out;
-  if (Array.isArray(node.players)) collectSeatArrays(node.players, out);
-  if (Array.isArray(node.seats)) collectSeatArrays(node.seats, out);
-  for (const value of Object.values(node)) {
-    if (value && typeof value === "object") collectSeatArrays(value, out);
+  if (Array.isArray(node.players)) {
+    collectSeatArrays(node.players, out, pathHint);
+  }
+  if (Array.isArray(node.seats)) {
+    collectSeatArrays(node.seats, out, pathHint);
+  }
+  for (const [key, value] of Object.entries(node)) {
+    if (!value || typeof value !== "object") continue;
+    if (key === "players" || key === "seats") continue;
+    if (nonMainDrawKind(key)) continue;
+    collectSeatArrays(value, out, key);
   }
   return out;
+}
+
+/** Infer terminal-round match count from a flat multi-round singles list. */
+function terminalRoundMatchCount(raw) {
+  const body = unwrap(raw);
+  if (!body || typeof body !== "object") return null;
+  const singles =
+    body.singles ?? body.singlesDraw ?? body.mainDraw ?? body.md ?? null;
+  const rows = Array.isArray(singles)
+    ? singles
+    : Array.isArray(body)
+      ? body
+      : [];
+  if (!Array.isArray(rows) || rows.length < 2) return null;
+  const groups = new Map();
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    if (!matchSides(row)) continue;
+    const key = roundKey(row);
+    if (!key) continue;
+    groups.set(key, (groups.get(key) || 0) + 1);
+  }
+  if (groups.size < 2) return null;
+  let min = Infinity;
+  for (const n of groups.values()) {
+    if (n < min) min = n;
+  }
+  return Number.isFinite(min) ? min : null;
 }
 
 function toSeat(person, position, prefix) {
@@ -376,15 +454,20 @@ function toSeat(person, position, prefix) {
 
 /**
  * @param {unknown} raw
- * @param {{ prefix?: string }} [opts]
+ * @param {{ prefix?: string, expectedDrawSize?: number }} [opts]
  */
 export function parseOfficialDraw(raw, opts = {}) {
   const prefix = String(opts.prefix || "p").replace(/[^a-z0-9-]/gi, "") || "p";
   const expected = Number(opts.expectedDrawSize) || 0;
   const body = unwrap(raw);
+  const terminalRoundMatches = terminalRoundMatchCount(raw);
   const matchSets = collectMatchArrays(body, [], expected);
   const picked = pickSized(
-    matchSets.map((sides) => ({ item: sides, drawSize: sides.length * 2 })),
+    matchSets.map((row) => ({
+      item: row.sides,
+      drawSize: row.sides.length * 2,
+      pathHint: row.pathHint,
+    })),
     expected
   );
   if (picked) {
@@ -393,30 +476,91 @@ export function parseOfficialDraw(raw, opts = {}) {
       seats.push(toSeat(pair[0], i * 2, prefix));
       seats.push(toSeat(pair[1], i * 2 + 1, prefix));
     });
-    return { ok: true, drawSize: picked.drawSize, seats, source: "api-matches" };
+    const classified = classifyDraw(
+      {
+        pathHint: picked.pathHint,
+        size: picked.drawSize,
+        expectedSize: expected,
+        seedCount: countSeeds(seats),
+        terminalRoundMatches,
+      },
+      { draw_size: expected || null }
+    );
+    if (classified.kind === "rejected") {
+      return {
+        ok: false,
+        reason: `rejected ${classified.reason} draw (size ${picked.drawSize})`,
+        drawClass: classified,
+        draw_types_seen: [classified.reason],
+      };
+    }
+    return {
+      ok: true,
+      drawSize: picked.drawSize,
+      seats,
+      source: "api-matches",
+      drawClass: classified,
+    };
   }
 
   const seatSets = collectSeatArrays(body);
   const pickedSeats = pickSized(
-    seatSets.map((people) => ({ item: people, drawSize: people.length })),
+    seatSets.map((row) => ({
+      item: row.people,
+      drawSize: row.people.length,
+      pathHint: row.pathHint,
+    })),
     expected
   );
   if (pickedSeats) {
+    const seats = pickedSeats.item.map((p, i) => toSeat(p, i, prefix));
+    const classified = classifyDraw(
+      {
+        pathHint: pickedSeats.pathHint,
+        size: pickedSeats.drawSize,
+        expectedSize: expected,
+        seedCount: countSeeds(seats),
+        terminalRoundMatches,
+      },
+      { draw_size: expected || null }
+    );
+    if (classified.kind === "rejected") {
+      return {
+        ok: false,
+        reason: `rejected ${classified.reason} draw (size ${pickedSeats.drawSize})`,
+        drawClass: classified,
+        draw_types_seen: [classified.reason],
+      };
+    }
     return {
       ok: true,
       drawSize: pickedSeats.drawSize,
-      seats: pickedSeats.item.map((p, i) => toSeat(p, i, prefix)),
+      seats,
       source: "api-seats",
+      drawClass: classified,
     };
   }
 
+  // Explicit non-main keys in the payload — useful for ops logs.
+  const seen = [];
+  if (body && typeof body === "object" && !Array.isArray(body)) {
+    for (const key of Object.keys(body)) {
+      const kind = nonMainDrawKind(key);
+      if (kind) seen.push(kind);
+    }
+  }
   if (expected) {
     return {
       ok: false,
-      reason: `no official Tennis API draw of size ${expected}`,
+      reason: `no official Tennis API main-singles draw of size ${expected}`,
+      draw_types_seen: seen,
     };
   }
-  return { ok: false, reason: "Tennis API draw has no official slot list" };
+  return {
+    ok: false,
+    reason: "Tennis API draw has no official main-singles slot list",
+    draw_types_seen: seen,
+  };
 }
 
 function pickSized(candidates, expected) {
@@ -443,16 +587,42 @@ export function drawNameCandidates(event) {
   };
   push(event?.api_name);
   push(event?.name);
-  const strippedOpen = String(event?.api_name || event?.name || "").replace(
-    /\s+Open\s*$/i,
-    ""
-  );
-  push(strippedOpen);
+  const base = String(event?.api_name || event?.name || "");
+  push(base.replace(/\s+Open\s*$/i, ""));
+  // "Winston-Salem Open - Winston-Salem" → "Winston-Salem"
+  const dashCity = base.split(/\s+-\s+/)[0];
+  push(dashCity);
+  push(String(dashCity || "").replace(/\s+Open\s*$/i, ""));
+  // Slug hints for Mega draw name lookup
+  const slug = String(event?.slug || event?.ref || "");
+  if (/us-open|21349|16743/i.test(slug) || /u\.?s\.?\s*open/i.test(base)) {
+    push("US Open");
+    push("U.S. Open");
+    push("US Open - New York");
+  }
+  if (/winston|21348/i.test(slug) || /winston/i.test(base)) {
+    push("Winston-Salem");
+    push("Winston-Salem Open");
+  }
+  if (/cincinnati|21347|16740/i.test(slug) || /cincinnati/i.test(base)) {
+    push("Cincinnati");
+    push("Cincinnati Open");
+  }
+  if (/monterrey|16741/i.test(slug) || /monterrey/i.test(base)) {
+    push("Monterrey");
+    push("Abierto GNP Seguros");
+  }
+  if (/cleveland|16742|tennis in the land/i.test(slug) || /cleveland|tennis in the land/i.test(base)) {
+    push("Cleveland");
+    push("Tennis in the Land");
+  }
   return out;
 }
 
 export function drawYear(event) {
-  const on = String(event?.starts_on || "").slice(0, 4);
+  const on = String(
+    event?.main_draw_starts_on || event?.starts_on || ""
+  ).slice(0, 4);
   if (/^20\d{2}$/.test(on)) return Number(on);
   return new Date().getUTCFullYear();
 }

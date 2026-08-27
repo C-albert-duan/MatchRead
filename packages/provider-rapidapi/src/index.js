@@ -653,6 +653,11 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+export {
+  classifyDraw,
+  countSeeds,
+  nonMainDrawKind,
+} from "./official/classify-draw.js";
 export { overlayOfficialDraw } from "./official/overlay.js";
 export {
   drawNameCandidates,
@@ -695,6 +700,8 @@ export {
 export {
   diffProviderAuthoritative,
   unboundProviderFixtures,
+  r0SlotFromSeatPair,
+  proposeShapeBRepairs,
 } from "./reconcile-provider.js";
 export {
   createLiveSessionState,
@@ -720,6 +727,7 @@ export {
   canonicalizeDisplayName,
   ADVANCING_OUTCOMES,
   canAdvanceWinner,
+  outcomeDisposition,
 } from "./normalize.js";
 export {
   assertDrawBelongsToTournament,
@@ -738,6 +746,9 @@ export async function fetchOfficialSeats(client, event) {
   const prefix = normalizeTour(event?.tour);
   const year = drawYear(event);
   const names = drawNameCandidates(event);
+  /** @type {string[]} */
+  const seen = [];
+  let lastReason = "no official Tennis API draw";
   for (const name of names) {
     try {
       const { raw } = await getTournamentDraw(client, prefix, name, year);
@@ -746,13 +757,23 @@ export async function fetchOfficialSeats(client, event) {
         expectedDrawSize: Number(event?.draw_size) || 0,
       });
       if (parsed.ok) return parsed;
+      lastReason = parsed.reason || lastReason;
+      if (Array.isArray(parsed.draw_types_seen)) {
+        for (const t of parsed.draw_types_seen) {
+          if (t && !seen.includes(t)) seen.push(t);
+        }
+      }
+      if (parsed.drawClass?.reason && !seen.includes(parsed.drawClass.reason)) {
+        seen.push(parsed.drawClass.reason);
+      }
     } catch {
       // try the next published name
     }
   }
   return {
     ok: false,
-    reason: "no official Tennis API draw",
+    reason: lastReason,
+    draw_types_seen: seen,
   };
 }
 
@@ -783,6 +804,8 @@ export async function resolveOfficialSeats(
       reason: official.reason,
       firstRound: "fixture draw gated (official /draws required)",
       pairs: namedFirstRoundPairs(fixtures).length,
+      draw_types_seen: official.draw_types_seen,
+      drawClass: official.drawClass,
     };
   }
 

@@ -188,20 +188,72 @@ export declare function overlayOfficialDraw(
   opts?: { prefix?: string; results?: unknown[] }
 ): BuiltDraw | { ok: false; reason: string };
 
+export declare function classifyDraw(
+  evidence?: {
+    providerType?: string | null;
+    pathHint?: string | null;
+    size?: number | null;
+    expectedSize?: number | null;
+    seedCount?: number | null;
+    terminalRoundMatches?: number | null;
+  },
+  tournament?: { draw_size?: number | null; tier?: string | null }
+):
+  | { kind: "main_singles"; size: number }
+  | {
+      kind: "rejected";
+      reason:
+        | "qualifying"
+        | "doubles"
+        | "mixed"
+        | "unknown_type"
+        | "no_seeds"
+        | "size_mismatch"
+        | "terminal_round_not_final";
+    };
+
+export declare function countSeeds(
+  seats: Array<{
+    seed?: number | null;
+    seat_kind?: string;
+    kind?: string;
+    is_bye?: boolean;
+  }>
+): number;
+
+export declare function nonMainDrawKind(
+  raw: unknown
+): "qualifying" | "doubles" | "mixed" | null;
+
 export declare function parseOfficialDraw(
   raw: unknown,
   opts?: { prefix?: string; expectedDrawSize?: number }
 ):
-  | { ok: true; drawSize: number; seats: OfficialDrawSeat[]; source: string }
-  | { ok: false; reason: string };
+  | {
+      ok: true;
+      drawSize: number;
+      seats: OfficialDrawSeat[];
+      source: string;
+      drawClass?: { kind: "main_singles"; size: number };
+    }
+  | {
+      ok: false;
+      reason: string;
+      drawClass?: { kind: "rejected"; reason: string };
+      draw_types_seen?: string[];
+    };
 
 export declare function drawNameCandidates(event: {
   api_name?: string;
   name?: string;
   ref?: string;
+  slug?: string;
 }): string[];
 
-export declare function drawYear(event: { starts_on?: string | null }): number;
+export declare function drawYear(event: {
+  starts_on?: string | null;
+  main_draw_starts_on?: string | null;
+}): number;
 
 export declare function getTournamentDraw(
   client: { get: (path: string) => Promise<any> },
@@ -344,6 +396,7 @@ export declare function drawPollIntervalMs(input?: {
   now?: Date;
   lock_at?: string | null;
   starts_on?: string | null;
+  main_draw_starts_on?: string | null;
   hasDraw?: boolean;
   tbdCount?: number;
 }): number;
@@ -352,6 +405,7 @@ export declare function shouldPollDraw(input?: {
   now?: Date;
   lock_at?: string | null;
   starts_on?: string | null;
+  main_draw_starts_on?: string | null;
   hasDraw?: boolean;
   tbdCount?: number;
   draw_checked_at?: string | null;
@@ -403,6 +457,7 @@ export declare function unboundProviderFixtures(
     match_winner?: unknown;
     player1Id?: string | number;
     player2Id?: string | number;
+    result_type?: string | null;
   }>,
   boundResults: Array<{ match_key: string; provider_match_id?: string }>,
   knownProviderMatchIds: Set<string>
@@ -412,6 +467,49 @@ export declare function unboundProviderFixtures(
   player1Id: string | null;
   player2Id: string | null;
   match_winner: string | null;
+  result_type: string | null;
+}>;
+
+export declare function r0SlotFromSeatPair(
+  seats: Array<{ position: number; provider_player_id?: string | null }>,
+  p1: string,
+  p2: string
+): {
+  round: number;
+  index_in_round: number;
+  match_key: string;
+  side_a_provider_id: string;
+  side_b_provider_id: string;
+} | null;
+
+export declare function proposeShapeBRepairs(
+  unbound: Array<{
+    provider_match_id: string;
+    has_winner: boolean;
+    player1Id: string | null;
+    player2Id: string | null;
+    match_winner: string | null;
+    result_type?: string | null;
+  }>,
+  seats: Array<{ position: number; provider_player_id?: string | null }>,
+  matchSides: Array<{
+    match_key: string;
+    round: number;
+    index_in_round: number;
+    provider_match_id?: string | null;
+    side_a_provider_id?: string | null;
+    side_b_provider_id?: string | null;
+  }>
+): Array<{
+  action: "fill" | "create";
+  match_key: string;
+  round: number;
+  index_in_round: number;
+  provider_match_id: string;
+  side_a_provider_id: string;
+  side_b_provider_id: string;
+  winner_provider_id: string;
+  result_type: string | null;
 }>;
 
 export declare function bindResultsByPlayerPair(
@@ -552,6 +650,14 @@ export declare function canAdvanceWinner(
   outcome: string | null | undefined,
   winnerId: string | null | undefined
 ): boolean;
+export declare function outcomeDisposition(
+  resultType: string | null | undefined
+): {
+  kind: "settle" | "void" | "skip" | "unknown";
+  advances: boolean;
+  grades: boolean;
+  voided: boolean;
+};
 export declare function assertDrawBelongsToTournament(
   draw: {
     providerTournamentId?: string | null;

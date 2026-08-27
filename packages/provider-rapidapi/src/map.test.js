@@ -514,7 +514,12 @@ describe("parseOfficialDraw", () => {
 
   it("prefers the expected singles size over a longer doubles array", () => {
     const singles = Array.from({ length: 32 }, (_, i) => ({
-      player1: { id: 100 + i, name: `Alpha ${i}`, countryAcr: "USA" },
+      player1: {
+        id: 100 + i,
+        name: `Alpha ${i}`,
+        countryAcr: "USA",
+        seed: i < 16 ? String(i + 1) : undefined,
+      },
       player2: { id: 200 + i, name: `Beta ${i}`, countryAcr: "ESP" },
     }));
     const doubles = Array.from({ length: 16 }, (_, i) => ({
@@ -536,6 +541,39 @@ describe("parseOfficialDraw", () => {
     const parsed = parseOfficialDraw(
       { rounds: [{ name: "D32", matches: doubles }] },
       { prefix: "wta", expectedDrawSize: 64 }
+    );
+    assert.equal(parsed.ok, false);
+  });
+
+  it("rejects a 128 qualifying sheet with zero seeds", () => {
+    const r128 = Array.from({ length: 64 }, (_, i) => ({
+      roundId: 1,
+      draw: i + 1,
+      player1: { id: 1000 + i, name: `QualA${i} Lepchenko`, countryAcr: "USA" },
+      player2: { id: 2000 + i, name: `QualB${i} Brengle`, countryAcr: "USA" },
+    }));
+    const parsed = parseOfficialDraw(
+      { singles: r128, qualifying: r128 },
+      { prefix: "wta", expectedDrawSize: 128 }
+    );
+    assert.equal(parsed.ok, false);
+    if (parsed.ok) throw new Error("expected reject");
+    assert.match(parsed.reason, /no_seeds|qualifying/);
+  });
+
+  it("skips an explicit qualifying key even when sized like the main draw", () => {
+    const qual = Array.from({ length: 64 }, (_, i) => ({
+      player1: {
+        id: 1000 + i,
+        name: `QualA${i} Lepchenko`,
+        countryAcr: "USA",
+        seed: i < 32 ? String(i + 1) : undefined,
+      },
+      player2: { id: 2000 + i, name: `QualB${i} Brengle`, countryAcr: "USA" },
+    }));
+    const parsed = parseOfficialDraw(
+      { qualifying: qual },
+      { prefix: "wta", expectedDrawSize: 128 }
     );
     assert.equal(parsed.ok, false);
   });
@@ -570,7 +608,13 @@ describe("parseOfficialDraw", () => {
         roundId: 4,
         draw,
         result: "6-3 6-4",
-        player1: { id: 100 + i, name: `Alpha${i} Smith`, countryAcr: "USA" },
+        player1: {
+          id: 100 + i,
+          name: `Alpha${i} Smith`,
+          countryAcr: "USA",
+          // Seeds 2..32 on every other R128 match so classifyDraw accepts.
+          seed: draw <= 32 ? String(draw) : undefined,
+        },
         player2: { id: 200 + i, name: `Beta${i} Jones`, countryAcr: "ESP" },
       };
     });
@@ -609,7 +653,12 @@ describe("parseOfficialDraw", () => {
   it("reads a Round of 64 listed as games", () => {
     const games = Array.from({ length: 32 }, (_, i) => ({
       competitors: [
-        { id: 100 + i, lastName: `Alpha${i}`, countryAcr: "USA" },
+        {
+          id: 100 + i,
+          lastName: `Alpha${i}`,
+          countryAcr: "USA",
+          seed: i < 16 ? i + 1 : undefined,
+        },
         { id: 200 + i, lastName: `Beta${i}`, countryAcr: "ESP" },
       ],
     }));
@@ -634,6 +683,14 @@ describe("drawNameCandidates", () => {
     assert.ok(names.includes("Cincinnati Open"));
     assert.ok(names.includes("Cincinnati"));
     assert.equal(names.includes("Western & Southern Open"), false);
+  });
+
+  it("adds US Open aliases from slug", () => {
+    const names = drawNameCandidates({
+      slug: "t-atp-21349",
+      api_name: "US Open - New York",
+    });
+    assert.ok(names.includes("US Open"));
   });
 });
 

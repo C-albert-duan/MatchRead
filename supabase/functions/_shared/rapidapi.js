@@ -47,5 +47,7 @@ export {
   subscriptionDiff,
   UnknownProviderValue,
   unboundProviderFixtures,
+  r0SlotFromSeatPair,
+  proposeShapeBRepairs,
   validateOfficialSeats,
 } from "../../../packages/provider-rapidapi/src/index.js";

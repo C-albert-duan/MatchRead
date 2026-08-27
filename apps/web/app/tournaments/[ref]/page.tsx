@@ -102,8 +102,10 @@ export default async function PublicTournamentPage({ params }: Props) {
   Object.assign(schedule, scheduleMap);
 
   const drawSize = effectiveDrawSize(seats.length, event.draw_size);
-  // Full bracket UI only for an official sheet — never partial/fixture fiction.
-  const showDraw = isOfficialPublicDraw(seats, drawSize);
+  // Full bracket only for a *published* official main sheet — never seats
+  // left over from an integrity-blocked / qualifying misparse.
+  const showDraw =
+    event.hasDraw && isOfficialPublicDraw(seats, drawSize);
   const showMatchups = !showDraw && announced.length > 0;
 
   return (

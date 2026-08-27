@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { rankRows } from "@matchread/core";
 import { AppShell } from "@/components/shell/AppShell";
-import { LiveRefresh } from "@/components/shell/LiveRefresh";
 import { StandingsTable } from "@/components/league/StandingsTable";
 import { getSessionUser } from "@/lib/auth";
 import { t } from "@/lib/i18n";
@@ -78,7 +77,6 @@ export default async function SeasonStandingsPage({ params }: Props) {
 
   return (
     <AppShell signedIn email={user.email}>
-      <LiveRefresh enabled={standingRows.length > 0} />
       <div className="page">
         <header className="page-header page-header--split">
           <div className="page-header-copy">

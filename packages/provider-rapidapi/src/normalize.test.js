@@ -192,6 +192,31 @@ describe("evaluateDrawIntegrity", () => {
     assert.equal(report.safeToPublish, true);
     assert.ok(report.warnings.some((w) => w.code === "surface"));
   });
+
+  it("blocks a seedless 128 sheet as non-main", () => {
+    const seats = Array.from({ length: 128 }, (_, i) => ({
+      position: i,
+      kind: "player",
+      provider_player_id: `p${i}`,
+      last_name: `Surname${i}`,
+      display_name: `Surname${i}`,
+      seed: null,
+      country_code: "USA",
+    }));
+    const report = evaluateDrawIntegrity({
+      seats,
+      tournament: {
+        tour: "wta",
+        provider_id: "16743",
+        bracket_eligible: true,
+        surface: "hard",
+        draw_size: 128,
+      },
+      source: "official",
+    });
+    assert.equal(report.safeToPublish, false);
+    assert.ok(report.blockingErrors.some((e) => e.code === "draw_type"));
+  });
 });
 
 describe("canAdvanceWinner", () => {

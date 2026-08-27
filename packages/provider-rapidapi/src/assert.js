@@ -3,6 +3,7 @@
  */
 
 import { validateOfficialSeats } from "./official/draw-hash.js";
+import { classifyDraw, countSeeds } from "./official/classify-draw.js";
 import { parseTour } from "./normalize.js";
 
 /**
@@ -58,9 +59,12 @@ export function assertDrawBelongsToTournament(draw, tournament) {
  * Full publish gate. Rows existing is not enough.
  * @param {{
  *   seats: any[],
- *   tournament?: { tour?: string, provider_id?: string, surface?: string|null, bracket_eligible?: boolean|null, draw_checked_at?: string|null },
+ *   tournament?: { tour?: string, provider_id?: string, surface?: string|null, bracket_eligible?: boolean|null, draw_checked_at?: string|null, draw_size?: number|null },
  *   drawTour?: string|null,
  *   drawProviderId?: string|null,
+ *   drawPathHint?: string|null,
+ *   drawProviderType?: string|null,
+ *   terminalRoundMatches?: number|null,
  *   source?: string|null,
  *   sourceSnapshotId?: string|null,
  * }} input
@@ -111,6 +115,30 @@ export function evaluateDrawIntegrity(input) {
     blockingErrors.push({
       code: "eligibility",
       message: "tournament is not bracket_eligible",
+    });
+  }
+
+  // Draw type: size is never the classifier. Reject qualifying-shaped sheets.
+  const seedCount = countSeeds(seats);
+  const expectedSize =
+    Number(tournament.draw_size) ||
+    (validated.ok ? seats.length : 0) ||
+    seats.length;
+  const drawClass = classifyDraw(
+    {
+      size: seats.length,
+      expectedSize,
+      seedCount,
+      pathHint: input.drawPathHint ?? null,
+      providerType: input.drawProviderType ?? null,
+      terminalRoundMatches: input.terminalRoundMatches ?? null,
+    },
+    { draw_size: tournament.draw_size ?? expectedSize }
+  );
+  if (drawClass.kind === "rejected") {
+    blockingErrors.push({
+      code: "draw_type",
+      message: `rejected ${drawClass.reason}`,
     });
   }
 

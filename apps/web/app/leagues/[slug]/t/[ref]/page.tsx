@@ -2,7 +2,6 @@ import { isOfficialPublicDraw, type OfficialResults } from "@matchread/core";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/AppShell";
-import { LiveRefresh } from "@/components/shell/LiveRefresh";
 import { OfficialResultsPanel } from "@/components/league/OfficialResultsPanel";
 import { SettleButton } from "@/components/league/SettleButton";
 import { StandingsTable } from "@/components/league/StandingsTable";
@@ -165,8 +164,10 @@ export default async function TournamentInLeaguePage({ params }: Props) {
     seats.length,
     Number(tournament.draw_size) || 0
   );
-  // Official sheet only — partial/non-fact seats must not open the full bracket.
-  const hasSheet = isOfficialPublicDraw(seats, drawSize);
+  // Official sheet only when published — unpublished seats must not open picking.
+  const hasSheet =
+    Boolean(tournament.published_at) &&
+    isOfficialPublicDraw(seats, drawSize);
   const locked = isTournamentLocked({
     lock_at: tournament.lock_at,
     admin_locked_at: null,
@@ -216,7 +217,6 @@ export default async function TournamentInLeaguePage({ params }: Props) {
 
   return (
     <AppShell signedIn email={user.email}>
-      <LiveRefresh enabled={hasSheet} />
       <div className="page">
         <header className="page-header page-header--split">
           <div className="page-header-copy">

@@ -133,7 +133,9 @@ export default async function BracketPage({ params }: Props) {
     seats.length,
     Number(tournament.draw_size) || 0
   );
-  const hasSheet = isOfficialPublicDraw(seats, drawSize);
+  const hasSheet =
+    Boolean(tournament.published_at) &&
+    isOfficialPublicDraw(seats, drawSize);
   const locked = isTournamentLocked({
     lock_at: tournament.lock_at,
     admin_locked_at: null,

@@ -29,6 +29,7 @@ import {
   bindResultsByPlayerPair,
   diffProviderAuthoritative,
   unboundProviderFixtures,
+  proposeShapeBRepairs,
   resolveLiveEvent,
   getExtendEvent,
   normalizeSurface,
@@ -62,6 +63,8 @@ const PRODUCT_MAIN_DRAW: Record<string, string> = {
   "t-atp-21348": "2026-08-23", // Winston-Salem
   "t-atp-21347": "2026-08-13", // Cincinnati ATP
   "t-wta-16740": "2026-08-13", // Cincinnati WTA
+  "t-wta-16741": "2026-08-24", // Monterrey
+  "t-wta-16742": "2026-08-24", // Cleveland
 };
 
 Deno.serve(async (req) => {
@@ -257,6 +260,8 @@ type SyncedEvent = {
   provider_id: string;
   draw_size: number;
   starts_on: string | null;
+  main_draw_starts_on: string | null;
+  ends_on: string | null;
   lock_at: string | null;
   published_at: string | null;
   draw_checked_at: string | null;
@@ -479,6 +484,27 @@ function inWindow(startsOn: string | null, now: number): boolean {
   );
 }
 
+function eventInPlayForSync(
+  e: {
+    main_draw_starts_on: string | null;
+    starts_on: string | null;
+    ends_on?: string | null;
+  },
+  nowMs: number
+): boolean {
+  const day = e.main_draw_starts_on || e.starts_on;
+  if (!day) return false;
+  const startMs = Date.parse(`${String(day).slice(0, 10)}T12:00:00Z`);
+  if (Number.isNaN(startMs) || nowMs < startMs) return false;
+  if (e.ends_on) {
+    const endMs = Date.parse(`${String(e.ends_on).slice(0, 10)}T23:59:59.999Z`);
+    if (!Number.isNaN(endMs) && nowMs > endMs) return false;
+  } else if (nowMs - startMs > 14 * DAY_MS) {
+    return false;
+  }
+  return true;
+}
+
 async function listSyncedEvents(
   admin: ReturnType<typeof createClient>,
   onlySlug: string | null
@@ -486,7 +512,7 @@ async function listSyncedEvents(
   const { data, error } = await admin
     .from("tournaments")
     .select(
-      "id, slug, name, tour, draw_size, provider_id, starts_on, lock_at, published_at, draw_checked_at, surface, tier, bracket_eligible, ingestion_enabled"
+      "id, slug, name, tour, draw_size, provider_id, starts_on, main_draw_starts_on, ends_on, lock_at, published_at, draw_checked_at, surface, tier, bracket_eligible, ingestion_enabled"
     )
     .not("provider_id", "is", null);
   if (error) throw new Error(error.message);
@@ -503,6 +529,8 @@ async function listSyncedEvents(
       provider_id: String(row.provider_id),
       draw_size: Number(row.draw_size) || 0,
       starts_on: (row.starts_on as string) ?? null,
+      main_draw_starts_on: (row.main_draw_starts_on as string) ?? null,
+      ends_on: (row.ends_on as string) ?? null,
       lock_at: (row.lock_at as string) ?? null,
       published_at: (row.published_at as string) ?? null,
       draw_checked_at: (row.draw_checked_at as string) ?? null,
@@ -513,26 +541,48 @@ async function listSyncedEvents(
       ref: row.slug as string,
       api_name: row.name as string,
     }))
-    .filter((e) => inWindow(e.starts_on, now) || onlySlug === e.slug);
+    .filter(
+      (e) =>
+        inWindow(e.main_draw_starts_on || e.starts_on, now) ||
+        onlySlug === e.slug
+    );
 
   if (onlySlug) events = events.filter((e) => e.slug === onlySlug);
   else {
-    // Prefer published / in-window bracket product so cron finishes under timeout.
     const nowMs = Date.now();
-    events.sort((a, b) => {
-      const ap = a.published_at ? 0 : 1;
-      const bp = b.published_at ? 0 : 1;
-      if (ap !== bp) return ap - bp;
+    const mainMs = (e: SyncedEvent) => {
+      const day = e.main_draw_starts_on || e.starts_on;
+      if (!day) return nowMs;
+      const t = Date.parse(`${String(day).slice(0, 10)}T12:00:00Z`);
+      return Number.isNaN(t) ? nowMs : t;
+    };
+
+    // Always sync in-play events that still need a publish (never starve by cap).
+    const inPlayUnpublished = events.filter(
+      (e) =>
+        e.bracket_eligible &&
+        !e.published_at &&
+        eventInPlayForSync(e, nowMs)
+    );
+    const inPlayIds = new Set(inPlayUnpublished.map((e) => e.id));
+
+    const rest = events.filter((e) => !inPlayIds.has(e.id));
+    rest.sort((a, b) => {
       const ae = a.bracket_eligible ? 0 : 1;
       const be = b.bracket_eligible ? 0 : 1;
       if (ae !== be) return ae - be;
-      const as = a.starts_on ? Date.parse(a.starts_on) : nowMs;
-      const bs = b.starts_on ? Date.parse(b.starts_on) : nowMs;
-      return Math.abs(as - nowMs) - Math.abs(bs - nowMs);
+      const ap = a.published_at ? 1 : 0;
+      const bp = b.published_at ? 1 : 0;
+      if (ap !== bp) return ap - bp;
+      return Math.abs(mainMs(a) - nowMs) - Math.abs(mainMs(b) - nowMs);
     });
-    if (events.length > MAX_EVENTS_PER_RUN) {
-      events = events.slice(0, MAX_EVENTS_PER_RUN);
-    }
+
+    inPlayUnpublished.sort(
+      (a, b) => Math.abs(mainMs(a) - nowMs) - Math.abs(mainMs(b) - nowMs)
+    );
+
+    const room = Math.max(0, MAX_EVENTS_PER_RUN - inPlayUnpublished.length);
+    events = [...inPlayUnpublished, ...rest.slice(0, room)];
   }
   return events;
 }
@@ -605,6 +655,7 @@ async function syncEventDraw(
     shouldPollDraw({
       lock_at: event.lock_at,
       starts_on: event.starts_on,
+      main_draw_starts_on: event.main_draw_starts_on,
       hasDraw: Boolean(event.published_at),
       tbdCount: tbdCount ?? 0,
       draw_checked_at: event.draw_checked_at,
@@ -667,10 +718,21 @@ async function syncEventDraw(
       .from("tournaments")
       .update({ draw_checked_at: new Date().toISOString() })
       .eq("id", event.id);
+    const seen = Array.isArray(
+      (official as { draw_types_seen?: string[] }).draw_types_seen
+    )
+      ? (official as { draw_types_seen: string[] }).draw_types_seen.join(",")
+      : "";
+    const reason =
+      (official as { drawClass?: { reason?: string } }).drawClass?.reason ||
+      "";
     log.push(
       `${label} pending — ${official.reason}${
         official.firstRound ? ` (${official.firstRound})` : ""
-      }`
+      }` +
+        (seen || reason
+          ? ` draw_types_seen=${seen || reason} main_singles_found=false action=noop`
+          : "")
     );
     return { status: matchups.length ? "announced" : "pending" };
   }
@@ -835,6 +897,156 @@ async function loadMatchSides(
   }));
 }
 
+async function loadSeatProviders(
+  admin: ReturnType<typeof createClient>,
+  tournamentId: string
+): Promise<{ position: number; provider_player_id: string | null }[]> {
+  const { data: seats } = await admin
+    .from("seats")
+    .select("position, player_id")
+    .eq("tournament_id", tournamentId)
+    .order("position", { ascending: true });
+  const playerIds = [
+    ...new Set(
+      (seats ?? []).map((s) => s.player_id as string | null).filter(Boolean) as string[]
+    ),
+  ];
+  const providerByUuid = new Map<string, string>();
+  if (playerIds.length) {
+    const { data: people } = await admin
+      .from("players")
+      .select("id, provider_id")
+      .in("id", playerIds);
+    for (const p of people ?? []) {
+      if (p.provider_id) providerByUuid.set(String(p.id), String(p.provider_id));
+    }
+  }
+  return (seats ?? []).map((s) => ({
+    position: Number(s.position),
+    provider_player_id: s.player_id
+      ? providerByUuid.get(String(s.player_id)) ?? null
+      : null,
+  }));
+}
+
+async function ensurePlayersByProvider(
+  admin: ReturnType<typeof createClient>,
+  providerIds: string[],
+  log: string[]
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  const ids = [...new Set(providerIds.map(String).filter(Boolean))];
+  if (!ids.length) return out;
+  const { data: existing } = await admin
+    .from("players")
+    .select("id, provider_id")
+    .in("provider_id", ids);
+  for (const p of existing ?? []) {
+    if (p.provider_id) out.set(String(p.provider_id), String(p.id));
+  }
+  const missing = ids.filter((id) => !out.has(id));
+  if (!missing.length) return out;
+  // Fail closed: never invent a display name. Only bind known players.
+  log.push(`shapeB unresolved players: ${missing.join(",")}`);
+  return out;
+}
+
+async function applyShapeBRepairs(
+  admin: ReturnType<typeof createClient>,
+  event: SyncedEvent,
+  repairs: ReturnType<typeof proposeShapeBRepairs>,
+  dryRun: boolean,
+  log: string[]
+): Promise<
+  {
+    match_key: string;
+    winner_provider_id: string;
+    winner_ref: string;
+    voided: boolean;
+    provider_match_id: string;
+  }[]
+> {
+  const ingest: {
+    match_key: string;
+    winner_provider_id: string;
+    winner_ref: string;
+    voided: boolean;
+    provider_match_id: string;
+  }[] = [];
+  if (!repairs.length) return ingest;
+
+  const needed = repairs.flatMap((r) => [
+    r.side_a_provider_id,
+    r.side_b_provider_id,
+    r.winner_provider_id,
+  ]);
+  const playerMap = await ensurePlayersByProvider(admin, needed, log);
+
+  for (const r of repairs) {
+    const sideA = playerMap.get(r.side_a_provider_id);
+    const sideB = playerMap.get(r.side_b_provider_id);
+    const winner = playerMap.get(r.winner_provider_id);
+    if (!sideA || !sideB || !winner) {
+      log.push(
+        `${event.slug} shapeB skip ${r.match_key}: player_unresolved`
+      );
+      continue;
+    }
+    if (winner !== sideA && winner !== sideB) {
+      log.push(`${event.slug} shapeB skip ${r.match_key}: winner not on sides`);
+      continue;
+    }
+
+    if (!dryRun) {
+      if (r.action === "create") {
+        const { error } = await admin.from("matches").insert({
+          tournament_id: event.id,
+          round: r.round,
+          index_in_round: r.index_in_round,
+          provider_match_id: r.provider_match_id,
+          side_a_player_id: sideA,
+          side_b_player_id: sideB,
+        });
+        if (error) {
+          // Unique race → treat as fill
+          if (!/duplicate|unique/i.test(error.message)) {
+            log.push(`${event.slug} shapeB create ${r.match_key}: ${error.message}`);
+            continue;
+          }
+        } else {
+          log.push(`${event.slug} shapeB created ${r.match_key}`);
+        }
+      }
+
+      const patch: Record<string, unknown> = {
+        provider_match_id: r.provider_match_id,
+        side_a_player_id: sideA,
+        side_b_player_id: sideB,
+      };
+      const { error: upErr } = await admin
+        .from("matches")
+        .update(patch)
+        .eq("tournament_id", event.id)
+        .eq("round", r.round)
+        .eq("index_in_round", r.index_in_round)
+        .is("winner_player_id", null);
+      if (upErr) {
+        log.push(`${event.slug} shapeB fill ${r.match_key}: ${upErr.message}`);
+        continue;
+      }
+    }
+
+    ingest.push({
+      match_key: r.match_key,
+      winner_provider_id: r.winner_provider_id,
+      winner_ref: r.winner_provider_id,
+      voided: false,
+      provider_match_id: r.provider_match_id,
+    });
+  }
+  return ingest;
+}
+
 async function syncEventResults(
   admin: ReturnType<typeof createClient>,
   rapid: ReturnType<typeof createRapid>,
@@ -928,6 +1140,7 @@ async function syncEventResults(
       winner_ref: r.winner_ref,
       winner_provider_id: r.winner_provider_id,
       voided: r.voided,
+      provider_match_id: r.provider_match_id,
     });
   }
   for (const r of liveMapped.results) {
@@ -940,8 +1153,6 @@ async function syncEventResults(
       });
     }
   }
-
-  const results = [...byKey.values()];
 
   // Provider-authoritative: fixtures present remotely but unbound → audit (never silent).
   const knownPm = new Set(Object.keys(maps.matches || {}));
@@ -974,6 +1185,33 @@ async function syncEventResults(
   log.push(
     `${event.slug} results bound=${bound.results.length} mapped=${mapped.results.length} live=${liveMapped.results.length} unbound=${unbound.length} orphans=${authDiff.orphans.length}`
   );
+
+  // Shape B: create/fill missing R0 matches from results archive + official seats.
+  const seats = await loadSeatProviders(admin, event.id);
+  const shapeB = proposeShapeBRepairs(unbound, seats, matchSides);
+  const shapeBIngest = await applyShapeBRepairs(
+    admin,
+    event,
+    shapeB,
+    env.dryRun,
+    log
+  );
+  for (const r of shapeBIngest) {
+    byKey.set(r.match_key, {
+      match_key: r.match_key,
+      winner_ref: r.winner_ref,
+      winner_provider_id: r.winner_provider_id,
+      voided: r.voided,
+      provider_match_id: r.provider_match_id,
+    });
+  }
+  if (shapeB.length) {
+    log.push(
+      `${event.slug} shapeB proposed=${shapeB.length} ingest=${shapeBIngest.length}`
+    );
+  }
+
+  const results = [...byKey.values()];
 
   // EventMapper for active R0/live-capable matches (REST trigger only).
   await refreshEventMap(admin, rapid, event, matchSides, liveEvents, log);

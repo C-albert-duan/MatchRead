@@ -11,8 +11,9 @@ type Props = {
 };
 
 /** Soft REST poll: revalidate the current RSC tree on an interval.
- * Primary live path is backend EventMapper + sync-facts; this is the
- * browser REST fallback when socket coverage is missing or stale.
+ * Mounted from AppShell on every page so public calendar and brackets
+ * pick up sync-facts writes without a manual refresh.
+ * Backend: EventMapper + sync-facts (~5m); this is the browser fallback.
  */
 export function LiveRefresh({ enabled, intervalMs = 45_000 }: Props) {
   const router = useRouter();
