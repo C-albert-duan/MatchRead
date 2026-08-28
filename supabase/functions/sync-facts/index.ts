@@ -557,14 +557,12 @@ async function listSyncedEvents(
       return Number.isNaN(t) ? nowMs : t;
     };
 
-    // Always sync in-play events that still need a publish (never starve by cap).
-    const inPlayUnpublished = events.filter(
-      (e) =>
-        e.bracket_eligible &&
-        !e.published_at &&
-        eventInPlayForSync(e, nowMs)
+    // Always sync in-play product events (never starve by cap):
+    // unpublished → need draw publish; published → need results reconcile.
+    const inPlay = events.filter(
+      (e) => e.bracket_eligible && eventInPlayForSync(e, nowMs)
     );
-    const inPlayIds = new Set(inPlayUnpublished.map((e) => e.id));
+    const inPlayIds = new Set(inPlay.map((e) => e.id));
 
     const rest = events.filter((e) => !inPlayIds.has(e.id));
     rest.sort((a, b) => {
@@ -577,12 +575,16 @@ async function listSyncedEvents(
       return Math.abs(mainMs(a) - nowMs) - Math.abs(mainMs(b) - nowMs);
     });
 
-    inPlayUnpublished.sort(
-      (a, b) => Math.abs(mainMs(a) - nowMs) - Math.abs(mainMs(b) - nowMs)
-    );
+    // Unpublished first (draw), then published (results), then proximity.
+    inPlay.sort((a, b) => {
+      const ap = a.published_at ? 1 : 0;
+      const bp = b.published_at ? 1 : 0;
+      if (ap !== bp) return ap - bp;
+      return Math.abs(mainMs(a) - nowMs) - Math.abs(mainMs(b) - nowMs);
+    });
 
-    const room = Math.max(0, MAX_EVENTS_PER_RUN - inPlayUnpublished.length);
-    events = [...inPlayUnpublished, ...rest.slice(0, room)];
+    const room = Math.max(0, MAX_EVENTS_PER_RUN - inPlay.length);
+    events = [...inPlay, ...rest.slice(0, room)];
   }
   return events;
 }
@@ -1059,6 +1061,10 @@ async function syncEventResults(
   log: string[]
 ): Promise<{ ingested: number }> {
   const maps = await loadProviderMaps(admin, event.id);
+  // Heal missing parent sides from prior bye/settles before pair-binding.
+  if (!env.dryRun) {
+    await applyMatchResults(admin, event.id, [], log);
+  }
   const matchSides = await loadMatchSides(admin, event.id);
   if (matchSides.length === 0) {
     log.push(`${event.slug} no match tree yet`);
@@ -1216,22 +1222,25 @@ async function syncEventResults(
   // EventMapper for active R0/live-capable matches (REST trigger only).
   await refreshEventMap(admin, rapid, event, matchSides, liveEvents, log);
 
-  if (!results.length || env.dryRun) {
-    if (!env.dryRun && (unbound.length || authDiff.orphans.length)) {
-      await admin.from("ops_events").insert({
-        kind: "reconcile",
-        name: "provider_authoritative_gap",
-        payload: {
-          tournament_id: event.id,
-          slug: event.slug,
-          unbound: unbound.slice(0, 40),
-          orphans: authDiff.orphans.slice(0, 40),
-          missing_from_store: authDiff.missingFromStore.slice(0, 40),
-        },
-      });
-    }
-    return { ingested: 0 };
+  if (env.dryRun) {
+    return { ingested: results.length };
   }
+
+  if (!results.length && (unbound.length || authDiff.orphans.length)) {
+    await admin.from("ops_events").insert({
+      kind: "reconcile",
+      name: "provider_authoritative_gap",
+      payload: {
+        tournament_id: event.id,
+        slug: event.slug,
+        unbound: unbound.slice(0, 40),
+        orphans: authDiff.orphans.slice(0, 40),
+        missing_from_store: authDiff.missingFromStore.slice(0, 40),
+      },
+    });
+  }
+
+  // Always run apply (even with empty results) so bye/parent advance heals.
 
   const { data: runRow, error: runErr } = await admin
     .from("sync_repair_runs")

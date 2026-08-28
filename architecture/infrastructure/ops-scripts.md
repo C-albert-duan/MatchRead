@@ -6,7 +6,7 @@
 | Script | npm / usage | Responsibility |
 |--------|-------------|----------------|
 | `publish-draws.mjs` | `npm run publish:draws` | Preview official seats; live publish via sync-facts / apply-draw |
-| `reconcile-results.mjs` | `npm run reconcile:results` | Map-driven RapidAPI results → ingest |
+| `reconcile-results.mjs` | `npm run reconcile:results` | Map-driven RapidAPI results dry-run; live POSTs `sync-facts` with `{ slug }` (rewrites legacy `/ingest-events` URL) |
 | `sync-lock-at.mjs` | `npm run sync:lock-at` | Set `lock_at` from first timed R0 ball |
 | `probe-rapidapi.mjs` | `npm run probe:rapidapi` | Provider connectivity |
 | `probe-event-dates.mjs` | `npm run probe:event-dates` | Read-only date/fixture diagnosis |

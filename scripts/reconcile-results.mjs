@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Reconcile RapidAPI tournament results → MatchRead ingest-events (Plan 16).
+ * Reconcile RapidAPI tournament results → MatchRead sync-facts (Plan 16).
  *
  * Usage (repo root):
  *   node scripts/reconcile-results.mjs --dry-run --map .provider-map.json
@@ -10,6 +10,10 @@
  * Env (.env.provider):
  *   RAPIDAPI_KEY, RAPIDAPI_HOST
  *   MATCHREAD_INGEST_URL, INGEST_SECRET   (required unless --dry-run)
+ *   MATCHREAD_INGEST_URL may still end in /ingest-events — rewritten to /sync-facts.
+ *
+ * Live POST invokes sync-facts with `{ slug }` when the map has tournament_slug/slug;
+ * otherwise dry-run mapping only (legacy results payload is not accepted by sync-facts).
  *
  * Never run this from Vercel. Never print the API key.
  */
@@ -57,6 +61,14 @@ function usage() {
   --doubles      Include doubles results (default: singles only)
   --help         Show this help
 `);
+}
+
+/** Prefer sync-facts; fall back to legacy ingest-events URL shape. */
+function syncFactsUrl(ingestUrl) {
+  if (!ingestUrl) return "";
+  return ingestUrl
+    .replace(/\/ingest-events\/?$/, "/sync-facts")
+    .replace(/\/rebuild-draw\/?$/, "/sync-facts");
 }
 
 async function main() {
@@ -144,11 +156,19 @@ async function main() {
     process.exit(2);
   }
 
-  const ingestUrl = env.MATCHREAD_INGEST_URL;
+  const ingestUrl = syncFactsUrl(env.MATCHREAD_INGEST_URL || "");
   const ingestSecret = env.INGEST_SECRET;
   if (!ingestUrl || !ingestSecret) {
     console.error(
       "MATCHREAD_INGEST_URL and INGEST_SECRET required for live ingest (or pass --dry-run)."
+    );
+    process.exit(1);
+  }
+
+  const slug = mapping.tournament_slug || mapping.slug || null;
+  if (!slug) {
+    console.error(
+      "Map needs tournament_slug (or slug) for live sync-facts. Dry-run still works without it."
     );
     process.exit(1);
   }
@@ -159,14 +179,14 @@ async function main() {
       Authorization: `Bearer ${ingestSecret}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ slug }),
   });
   const text = await res.text();
   console.log(`\nIngest status=${res.status}`);
   console.log(text.slice(0, 800));
   if (!res.ok) process.exit(1);
   console.log(
-    "\nOK — results upserted. Settle from the app (commissioner/founder) so standings move."
+    "\nOK — sync-facts invoked. Settle from the app (commissioner/founder) so standings move."
   );
 }
 

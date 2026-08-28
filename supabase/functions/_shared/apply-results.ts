@@ -36,7 +36,7 @@ export async function applyMatchResults(
   opts: { runId?: string | null } = {}
 ): Promise<ApplyMatchResultsResult> {
   const id = tournamentId?.trim();
-  if (!id || results.length === 0) {
+  if (!id) {
     return {
       ok: false,
       error: "tournament_id and results[] required",
@@ -50,6 +50,16 @@ export async function applyMatchResults(
   let advanced = 0;
   const skipped: { reason: string; id?: string }[] = [];
   const runId = opts.runId ?? null;
+
+  // Heal bye/prior settles that never wrote the winner into the parent side.
+  advanced += await healSettledAdvances(admin, id);
+
+  if (results.length === 0) {
+    log.push(
+      `applied 0 results, advanced ${advanced} (heal-only), skipped 0`
+    );
+    return { ok: true, updated: 0, advanced, skipped, log };
+  }
 
   // Round-ordered: settle lower rounds first so parent sides exist.
   const ordered = [...results].sort((a, b) => {
@@ -185,6 +195,18 @@ export async function applyMatchResults(
       before.winner_player_id === (patch.winner_player_id ?? null) &&
       Boolean(before.voided) === voided;
     if (unchanged && !patch.side_a_player_id && !patch.side_b_player_id) {
+      // Bye / prior settle may have set winner without parent advance — heal.
+      if (!voided && winnerId) {
+        const did = await writeWinnerIntoParent(
+          admin,
+          id,
+          match.round,
+          match.index_in_round,
+          winnerId,
+          now
+        );
+        if (did) advanced += 1;
+      }
       skipped.push({ reason: "already settled", id: match.id });
       continue;
     }
@@ -298,6 +320,36 @@ async function writeWinnerIntoParent(
   // not applicable here; bye handling is at topology build.
   void now;
   return true;
+}
+
+/** Advance every settled winner into its parent side (idempotent heal). */
+async function healSettledAdvances(
+  admin: SupabaseClient,
+  tournamentId: string
+): Promise<number> {
+  const { data: settled } = await admin
+    .from("matches")
+    .select("round, index_in_round, winner_player_id")
+    .eq("tournament_id", tournamentId)
+    .not("winner_player_id", "is", null)
+    .eq("voided", false)
+    .order("round", { ascending: true })
+    .order("index_in_round", { ascending: true });
+  let n = 0;
+  const now = new Date().toISOString();
+  for (const m of settled ?? []) {
+    if (!m.winner_player_id) continue;
+    const did = await writeWinnerIntoParent(
+      admin,
+      tournamentId,
+      Number(m.round),
+      Number(m.index_in_round),
+      String(m.winner_player_id),
+      now
+    );
+    if (did) n += 1;
+  }
+  return n;
 }
 
 async function findMatch(

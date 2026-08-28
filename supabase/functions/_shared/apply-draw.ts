@@ -3,6 +3,7 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { buildRoundStructure, parseMatchKey } from "./core.js";
+import { advanceWinnerToParent } from "./rapidapi.js";
 
 type SeatIn = {
   position: number;
@@ -1041,17 +1042,34 @@ async function refreshRoundZeroSides(
       side_b_player_id: sideB,
     };
     // Re-apply bye settle if needed and not already settled with a winner.
+    let byeWinner: string | null = null;
     if (!m.winner_player_id) {
       const now = new Date().toISOString();
       if (a?.kind === "bye" && sideB) {
         patch.winner_player_id = sideB;
         patch.settled_at = now;
+        byeWinner = sideB;
       } else if (b?.kind === "bye" && sideA) {
         patch.winner_player_id = sideA;
         patch.settled_at = now;
+        byeWinner = sideA;
       }
+    } else if (
+      (a?.kind === "bye" && sideB && m.winner_player_id === sideB) ||
+      (b?.kind === "bye" && sideA && m.winner_player_id === sideA)
+    ) {
+      byeWinner = m.winner_player_id as string;
     }
     await admin.from("matches").update(patch).eq("id", m.id);
+    if (byeWinner) {
+      await advanceWinnerIntoParentMatch(
+        admin,
+        tournamentId,
+        0,
+        i,
+        byeWinner
+      );
+    }
     n += 1;
   }
   void playerByProvider;
@@ -1278,6 +1296,17 @@ async function applyMatchFacts(
       };
     }
     log.push(`inserted ${insertRows.length} matches`);
+    // Bye auto-settle on insert does not advance — push winners into R1 sides now.
+    for (const row of insertRows) {
+      if (row.round !== 0 || !row.winner_player_id) continue;
+      await advanceWinnerIntoParentMatch(
+        admin,
+        tournamentId,
+        0,
+        Number(row.index_in_round),
+        String(row.winner_player_id)
+      );
+    }
   }
 
   // Ensure player map covers all tournament seats (overlay / reconcile path).
@@ -1471,6 +1500,35 @@ async function applyMatchFacts(
 
 function fail(error: unknown, log: string[]): { ok: false; error: string; log: string[] } {
   return { ok: false, error: errText(error), log };
+}
+
+/** Push a settled winner into the parent match side (idempotent). */
+async function advanceWinnerIntoParentMatch(
+  admin: SupabaseClient,
+  tournamentId: string,
+  round: number,
+  indexInRound: number,
+  winnerId: string
+): Promise<boolean> {
+  const parent = advanceWinnerToParent(round, indexInRound, winnerId);
+  if (!parent) return false;
+  const { data: parentRow, error } = await admin
+    .from("matches")
+    .select("id, side_a_player_id, side_b_player_id, winner_player_id")
+    .eq("tournament_id", tournamentId)
+    .eq("round", parent.round)
+    .eq("index_in_round", parent.indexInRound)
+    .maybeSingle();
+  if (error || !parentRow) return false;
+  const col = parent.sideColumn as "side_a_player_id" | "side_b_player_id";
+  const current = parentRow[col];
+  if (current === winnerId) return false;
+  if (current && parentRow.winner_player_id) return false;
+  const { error: upErr } = await admin
+    .from("matches")
+    .update({ [col]: winnerId })
+    .eq("id", parentRow.id);
+  return !upErr;
 }
 
 function errText(err: unknown): string {

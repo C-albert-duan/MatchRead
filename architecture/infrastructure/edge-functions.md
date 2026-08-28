@@ -26,7 +26,9 @@ Pipeline:
 
 Triggered by pg_cron (~5m), optional GitHub workflow, and ops scripts.
 
-Cron/full runs (no `slug`) process at most ~10 events per invoke so the Edge call finishes before gateway idle timeout. **In-play unpublished** eligible events are always included (not capped out). Ordering prefers unpublished near `main_draw_starts_on`, then published (results). Calendar upsert still covers the dual-tour window every run.
+Cron/full runs (no `slug`) process at most ~10 events per invoke so the Edge call finishes before gateway idle timeout. **All bracket-eligible in-play events** (published and unpublished) are always included — unpublished need draw publish; published need results reconcile. Remaining slots go to near-window events (unpublished preferred). Calendar upsert still covers the dual-tour window every run.
+
+Bye auto-settle on R0 write must advance the winner into the parent side; `apply-results` also heals missing parent advances before binding new results.
 
 Draw poll: adaptive interval via `shouldPollDraw`, with a **force poll** for unpublished events within ~5 days before / 2 days after main-draw day.
 
