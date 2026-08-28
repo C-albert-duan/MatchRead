@@ -383,25 +383,28 @@ async function findMatch(
     return data ?? null;
   }
 
+  // Prefer bracket key over provider_match_id. Local rows can carry stale /
+  // synthetic ids (e.g. "802") that do not match the results archive.
+  if (r.match_key) {
+    const parsed = parseMatchKey(r.match_key);
+    if (parsed) {
+      const { data } = await admin
+        .from("matches")
+        .select(cols)
+        .eq("tournament_id", tournamentId)
+        .eq("round", parsed.round)
+        .eq("index_in_round", parsed.indexInRound)
+        .maybeSingle();
+      if (data) return data;
+    }
+  }
+
   if (r.provider_match_id) {
     const { data } = await admin
       .from("matches")
       .select(cols)
       .eq("tournament_id", tournamentId)
       .eq("provider_match_id", String(r.provider_match_id))
-      .maybeSingle();
-    return data ?? null;
-  }
-
-  if (r.match_key) {
-    const parsed = parseMatchKey(r.match_key);
-    if (!parsed) return null;
-    const { data } = await admin
-      .from("matches")
-      .select(cols)
-      .eq("tournament_id", tournamentId)
-      .eq("round", parsed.round)
-      .eq("index_in_round", parsed.indexInRound)
       .maybeSingle();
     return data ?? null;
   }

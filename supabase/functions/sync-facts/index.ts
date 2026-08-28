@@ -1094,17 +1094,22 @@ async function syncEventResults(
   const mapped = mapResultsToIngest(singles ?? [], mapping);
 
   // Apply provider_match_id bindings discovered via pair match.
+  // Overwrite short/synthetic local ids so the next pass stays aligned.
   if (!env.dryRun) {
     for (const b of bound.bindings) {
       const parsed = b.match_key.match(/^r(\d+)-m(\d+)$/);
       if (!parsed) continue;
+      const realId = String(b.provider_match_id || "").trim();
+      if (!realId) continue;
       await admin
         .from("matches")
-        .update({ provider_match_id: b.provider_match_id })
+        .update({ provider_match_id: realId })
         .eq("tournament_id", event.id)
         .eq("round", Number(parsed[1]))
         .eq("index_in_round", Number(parsed[2]))
-        .is("provider_match_id", null);
+        .or(
+          `provider_match_id.is.null,provider_match_id.neq.${realId}`
+        );
     }
   }
 
