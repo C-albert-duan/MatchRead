@@ -1106,10 +1106,7 @@ async function syncEventResults(
         .update({ provider_match_id: realId })
         .eq("tournament_id", event.id)
         .eq("round", Number(parsed[1]))
-        .eq("index_in_round", Number(parsed[2]))
-        .or(
-          `provider_match_id.is.null,provider_match_id.neq.${realId}`
-        );
+        .eq("index_in_round", Number(parsed[2]));
     }
   }
 
