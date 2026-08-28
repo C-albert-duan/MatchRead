@@ -25,7 +25,7 @@ sync-facts (Edge)
 ```
 
 **Entry:** `supabase/functions/sync-facts/index.ts`  
-**Persist:** `_shared/apply-draw.ts`, `_shared/apply-results.ts`  
+**Persist:** `_shared/apply-draw.ts`, `_shared/apply-results.ts` (findMatch prefers `match_key` over stale `provider_match_id`)  
 **Provider:** `packages/provider-rapidapi` (`official/classify-draw.js`, `parse-draw.js`)
 
 ---
