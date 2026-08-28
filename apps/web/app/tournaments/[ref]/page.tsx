@@ -104,8 +104,9 @@ export default async function PublicTournamentPage({ params }: Props) {
   const drawSize = effectiveDrawSize(seats.length, event.draw_size);
   // Full bracket only for a *published* official main sheet — never seats
   // left over from an integrity-blocked / qualifying misparse.
+  // Use published_at (and seats) directly; do not rely only on hasDraw seat-count.
   const showDraw =
-    event.hasDraw && isOfficialPublicDraw(seats, drawSize);
+    Boolean(event.published_at) && isOfficialPublicDraw(seats, drawSize);
   const showMatchups = !showDraw && announced.length > 0;
 
   return (

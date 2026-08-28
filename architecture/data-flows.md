@@ -42,6 +42,7 @@ apps/web pages
 
 **Entry:** `apps/web/app/page.tsx`, `app/tournaments/[ref]/page.tsx`  
 **Rule:** never invent a bracket; never render seats when `published_at` is null.  
+**Detail page:** `hasDraw` counts seats by `position` (seats have no `id`); bracket uses `published_at` + loaded seats.  
 **Freshness:** `AppShell` → `LiveRefresh` (~45s) re-fetches RSC from Postgres; facts
 still arrive on sync-facts cron (~5m).
 

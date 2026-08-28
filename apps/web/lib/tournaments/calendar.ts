@@ -54,6 +54,8 @@ export type CalendarTournament = {
   venue_tz: string;
   tour: Tour;
   draw_size: number;
+  /** Set when an official main sheet was published. */
+  published_at: string | null;
   hasDraw: boolean;
   ends_on: string | null;
 };
@@ -183,10 +185,14 @@ export async function getCalendarTournament(
     .maybeSingle();
   if (!row) return null;
 
-  const { count } = await supabase
+  const { count, error: seatCountErr } = await supabase
     .from("seats")
-    .select("id", { count: "exact", head: true })
+    .select("position", { count: "exact", head: true })
     .eq("tournament_id", row.id);
+  if (seatCountErr) {
+    // Fail closed on count errors — never invent hasDraw.
+    return mapCalendarRow({ ...row, seats: [{ count: 0 }] });
+  }
 
   return mapCalendarRow({
     ...row,
@@ -234,6 +240,7 @@ function mapCalendarRow(row: TournamentQueryRow): CalendarTournament {
   const drawSize = row.draw_size && row.draw_size > 0 ? row.draw_size : 0;
   const seatCount = seatCountFromEmbed(row.seats);
   const mainDraw = row.main_draw_starts_on || row.starts_on;
+  const publishedAt = row.published_at ?? null;
   return {
     id: row.id,
     ref: row.slug,
@@ -247,8 +254,9 @@ function mapCalendarRow(row: TournamentQueryRow): CalendarTournament {
     venue_tz: row.venue_tz || "UTC",
     tour: normalizeTour(row.tour),
     draw_size: drawSize,
+    published_at: publishedAt,
     hasDraw: hasOfficialDrawSheet({
-      published_at: row.published_at,
+      published_at: publishedAt,
       draw_size: drawSize,
       seat_count: seatCount,
     }),
