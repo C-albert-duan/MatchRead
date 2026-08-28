@@ -69,30 +69,50 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
     }
   }
 
+  /** True when a stored id looks like a real archive id (not fx/synthetic short). */
+  function looksCanonicalProviderId(raw) {
+    const id = String(raw || "").trim();
+    if (!id) return false;
+    if (/^fx-/i.test(id)) return false;
+    // Synthetic short fixture stubs seen in prod: "802", "812", …
+    if (/^\d{1,4}$/.test(id)) return false;
+    return true;
+  }
+
   const results = [];
   const skipped = [];
   const bindings = [];
 
   for (const row of Array.isArray(rows) ? rows : []) {
     const id = String(row.id ?? "").trim();
-    let target = id ? byProviderMatch.get(id) : null;
-
     const p1 = row.player1Id != null ? String(row.player1Id) : "";
     const p2 = row.player2Id != null ? String(row.player2Id) : "";
-    if (!target && p1 && p2) {
+
+    // Prefer player-pair (+ round) over provider_match_id — local rows often
+    // carry stale/synthetic ids that must not win the bind.
+    let target = null;
+    let boundBy = null;
+
+    if (p1 && p2) {
       const candidates = byPair.get(pairKey(p1, p2)) || [];
-      if (candidates.length === 1) target = candidates[0];
-      else if (candidates.length > 1) {
+      if (candidates.length === 1) {
+        target = candidates[0];
+        boundBy = "pair";
+      } else if (candidates.length > 1) {
         const roundHint = row.roundId != null ? Number(row.roundId) : null;
         const narrowed =
           roundHint != null
-            ? candidates.filter((c) => c.round === roundHint - 1 || c.round === roundHint)
+            ? candidates.filter(
+                (c) => c.round === roundHint - 1 || c.round === roundHint
+              )
             : candidates;
-        if (narrowed.length === 1) target = narrowed[0];
-        else {
-          // Prefer earliest unsettled-looking round (lowest round index)
+        if (narrowed.length === 1) {
+          target = narrowed[0];
+          boundBy = "pair+round";
+        } else {
           const sorted = [...candidates].sort((a, b) => a.round - b.round);
           target = sorted[0] || null;
+          if (target) boundBy = "pair+earliest";
         }
       }
     }
@@ -107,20 +127,37 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
         const known = a || b;
         return known === p1 || known === p2;
       });
-      if (partial.length === 1) target = partial[0];
+      if (partial.length === 1) {
+        target = partial[0];
+        boundBy = "partial";
+      }
+    }
+
+    // Fall back to provider id only when it looks canonical.
+    if (!target && id && looksCanonicalProviderId(id)) {
+      const byId = byProviderMatch.get(id) || null;
+      if (byId) {
+        target = byId;
+        boundBy = "provider_match_id";
+      }
     }
 
     if (!target) {
-      skipped.push({ id: id || pairKey(p1, p2), reason: "no match_key mapping" });
+      skipped.push({
+        id: id || pairKey(p1, p2),
+        reason: "no match_key mapping",
+      });
       continue;
     }
 
-    if (id && !target.provider_match_id) {
+    // Rewrite whenever archive id differs from stored (including synthetic stubs).
+    if (id && String(target.provider_match_id || "") !== id) {
       bindings.push({
         match_key: target.match_key,
         provider_match_id: id,
         side_a_provider_id: p1 || null,
         side_b_provider_id: p2 || null,
+        bound_by: boundBy,
       });
     }
 
@@ -130,7 +167,10 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
       continue;
     }
     if (disposition.kind === "skip") {
-      skipped.push({ id: id || target.match_key, reason: "non-terminal outcome" });
+      skipped.push({
+        id: id || target.match_key,
+        reason: "non-terminal outcome",
+      });
       continue;
     }
 
@@ -170,7 +210,10 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
         });
         continue;
       }
-      skipped.push({ id: id || target.match_key, reason: "finished but no match_winner" });
+      skipped.push({
+        id: id || target.match_key,
+        reason: "finished but no match_winner",
+      });
       continue;
     }
 

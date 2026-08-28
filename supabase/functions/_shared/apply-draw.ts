@@ -481,6 +481,96 @@ export async function applyDrawFacts(
   const upErr = await upsertPlayers(admin, named, playerByProvider, log);
   if (upErr) return fail(upErr, log);
 
+  const drawSize = seats.length;
+  const now = new Date().toISOString();
+
+  const { data: tourMeta } = await admin
+    .from("tournaments")
+    .select(
+      "tour, provider_id, surface, bracket_eligible, draw_checked_at, draw_size"
+    )
+    .eq("id", tournamentId)
+    .maybeSingle();
+
+  // Integrity before any wipe — never destroy a live public sheet on a bad candidate.
+  const integrity = evaluateDrawIntegrity({
+    seats: seats.map((s) => ({
+      position: s.position,
+      kind: s.kind,
+      seat_kind: s.kind,
+      provider_player_id: s.provider_player_id,
+      last_name: s.last_name,
+      display_name: s.display_name || s.last_name,
+      seed: s.seed,
+      country_code: s.country_code,
+      fallback_formatted: s.fallback_formatted,
+      tbd_label: s.tbd_label,
+    })),
+    tournament: {
+      tour: tourMeta?.tour,
+      provider_id: tourMeta?.provider_id,
+      surface: tourMeta?.surface,
+      bracket_eligible: tourMeta?.bracket_eligible,
+      draw_checked_at: tourMeta?.draw_checked_at,
+      draw_size: tourMeta?.draw_size ?? drawSize,
+    },
+    drawTour: tourMeta?.tour,
+    drawProviderId: tourMeta?.provider_id
+      ? String(tourMeta.provider_id)
+      : null,
+    source: "official",
+    sourceSnapshotId: revisionHash,
+  });
+
+  await admin.from("draw_integrity_reports").upsert(
+    {
+      tournament_id: tournamentId,
+      checked_at: integrity.checkedAt,
+      safe_to_publish: integrity.safeToPublish,
+      blocking: integrity.blockingErrors,
+      warnings: integrity.warnings,
+      source_snapshot_id: revisionHash,
+    },
+    { onConflict: "tournament_id" }
+  );
+
+  if (!integrity.safeToPublish) {
+    await admin
+      .from("tournaments")
+      .update({ draw_checked_at: now })
+      .eq("id", tournamentId);
+    await admin.from("ops_events").insert({
+      kind: "integrity",
+      name: publishedAt ? "refresh_blocked_keep_published" : "publish_blocked",
+      payload: {
+        tournament_id: tournamentId,
+        published: Boolean(publishedAt),
+        blocking: integrity.blockingErrors,
+        warnings: integrity.warnings,
+      },
+    });
+    log.push(
+      `integrity gate blocked: ${integrity.blockingErrors
+        .map((e: { code: string }) => e.code)
+        .join(",")}${publishedAt ? " (kept published sheet)" : ""}`
+    );
+    if (publishedAt) {
+      return {
+        ok: true,
+        skipped: "integrity_blocked_keep_published",
+        tournament_id: tournamentId,
+        seats: drawSize,
+        log,
+      };
+    }
+    return fail(
+      `integrity blocked: ${integrity.blockingErrors
+        .map((e: { code: string; message: string }) => e.message)
+        .join("; ")}`,
+      log
+    );
+  }
+
   if (body.force) {
     const { error: pickBrackets } = await admin
       .from("brackets")
@@ -524,91 +614,6 @@ export async function applyDrawFacts(
   const { error: seatInsErr } = await admin.from("seats").insert(seatRows);
   if (seatInsErr) return fail(seatInsErr.message, log);
   log.push(`inserted ${seatRows.length} seats`);
-
-  const drawSize = seats.length;
-  const now = new Date().toISOString();
-
-  const { data: tourMeta } = await admin
-    .from("tournaments")
-    .select(
-      "tour, provider_id, surface, bracket_eligible, draw_checked_at, draw_size"
-    )
-    .eq("id", tournamentId)
-    .maybeSingle();
-
-  const integrity = evaluateDrawIntegrity({
-    seats: seats.map((s) => ({
-      position: s.position,
-      kind: s.kind,
-      seat_kind: s.kind,
-      provider_player_id: s.provider_player_id,
-      last_name: s.last_name,
-      display_name: s.display_name || s.last_name,
-      seed: s.seed,
-      country_code: s.country_code,
-      fallback_formatted: s.fallback_formatted,
-      tbd_label: s.tbd_label,
-    })),
-    tournament: {
-      tour: tourMeta?.tour,
-      provider_id: tourMeta?.provider_id,
-      surface: tourMeta?.surface,
-      bracket_eligible: tourMeta?.bracket_eligible,
-      draw_checked_at: tourMeta?.draw_checked_at,
-      draw_size: tourMeta?.draw_size ?? drawSize,
-    },
-    drawTour: tourMeta?.tour,
-    drawProviderId: tourMeta?.provider_id
-      ? String(tourMeta.provider_id)
-      : null,
-    source: "official",
-    sourceSnapshotId: revisionHash,
-  });
-
-  await admin.from("draw_integrity_reports").upsert(
-    {
-      tournament_id: tournamentId,
-      checked_at: integrity.checkedAt,
-      safe_to_publish: integrity.safeToPublish,
-      blocking: integrity.blockingErrors,
-      warnings: integrity.warnings,
-      source_snapshot_id: revisionHash,
-    },
-    { onConflict: "tournament_id" }
-  );
-
-  if (!integrity.safeToPublish) {
-    // Do not leave an unpublished sheet that the public page could render.
-    await admin.from("seats").delete().eq("tournament_id", tournamentId);
-    await admin
-      .from("tournaments")
-      .update({
-        published_at: null,
-        draw_hash: null,
-        draw_checked_at: now,
-      })
-      .eq("id", tournamentId);
-    await admin.from("ops_events").insert({
-      kind: "integrity",
-      name: "publish_blocked",
-      payload: {
-        tournament_id: tournamentId,
-        blocking: integrity.blockingErrors,
-        warnings: integrity.warnings,
-      },
-    });
-    log.push(
-      `integrity gate blocked publish: ${integrity.blockingErrors
-        .map((e: { code: string }) => e.code)
-        .join(",")}`
-    );
-    return fail(
-      `integrity blocked: ${integrity.blockingErrors
-        .map((e: { code: string; message: string }) => e.message)
-        .join("; ")}`,
-      log
-    );
-  }
 
   const { error: pubErr } = await admin
     .from("tournaments")

@@ -13,7 +13,7 @@ mh-2/
 │   ├── i18n/                 Copy
 │   └── tokens/               Visual tokens
 ├── supabase/
-│   ├── migrations/           Live schema chain 0001–0017
+│   ├── migrations/           Live schema chain 0001–0020
 │   ├── functions/            Edge: sync-facts, settle-leagues
 │   └── tests/                pgTAP / DB tests
 ├── scripts/                  Ops + CI probes
@@ -39,7 +39,7 @@ Public discovery must use the **`public_calendar`** view (eligible events only),
 
 - Show the **official main draw as published** (named seats, byes, Q/LL TBD). No fictional players or padded draw sizes.
 - `lock_at` comes from the earliest **timed** first-round ball (`has_time = true`). Date-only fixtures are not a kickoff.
-- Publish requires integrity proof (`draw_integrity_reports.safe_to_publish`) before write paths lock in an official field.
+- Publish requires integrity proof (`draw_integrity_reports.safe_to_publish`) before write paths lock in an official field. A failed refresh must not unpublish an already-live sheet.
 - Web never imports `@matchread/provider-rapidapi` — provider stays on the ingest/ops side.
 
 ## Where “flow” lives

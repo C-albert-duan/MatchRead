@@ -187,7 +187,10 @@ export async function applyMatchResults(
       }
     }
 
-    if (r.provider_match_id && !match.provider_match_id) {
+    if (
+      r.provider_match_id &&
+      String(r.provider_match_id) !== String(match.provider_match_id || "")
+    ) {
       patch.provider_match_id = String(r.provider_match_id);
     }
 
@@ -207,9 +210,27 @@ export async function applyMatchResults(
         );
         if (did) advanced += 1;
       }
+      // Still refresh a stale provider_match_id when the row is otherwise settled.
+      if (patch.provider_match_id) {
+        await admin
+          .from("matches")
+          .update({ provider_match_id: patch.provider_match_id })
+          .eq("id", match.id);
+      }
       skipped.push({ reason: "already settled", id: match.id });
       continue;
     }
+
+    // Write matches first — never latch a claim before the durable row exists.
+    const { error } = await admin
+      .from("matches")
+      .update(patch)
+      .eq("id", match.id);
+    if (error) {
+      log.push(`results update failed: ${error.message}`);
+      return { ok: false, error: error.message, log };
+    }
+    updated += 1;
 
     const claimOutcome = voided ? "void" : "winner";
     const { data: claimStatus, error: claimErr } = await admin.rpc(
@@ -225,23 +246,11 @@ export async function applyMatchResults(
       // Migration not applied yet — fall through without claim guard.
       if (!/claim_settlement|function .* does not exist/i.test(claimErr.message)) {
         log.push(`claim_settlement failed: ${claimErr.message}`);
-        skipped.push({ reason: `claim: ${claimErr.message}`, id: match.id });
-        continue;
       }
     } else if (claimStatus === "noop") {
-      skipped.push({ reason: "claim noop", id: match.id });
-      continue;
+      // Claim already matches this outcome — matches row is now durable; continue to advance.
+      log.push(`claim noop after write for ${matchKeyOf(match)}`);
     }
-
-    const { error } = await admin
-      .from("matches")
-      .update(patch)
-      .eq("id", match.id);
-    if (error) {
-      log.push(`results update failed: ${error.message}`);
-      return { ok: false, error: error.message, log };
-    }
-    updated += 1;
 
     if (runId) {
       await admin.from("sync_repairs").insert({

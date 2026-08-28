@@ -14,19 +14,20 @@ sync-facts (Edge)
         │  packages/provider-rapidapi
         ├─ calendar upsert → tournaments
         ├─ official seats → classifyDraw (reject qualifying) → integrity → apply-draw
-        │       → players, seats, matches, schedule, published_at?
-        │       → integrity fail: wipe seats, leave draw pending (no public sheet)
+        │       → integrity first (before wipe): fail unpublished → no seats written;
+        │         fail when already published → keep live sheet, ops alert, no unpublish
+        │       → pass → players, seats, matches, schedule, published_at
         ├─ results + live finished → apply-results
-        │       → Shape A bind/fill winners; Shape B create/fill R0 from
+        │       → Shape A pair-first bind/fill winners; Shape B create/fill R0 from
         │         results archive + official seats (fail closed)
-        │       → winner / void, claim_settlement, parent advance
+        │       → durable matches update, then claim_settlement, then parent advance
         │       → conflict: settled winner ≠ provider → audit, no overwrite
         └─ refresh_lock_at (min timed R0 scheduled_at)
 ```
 
 **Entry:** `supabase/functions/sync-facts/index.ts`  
-**Persist:** `_shared/apply-draw.ts`, `_shared/apply-results.ts` (findMatch prefers `match_key` over stale `provider_match_id`)  
-**Provider:** `packages/provider-rapidapi` (`official/classify-draw.js`, `parse-draw.js`)
+**Persist:** `_shared/apply-draw.ts`, `_shared/apply-results.ts` (findMatch prefers `match_key` over stale `provider_match_id`; claim after write)  
+**Provider:** `packages/provider-rapidapi` (`official/classify-draw.js`, `parse-draw.js`, pair-first `bindResultsByPlayerPair`)
 
 ---
 

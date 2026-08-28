@@ -28,7 +28,7 @@ HTTP client (index.js)
 | Official draw | Parse provider draw into seats (player / bye / TBD); hash for revisions; skip `qualifying`/`doubles` keys |
 | Draw poll | Adaptive interval + force poll near `main_draw_starts_on` when unpublished |
 | Overlay | Attach schedule/fixture ids onto official seats without inventing people |
-| Reconcile | Pair-bind results; Shape B create/fill R0 from seats + archive; advance winners |
+| Reconcile | Pair-first bind results (rewrite stale `provider_match_id`); Shape B create/fill R0 from seats + archive; advance winners |
 | Live | Subscribe / poll finished events into the same apply-results path |
 
 ## Edge wiring

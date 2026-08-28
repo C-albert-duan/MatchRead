@@ -557,8 +557,8 @@ async function listSyncedEvents(
       return Number.isNaN(t) ? nowMs : t;
     };
 
-    // Always sync in-play product events (never starve by cap):
-    // unpublished → need draw publish; published → need results reconcile.
+    // Cap in-play under MAX_EVENTS_PER_RUN with fair rotation so Slam
+    // unpublished draws cannot starve published results (and vice versa).
     const inPlay = events.filter(
       (e) => e.bracket_eligible && eventInPlayForSync(e, nowMs)
     );
@@ -575,18 +575,46 @@ async function listSyncedEvents(
       return Math.abs(mainMs(a) - nowMs) - Math.abs(mainMs(b) - nowMs);
     });
 
-    // Unpublished first (draw), then published (results), then proximity.
-    inPlay.sort((a, b) => {
-      const ap = a.published_at ? 1 : 0;
-      const bp = b.published_at ? 1 : 0;
-      if (ap !== bp) return ap - bp;
-      return Math.abs(mainMs(a) - nowMs) - Math.abs(mainMs(b) - nowMs);
-    });
+    // ~5m tick matches typical cron; rotates which events sit in the budget.
+    const tick = Math.floor(nowMs / (5 * 60 * 1000));
+    const needDraw = rotateList(
+      inPlay.filter((e) => !e.published_at),
+      tick
+    );
+    const needResults = rotateList(
+      inPlay.filter((e) => Boolean(e.published_at)),
+      tick + 1
+    );
+    const drawBudget = Math.min(
+      needDraw.length,
+      Math.ceil(MAX_EVENTS_PER_RUN / 2)
+    );
+    const selectedInPlay: SyncedEvent[] = [
+      ...needDraw.slice(0, drawBudget),
+    ];
+    const resultsRoom = Math.max(0, MAX_EVENTS_PER_RUN - selectedInPlay.length);
+    selectedInPlay.push(...needResults.slice(0, resultsRoom));
+    if (selectedInPlay.length < MAX_EVENTS_PER_RUN) {
+      const used = new Set(selectedInPlay.map((e) => e.id));
+      for (const e of [...needDraw, ...needResults]) {
+        if (selectedInPlay.length >= MAX_EVENTS_PER_RUN) break;
+        if (!used.has(e.id)) {
+          used.add(e.id);
+          selectedInPlay.push(e);
+        }
+      }
+    }
 
-    const room = Math.max(0, MAX_EVENTS_PER_RUN - inPlay.length);
-    events = [...inPlay, ...rest.slice(0, room)];
+    const room = Math.max(0, MAX_EVENTS_PER_RUN - selectedInPlay.length);
+    events = [...selectedInPlay, ...rest.slice(0, room)];
   }
   return events;
+}
+
+function rotateList<T>(arr: T[], offset: number): T[] {
+  if (arr.length === 0) return [];
+  const o = ((offset % arr.length) + arr.length) % arr.length;
+  return [...arr.slice(o), ...arr.slice(0, o)];
 }
 
 function matchupsFromPairs(

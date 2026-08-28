@@ -153,6 +153,37 @@ describe("bindResultsByPlayerPair", () => {
     assert.equal(results[0].winner_provider_id, "10");
     assert.equal(bindings[0].provider_match_id, "fx-1");
   });
+
+  it("prefers pair over stale synthetic provider_match_id and rewrites binding", () => {
+    const { results, bindings } = bindResultsByPlayerPair(
+      [
+        {
+          id: "871044",
+          player1Id: "a",
+          player2Id: "b",
+          match_winner: "a",
+          result_type: "completed",
+        },
+      ],
+      [
+        {
+          match_key: "r0-m0",
+          round: 0,
+          index_in_round: 0,
+          side_a_provider_id: "a",
+          side_b_provider_id: "b",
+          provider_match_id: "802",
+        },
+      ],
+      { a: "a", b: "b" }
+    );
+    assert.equal(results.length, 1);
+    assert.equal(results[0].match_key, "r0-m0");
+    assert.equal(results[0].provider_match_id, "871044");
+    assert.equal(bindings.length, 1);
+    assert.equal(bindings[0].provider_match_id, "871044");
+    assert.equal(bindings[0].bound_by, "pair");
+  });
 });
 
 describe("EventMapper resolveLiveEvent", () => {
