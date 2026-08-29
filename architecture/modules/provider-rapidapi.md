@@ -27,7 +27,8 @@ HTTP client (index.js)
 | Draw type | `classifyDraw`: provider/path type → terminal (slam qual=16) → seeds → size last. Size alone never selects. |
 | Official draw | Parse provider draw into seats (player / bye / TBD); hash for revisions; skip `qualifying`/`doubles` keys |
 | Draw poll | Adaptive interval + force poll near `main_draw_starts_on` when unpublished |
-| Overlay | Attach schedule/fixture ids onto official seats without inventing people |
+| Overlay | Attach schedule/fixture ids onto official seats; preserve `display_name` / given names (never invent people) |
+| Integrity | Duplicate last names allowed when provider ids or given names differ (e.g. Wang Xinyu / Wang Xiyu) |
 | Reconcile | Pair-first bind results (rewrite stale `provider_match_id`); Shape B create/fill R0 from seats + archive; advance winners |
 | Live | Subscribe / poll finished events into the same apply-results path |
 

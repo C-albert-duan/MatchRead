@@ -9,6 +9,7 @@ type SeatIn = {
   position: number;
   last_name?: string;
   display_name?: string;
+  given_name?: string | null;
   seed?: number | null;
   country_code?: string;
   is_bye?: boolean;
@@ -501,6 +502,7 @@ export async function applyDrawFacts(
       provider_player_id: s.provider_player_id,
       last_name: s.last_name,
       display_name: s.display_name || s.last_name,
+      given_name: s.given_name,
       seed: s.seed,
       country_code: s.country_code,
       fallback_formatted: s.fallback_formatted,

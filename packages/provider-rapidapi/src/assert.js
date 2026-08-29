@@ -159,7 +159,7 @@ export function evaluateDrawIntegrity(input) {
     }
   }
 
-  /** @type {Map<string, { seats: number[], seeds: (number|null)[], countries: string[] }>} */
+  /** @type {Map<string, { seats: number[], seeds: (number|null)[], countries: string[], pids: string[], givens: string[] }>} */
   const byLabel = new Map();
 
   for (const s of seats) {
@@ -198,6 +198,8 @@ export function evaluateDrawIntegrity(input) {
         seats: [],
         seeds: [],
         countries: [],
+        pids: [],
+        givens: [],
       };
       entry.seats.push(pos);
       entry.seeds.push(s.seed == null ? null : Number(s.seed));
@@ -205,6 +207,12 @@ export function evaluateDrawIntegrity(input) {
         String(s.country_code || s.country || "")
           .trim()
           .toUpperCase()
+      );
+      entry.pids.push(pid);
+      entry.givens.push(
+        String(s.given_name || "")
+          .trim()
+          .toLowerCase()
       );
       byLabel.set(label, entry);
     }
@@ -215,8 +223,13 @@ export function evaluateDrawIntegrity(input) {
     const distinguishable = entry.seats.every((_, i) => {
       const seed = entry.seeds[i];
       const country = entry.countries[i];
+      const pid = entry.pids[i];
+      const given = entry.givens[i];
       const others = entry.seats.map((_, j) => j).filter((j) => j !== i);
       return others.every((j) => {
+        // Distinct Tennis API player ids are different people (official fact).
+        if (pid && entry.pids[j] && pid !== entry.pids[j]) return true;
+        if (given && entry.givens[j] && given !== entry.givens[j]) return true;
         const seedDiff =
           seed != null &&
           entry.seeds[j] != null &&

@@ -297,6 +297,10 @@ export function overlayOfficialDraw(officialSeats, fixtures, opts = {}) {
       position: Number(raw.position ?? seatsIn.indexOf(raw)),
       player_ref: ref,
       last_name: String(raw.last_name),
+      display_name:
+        String(raw.display_name || "").trim() ||
+        [raw.given_name, raw.last_name].filter(Boolean).join(" ").trim() ||
+        String(raw.last_name || ""),
       given_name: raw.given_name || null,
       seed: raw.seed == null ? null : Number(raw.seed),
       country_code:

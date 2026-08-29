@@ -142,11 +142,11 @@ describe("evaluateDrawIntegrity", () => {
               display_name: "Gao",
               seed: null,
               country_code: "CHN",
-              provider_player_id: `g${i}`,
+              // Same provider id → not distinguishable as different people.
+              provider_player_id: "g-shared",
             }
           : {},
     });
-    // fix non-gao seats to unique names already from base
     const report = evaluateDrawIntegrity({
       seats,
       tournament: { tour: "atp", provider_id: "1", bracket_eligible: true, surface: "hard" },
@@ -154,6 +154,33 @@ describe("evaluateDrawIntegrity", () => {
     });
     assert.equal(report.safeToPublish, false);
     assert.ok(report.blockingErrors.some((e) => e.code === "ambiguous_label"));
+  });
+
+  it("allows duplicate last names with distinct provider player ids", () => {
+    const seats = baseSeats(8, {
+      seat: (i) =>
+        i === 0 || i === 1
+          ? {
+              last_name: "Wang",
+              display_name: "Wang",
+              given_name: i === 0 ? "Xinyu" : "Xiyu",
+              seed: null,
+              country_code: "CHN",
+              provider_player_id: i === 0 ? "47152" : "43872",
+            }
+          : {},
+    });
+    const report = evaluateDrawIntegrity({
+      seats,
+      tournament: {
+        tour: "wta",
+        provider_id: "16743",
+        bracket_eligible: true,
+        surface: "hard",
+      },
+      source: "official",
+    });
+    assert.equal(report.safeToPublish, true);
   });
 
   it("allows duplicate labels with seed discriminators", () => {
