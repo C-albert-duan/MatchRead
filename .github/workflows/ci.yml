@@ -31,6 +31,9 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Consumer boundary
+        run: npm run ci:consumer-boundary
+
       - name: Settlement math dry-run
         run: npm run verify:settlement
 

@@ -17,9 +17,11 @@ sync-facts (Edge)
         │       → integrity first (before wipe): fail unpublished → no seats written;
         │         fail when already published → keep live sheet, ops alert, no unpublish
         │       → pass → players, seats, matches, schedule, published_at
+        │       → after publish: announced fixtures do not rewrite R0 sides or append
+        │         extra indices; prune index>=draw_size/2; refresh sides from seats
         ├─ results + live finished → apply-results
         │       → Shape A pair-first bind/fill winners; Shape B create/fill R0 from
-        │         results archive + official seats (fail closed)
+        │         results archive + official seats (fail closed; heal wrong sides)
         │       → durable matches update, then claim_settlement, then parent advance
         │       → conflict: settled winner ≠ provider → audit, no overwrite
         └─ refresh_lock_at (min timed R0 scheduled_at)
@@ -60,8 +62,10 @@ Solo:  /enter/[ref]  → ensure_solo_league RPC
 Group: create_league / join_with_invite RPCs
 
 Bracket editor
-  → actions/brackets.ts → save_picks RPC
+  → actions/brackets.ts → save_picks RPC (autosave ~1.2s debounce)
   → submit_bracket when complete (draw_size - 1 picks)
+     always runs save_picks with the latest sheet first so Submit
+     cannot race the debounce (“No bracket to submit”)
 
 Blocked when picks_are_locked:
   commissioner league_tournaments.locked_at

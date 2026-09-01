@@ -649,16 +649,16 @@ async function postRebuild(
   log: string[]
 ) {
   if (env.dryRun) {
-    log.push("rebuild-draw dry-run (not posted)");
+    log.push("apply-draw dry-run (not posted)");
     return;
   }
   const body = { ...payload, force: Boolean(env.force || payload.force) };
   const result = await applyDrawFacts(admin, body, log);
   if (!result.ok) {
-    log.push(`rebuild-draw failed: ${result.error}`);
-    throw new Error(`rebuild-draw failed: ${result.error}`);
+    log.push(`apply-draw failed: ${result.error}`);
+    throw new Error(`apply-draw failed: ${result.error}`);
   }
-  log.push(`rebuild-draw ok ${result.tournament_id}`);
+  log.push(`apply-draw ok ${result.tournament_id}`);
 }
 
 async function syncEventDraw(
@@ -1335,11 +1335,11 @@ async function syncEventResults(
       .eq("id", runId);
   }
   if (!result.ok) {
-    log.push(`ingest-events failed: ${result.error}`);
-    throw new Error(`ingest-events failed: ${result.error}`);
+    log.push(`apply-results failed: ${result.error}`);
+    throw new Error(`apply-results failed: ${result.error}`);
   }
   log.push(
-    `ingest-events ok updated=${result.updated} advanced=${result.advanced ?? 0} skipped=${result.skipped.length} run=${runId ?? "none"}`
+    `apply-results ok updated=${result.updated} advanced=${result.advanced ?? 0} skipped=${result.skipped.length} run=${runId ?? "none"}`
   );
   return { ingested: results.length };
 }

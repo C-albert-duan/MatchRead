@@ -15,7 +15,7 @@ If Tennis API names **both** players in a first-round match, users must **see th
 
 ## Full bracket when the official field exists
 
-When the official first round is published (including 16→32, 32→64, 64→128, or a 96-player Masters as **128 slots + seed byes**), publish a verified draw via `rebuild-draw`. Q/LL TBD and byes count as seats. They do not block publish.
+When the official first round is published (including 16→32, 32→64, 64→128, or a 96-player Masters as **128 slots + seed byes**), publish a verified draw via `sync-facts` (through `npm run publish:draws` or cron). Q/LL TBD and byes count as seats. They do not block publish.
 
 ## Still forbidden
 
@@ -28,7 +28,7 @@ Qualifying **matches** are ignored. Qualifier **seats in the main draw** are off
 
 ## How
 
-- `scripts/publish-draws.mjs` → `rebuild-draw`
+- `scripts/publish-draws.mjs` (`npm run publish:draws`) → POST `sync-facts` → `apply-draw`
 - Do not wipe a verified draw to replace it with a weaker one (`force` only for a proven better field)
 - `lock_at` still comes from the first timed main-draw ball
 

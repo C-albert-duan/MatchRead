@@ -11,7 +11,7 @@
 | `migrate` | Profile `migrate` — apply SQL via `DATABASE_URL` |
 
 App default: http://localhost:3001  
-Supabase Auth/API/DB stay **hosted** (or CLI outside Compose).
+Supabase Auth/API/DB stay **hosted** (or CLI outside Compose). Local Auth redirect URLs: `supabase/config.toml` (`site_url` = 3001).
 
 Root Dockerfile multi-stage: development → runner.
 
@@ -19,8 +19,8 @@ Root Dockerfile multi-stage: development → runner.
 
 | Workflow | Role |
 |----------|------|
-| `.github/workflows/ci.yml` | Lint, typecheck, tests, settlement-math verify, build; consumer-boundary check |
-| `.github/workflows/sync-tennis.yml` | Optional manual POST to `sync-facts` (same ingest secret) |
+| `.github/workflows/ci.yml` | Lint, typecheck, tests, **consumer-boundary**, settlement-math verify, build |
+| `.github/workflows/sync-facts.yml` | Optional manual POST to `sync-facts` (ingest secret) |
 
 Useful root scripts (also used in CI):
 
@@ -30,9 +30,10 @@ Useful root scripts (also used in CI):
 
 ## Database deploy
 
-- Live chain: `supabase/migrations/0001`–`0017`
+- Live chain: `supabase/migrations/0001`–`0020` (see [supabase.md](./supabase.md))
+- Archive under `supabase/migrations/archive/` — **never apply on prod**
 - Helpers: `scripts/docker-migrate.mjs`, `scripts/apply-sql-migration.mjs`
-- Edge deploy: `supabase functions deploy` for `sync-facts` and `settle-leagues`
+- Edge deploy: `supabase functions deploy sync-facts settle-leagues --no-verify-jwt`
 
 ## Related
 

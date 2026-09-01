@@ -82,11 +82,27 @@ export async function submitBracket(input: {
   tournamentId: string;
   leagueSlug: string;
   tournamentRef: string;
+  /** Latest editor picks — persisted before submit so autosave debounce cannot race. */
+  picks: BracketPicks;
+  confidence?: BracketConfidence;
 }): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) {
     return { ok: false, error: "Sign in to submit.", code: "auth" };
   }
+
+  // Always write the sheet first. Submit alone used to fail with
+  // "No bracket to submit" when the user finished and clicked Submit
+  // before the 1.2s autosave timer had created the brackets row.
+  const saved = await saveBracketPicks({
+    leagueId: input.leagueId,
+    tournamentId: input.tournamentId,
+    picks: input.picks,
+    confidence: input.confidence,
+    leagueSlug: input.leagueSlug,
+    tournamentRef: input.tournamentRef,
+  });
+  if (!saved.ok) return saved;
 
   const { error } = await supabase.rpc("submit_bracket", {
     p_league_id: input.leagueId,
@@ -107,6 +123,13 @@ export async function submitBracket(input: {
         ok: false,
         error: "Fill every match before submitting.",
         code: "incomplete",
+      };
+    }
+    if (/no bracket/i.test(msg)) {
+      return {
+        ok: false,
+        error: "Your picks did not save. Try Submit again.",
+        code: "missing",
       };
     }
     reportError(error, { source: "bracket_submitted" });

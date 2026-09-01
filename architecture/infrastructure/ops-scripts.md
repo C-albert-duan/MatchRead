@@ -3,6 +3,8 @@
 **Path:** `scripts/`  
 **Role:** Operator and CI tooling around ingest, integrity, and migrate. Not product UI.
 
+Quick index: [scripts/README.md](../../scripts/README.md).
+
 | Script | npm / usage | Responsibility |
 |--------|-------------|----------------|
 | `publish-draws.mjs` | `npm run publish:draws` | Preview official seats; live publish via sync-facts / apply-draw |

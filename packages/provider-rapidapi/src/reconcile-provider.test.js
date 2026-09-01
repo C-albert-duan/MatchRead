@@ -94,6 +94,39 @@ describe("r0SlotFromSeatPair / proposeShapeBRepairs", () => {
     assert.equal(repairs[0].match_key, "r0-m0");
   });
 
+  it("proposes fill when existing sides disagree with official seats", () => {
+    const repairs = proposeShapeBRepairs(
+      [
+        {
+          provider_match_id: "fx-heal",
+          has_winner: true,
+          player1Id: "10",
+          player2Id: "20",
+          match_winner: "10",
+          result_type: "completed",
+        },
+      ],
+      [
+        { position: 0, provider_player_id: "10" },
+        { position: 1, provider_player_id: "20" },
+      ],
+      [
+        {
+          match_key: "r0-m0",
+          round: 0,
+          index_in_round: 0,
+          provider_match_id: "stale",
+          side_a_provider_id: "99",
+          side_b_provider_id: "88",
+        },
+      ]
+    );
+    assert.equal(repairs.length, 1);
+    assert.equal(repairs[0].action, "fill");
+    assert.equal(repairs[0].side_a_provider_id, "10");
+    assert.equal(repairs[0].side_b_provider_id, "20");
+  });
+
   it("rejects non-adjacent pairs", () => {
     assert.equal(
       r0SlotFromSeatPair(

@@ -11,6 +11,7 @@ Start here. This folder explains **how the repo is split**, **how data moves**, 
 | Entity relationships | [data-model.md](./data-model.md) |
 | One module at a time | [modules/](./modules/) |
 | Hosting, cron, CI, secrets, ops scripts | [infrastructure/](./infrastructure/) |
+| Cleanup / ownership / maintenance plan | [cleanup-plan.md](./cleanup-plan.md) |
 
 **Architecture** = product and domain modules (what the system *is*).  
 **Infrastructure** = how it runs, deploys, syncs, and is operated (how it *ships*).

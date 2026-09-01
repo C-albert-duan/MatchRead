@@ -148,13 +148,14 @@ export function proposeShapeBRepairs(unbound, seats, matchSides) {
     if (!slot) continue;
     const existing = byKey.get(slot.match_key);
     if (existing?.side_a_provider_id && existing?.side_b_provider_id) {
-      // Already fully sided — bindResults should have caught this; skip invent.
-      if (
-        existing.provider_match_id &&
-        String(existing.provider_match_id) !== String(u.provider_match_id)
-      ) {
-        continue;
-      }
+      const samePair =
+        (String(existing.side_a_provider_id) === slot.side_a_provider_id &&
+          String(existing.side_b_provider_id) === slot.side_b_provider_id) ||
+        (String(existing.side_a_provider_id) === slot.side_b_provider_id &&
+          String(existing.side_b_provider_id) === slot.side_a_provider_id);
+      // Correct seat pair already on the row — bindResults owns the winner.
+      if (samePair) continue;
+      // Wrong sides vs official seats: propose fill so heal can overwrite.
     }
     repairs.push({
       action: existing ? "fill" : "create",

@@ -3,7 +3,7 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { buildRoundStructure, parseMatchKey } from "./core.js";
-import { advanceWinnerToParent } from "./rapidapi.js";
+import { advanceWinnerToParent, r0SlotFromSeatPair } from "./rapidapi.js";
 
 type SeatIn = {
   position: number;
@@ -187,6 +187,22 @@ export async function applyDrawFacts(
   // Provider id → players.id for this request.
   const playerByProvider = new Map<string, string>();
 
+  // Official published sheet: never rewrite R0 from announced fixture order.
+  // That path was appending index>=64 rows and overwriting seat-aligned sides.
+  let existingSeatCount = 0;
+  {
+    const { count, error: seatCountErr } = await admin
+      .from("seats")
+      .select("position", { count: "exact", head: true })
+      .eq("tournament_id", tournamentId);
+    if (seatCountErr) return fail(seatCountErr.message, log);
+    existingSeatCount = count ?? 0;
+  }
+  const hasOfficialSheet =
+    Boolean(publishedAt) &&
+    expectedDrawSize >= 2 &&
+    existingSeatCount === expectedDrawSize;
+
   if (matchups.length > 0) {
     const people = [];
     for (const m of matchups) {
@@ -204,14 +220,34 @@ export async function applyDrawFacts(
     const up = await upsertPlayers(admin, people, playerByProvider, log);
     if (up) return fail(up, log);
 
-    const matchErr = await upsertAnnouncedMatches(
-      admin,
-      tournamentId,
-      matchups,
-      playerByProvider,
-      log
-    );
-    if (matchErr) return fail(matchErr, log);
+    if (hasOfficialSheet) {
+      const schedErr = await syncAnnouncedScheduleOntoOfficial(
+        admin,
+        tournamentId,
+        matchups,
+        playerByProvider,
+        expectedDrawSize,
+        log
+      );
+      if (schedErr) return fail(schedErr, log);
+      await pruneExtraRoundZeroMatches(
+        admin,
+        tournamentId,
+        expectedDrawSize,
+        playerByProvider,
+        log
+      );
+      await refreshRoundZeroSides(admin, tournamentId, playerByProvider, log);
+    } else {
+      const matchErr = await upsertAnnouncedMatches(
+        admin,
+        tournamentId,
+        matchups,
+        playerByProvider,
+        log
+      );
+      if (matchErr) return fail(matchErr, log);
+    }
   }
 
   if (seatsIn.length === 0) {
@@ -302,6 +338,14 @@ export async function applyDrawFacts(
       log
     );
     if (facts.error) return fail(facts.error, log);
+    await pruneExtraRoundZeroMatches(
+      admin,
+      tournamentId,
+      seats.length,
+      playerByProvider,
+      log
+    );
+    await refreshRoundZeroSides(admin, tournamentId, playerByProvider, log);
     return {
       ok: true,
       skipped: "draw_hash_unchanged",
@@ -442,6 +486,13 @@ export async function applyDrawFacts(
         if (facts.error) return fail(facts.error, log);
 
         // Rebind R0 sides from seats after replacement overlay.
+        await pruneExtraRoundZeroMatches(
+          admin,
+          tournamentId,
+          seats.length,
+          playerByProvider,
+          log
+        );
         await refreshRoundZeroSides(admin, tournamentId, playerByProvider, log);
 
         return {
@@ -897,6 +948,7 @@ async function upsertAnnouncedMatches(
       if (error) return `matchups: ${error.message}`;
     } else {
       // Prefer stable index if slot free; else append after max R0 index.
+      // Only used before an official sheet exists — never after publish.
       const { data: clash } = await admin
         .from("matches")
         .select("id")
@@ -924,6 +976,282 @@ async function upsertAnnouncedMatches(
   }
   log.push(`upserted ${matchups.length} announced matches`);
   return null;
+}
+
+/**
+ * After an official sheet is live: map announced fixtures onto seat topology
+ * for schedule / provider_match_id only — never invent extra R0 indices.
+ */
+async function syncAnnouncedScheduleOntoOfficial(
+  admin: SupabaseClient,
+  tournamentId: string,
+  matchups: MatchupIn[],
+  playerByProvider: Map<string, string>,
+  drawSize: number,
+  log: string[]
+): Promise<string | null> {
+  const seatProviders = await loadSeatProviderPositions(admin, tournamentId);
+
+  let updated = 0;
+  for (const m of matchups) {
+    const p1 = providerIdFromMatchup(m, 1);
+    const p2 = providerIdFromMatchup(m, 2);
+    if (!p1 || !p2) continue;
+    const slot = r0SlotFromSeatPair(seatProviders, p1, p2);
+    if (!slot) continue;
+    if (slot.index_in_round < 0 || slot.index_in_round >= drawSize / 2) continue;
+
+    const patch: Record<string, unknown> = {};
+    if (m.scheduled_at) {
+      patch.scheduled_at = m.scheduled_at;
+      patch.has_time = Boolean(m.has_time);
+    }
+    const pm = String(m.provider_match_id || "").trim();
+    // Prefer real archive ids over short synthetic stubs.
+    if (pm && !/^\d{1,4}$/.test(pm) && !/^fx-/i.test(pm)) {
+      patch.provider_match_id = pm;
+    }
+    if (Object.keys(patch).length === 0) continue;
+
+    const { error } = await admin
+      .from("matches")
+      .update(patch)
+      .eq("tournament_id", tournamentId)
+      .eq("round", 0)
+      .eq("index_in_round", slot.index_in_round);
+    if (error) return `announced schedule: ${error.message}`;
+    updated += 1;
+  }
+  void playerByProvider;
+  log.push(
+    `official sheet: synced schedule/ids for ${updated}/${matchups.length} announced pairs (no topology rewrite)`
+  );
+  return null;
+}
+
+/**
+ * Delete R0 rows beyond official draw size (leftover announced appends).
+ * Migrate any settled winners onto the seat-aligned slot first when possible.
+ */
+async function pruneExtraRoundZeroMatches(
+  admin: SupabaseClient,
+  tournamentId: string,
+  drawSize: number,
+  playerByProvider: Map<string, string>,
+  log: string[]
+) {
+  const maxIndex = Math.floor(drawSize / 2);
+  if (!Number.isFinite(maxIndex) || maxIndex < 1) return;
+
+  const { data: extras } = await admin
+    .from("matches")
+    .select(
+      "id, index_in_round, provider_match_id, side_a_player_id, side_b_player_id, winner_player_id, voided, settled_at"
+    )
+    .eq("tournament_id", tournamentId)
+    .eq("round", 0)
+    .gte("index_in_round", maxIndex);
+
+  if (!extras?.length) return;
+
+  const seatProviders = await loadSeatProviderPositions(admin, tournamentId);
+  const providerByUuid = new Map<string, string>();
+  for (const [pid, uuid] of playerByProvider) {
+    providerByUuid.set(uuid, pid);
+  }
+  const sideIds = [
+    ...new Set(
+      extras
+        .flatMap((e) => [e.side_a_player_id, e.side_b_player_id])
+        .filter(Boolean) as string[]
+    ),
+  ];
+  if (sideIds.length) {
+    const { data: people } = await admin
+      .from("players")
+      .select("id, provider_id")
+      .in("id", sideIds);
+    for (const p of people ?? []) {
+      if (p.provider_id) providerByUuid.set(String(p.id), String(p.provider_id));
+    }
+  }
+
+  let migrated = 0;
+  for (const extra of extras) {
+    if (!extra.winner_player_id && !extra.voided) continue;
+    const aProv = extra.side_a_player_id
+      ? providerByUuid.get(String(extra.side_a_player_id))
+      : null;
+    const bProv = extra.side_b_player_id
+      ? providerByUuid.get(String(extra.side_b_player_id))
+      : null;
+    if (!aProv || !bProv) continue;
+    const slot = r0SlotFromSeatPair(seatProviders, aProv, bProv);
+    if (!slot || slot.index_in_round >= maxIndex) continue;
+
+    const { data: target } = await admin
+      .from("matches")
+      .select("id, winner_player_id, voided")
+      .eq("tournament_id", tournamentId)
+      .eq("round", 0)
+      .eq("index_in_round", slot.index_in_round)
+      .maybeSingle();
+    if (!target?.id) continue;
+    if (target.winner_player_id || target.voided) continue;
+
+    const patch: Record<string, unknown> = {
+      winner_player_id: extra.winner_player_id,
+      voided: Boolean(extra.voided),
+      settled_at: extra.settled_at || new Date().toISOString(),
+    };
+    if (extra.provider_match_id) {
+      patch.provider_match_id = String(extra.provider_match_id);
+    }
+    const { error } = await admin
+      .from("matches")
+      .update(patch)
+      .eq("id", target.id);
+    if (!error) migrated += 1;
+  }
+
+  const { error: delErr } = await admin
+    .from("matches")
+    .delete()
+    .eq("tournament_id", tournamentId)
+    .eq("round", 0)
+    .gte("index_in_round", maxIndex);
+  if (delErr) {
+    log.push(`prune extra R0: ${delErr.message}`);
+    return;
+  }
+  log.push(
+    `pruned ${extras.length} extra R0 matches (index>=${maxIndex}); migrated ${migrated} winners`
+  );
+}
+
+async function loadSeatProviderPositions(
+  admin: SupabaseClient,
+  tournamentId: string
+): Promise<{ position: number; provider_player_id: string | null }[]> {
+  const { data: seats } = await admin
+    .from("seats")
+    .select("position, player_id")
+    .eq("tournament_id", tournamentId)
+    .order("position", { ascending: true });
+  const playerIds = [
+    ...new Set(
+      (seats ?? [])
+        .map((s) => s.player_id as string | null)
+        .filter(Boolean) as string[]
+    ),
+  ];
+  const providerByUuid = new Map<string, string>();
+  if (playerIds.length) {
+    const { data: people } = await admin
+      .from("players")
+      .select("id, provider_id")
+      .in("id", playerIds);
+    for (const p of people ?? []) {
+      if (p.provider_id) providerByUuid.set(String(p.id), String(p.provider_id));
+    }
+  }
+  return (seats ?? []).map((s) => ({
+    position: Number(s.position),
+    provider_player_id: s.player_id
+      ? providerByUuid.get(String(s.player_id)) ?? null
+      : null,
+  }));
+}
+
+async function refreshRoundZeroSides(
+  admin: SupabaseClient,
+  tournamentId: string,
+  playerByProvider: Map<string, string>,
+  log: string[]
+) {
+  const { data: seats } = await admin
+    .from("seats")
+    .select("position, kind, player_id")
+    .eq("tournament_id", tournamentId)
+    .order("position");
+  if (!seats?.length) return;
+  const byPos = new Map(seats.map((s) => [Number(s.position), s]));
+  const maxIndex = Math.floor(seats.length / 2);
+  const { data: r0 } = await admin
+    .from("matches")
+    .select("id, index_in_round, winner_player_id, settled_at")
+    .eq("tournament_id", tournamentId)
+    .eq("round", 0);
+  let n = 0;
+  let cleared = 0;
+  for (const m of r0 ?? []) {
+    const i = Number(m.index_in_round);
+    // Only official topology — extras are pruned separately.
+    if (i < 0 || i >= maxIndex) continue;
+    const a = byPos.get(i * 2);
+    const b = byPos.get(i * 2 + 1);
+    if (!a && !b) continue;
+    const sideA = a?.kind === "player" ? a.player_id : null;
+    const sideB = b?.kind === "player" ? b.player_id : null;
+    const patch: Record<string, unknown> = {
+      side_a_player_id: sideA,
+      side_b_player_id: sideB,
+    };
+    // Winner that no longer sits on the seat pair must be cleared for rebind.
+    if (
+      m.winner_player_id &&
+      sideA &&
+      sideB &&
+      m.winner_player_id !== sideA &&
+      m.winner_player_id !== sideB
+    ) {
+      patch.winner_player_id = null;
+      patch.settled_at = null;
+      patch.voided = false;
+      cleared += 1;
+    }
+    // Re-apply bye settle if needed and not already settled with a winner.
+    let byeWinner: string | null = null;
+    const winnerAfter =
+      "winner_player_id" in patch
+        ? (patch.winner_player_id as string | null)
+        : (m.winner_player_id as string | null);
+    if (!winnerAfter) {
+      const now = new Date().toISOString();
+      if (a?.kind === "bye" && sideB) {
+        patch.winner_player_id = sideB;
+        patch.settled_at = now;
+        byeWinner = sideB;
+      } else if (b?.kind === "bye" && sideA) {
+        patch.winner_player_id = sideA;
+        patch.settled_at = now;
+        byeWinner = sideA;
+      }
+    } else if (
+      (a?.kind === "bye" && sideB && winnerAfter === sideB) ||
+      (b?.kind === "bye" && sideA && winnerAfter === sideA)
+    ) {
+      byeWinner = winnerAfter;
+    }
+    await admin.from("matches").update(patch).eq("id", m.id);
+    if (byeWinner) {
+      await advanceWinnerIntoParentMatch(
+        admin,
+        tournamentId,
+        0,
+        i,
+        byeWinner
+      );
+    }
+    n += 1;
+  }
+  void playerByProvider;
+  if (n) {
+    log.push(
+      `refreshed ${n} R0 match sides from seats` +
+        (cleared ? ` (cleared ${cleared} mismatched winners)` : "")
+    );
+  }
 }
 
 async function overlayExistingSeats(
@@ -1017,70 +1345,6 @@ async function overlayExistingSeats(
     `kept official draw; overlaid ${mapped} seats; filled ${filled} TBD`
   );
   return { error: null, mapped, filled };
-}
-
-async function refreshRoundZeroSides(
-  admin: SupabaseClient,
-  tournamentId: string,
-  playerByProvider: Map<string, string>,
-  log: string[]
-) {
-  const { data: seats } = await admin
-    .from("seats")
-    .select("position, kind, player_id")
-    .eq("tournament_id", tournamentId)
-    .order("position");
-  if (!seats?.length) return;
-  const byPos = new Map(seats.map((s) => [Number(s.position), s]));
-  const { data: r0 } = await admin
-    .from("matches")
-    .select("id, index_in_round, winner_player_id, settled_at")
-    .eq("tournament_id", tournamentId)
-    .eq("round", 0);
-  let n = 0;
-  for (const m of r0 ?? []) {
-    const i = Number(m.index_in_round);
-    const a = byPos.get(i * 2);
-    const b = byPos.get(i * 2 + 1);
-    const sideA = a?.kind === "player" ? a.player_id : null;
-    const sideB = b?.kind === "player" ? b.player_id : null;
-    const patch: Record<string, unknown> = {
-      side_a_player_id: sideA,
-      side_b_player_id: sideB,
-    };
-    // Re-apply bye settle if needed and not already settled with a winner.
-    let byeWinner: string | null = null;
-    if (!m.winner_player_id) {
-      const now = new Date().toISOString();
-      if (a?.kind === "bye" && sideB) {
-        patch.winner_player_id = sideB;
-        patch.settled_at = now;
-        byeWinner = sideB;
-      } else if (b?.kind === "bye" && sideA) {
-        patch.winner_player_id = sideA;
-        patch.settled_at = now;
-        byeWinner = sideA;
-      }
-    } else if (
-      (a?.kind === "bye" && sideB && m.winner_player_id === sideB) ||
-      (b?.kind === "bye" && sideA && m.winner_player_id === sideA)
-    ) {
-      byeWinner = m.winner_player_id as string;
-    }
-    await admin.from("matches").update(patch).eq("id", m.id);
-    if (byeWinner) {
-      await advanceWinnerIntoParentMatch(
-        admin,
-        tournamentId,
-        0,
-        i,
-        byeWinner
-      );
-    }
-    n += 1;
-  }
-  void playerByProvider;
-  if (n) log.push(`refreshed ${n} R0 match sides from seats`);
 }
 
 async function invalidateMappingsForReplacements(

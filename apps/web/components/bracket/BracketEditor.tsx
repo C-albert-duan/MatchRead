@@ -175,17 +175,28 @@ export function BracketEditor({
 
   function handleSubmit() {
     startTransition(async () => {
+      // Cancel a pending debounce so we don't race a stale/empty save after submit.
+      if (timer.current) {
+        clearTimeout(timer.current);
+        timer.current = null;
+      }
+      setStatus("saving");
+      setMessage(null);
       const result = await submitBracket({
         leagueId,
         tournamentId,
         leagueSlug,
         tournamentRef,
+        picks: picksRef.current,
+        confidence: confidenceRef.current,
       });
       if (!result.ok) {
+        setStatus("failed");
         setMessage(result.error);
         if (result.code === "locked") setIsLocked(true);
         return;
       }
+      setStatus("saved");
       setSubmitted(true);
       setMessage(t("tournament.entry.submitted"));
       track("bracket_submitted", { ref: tournamentRef });

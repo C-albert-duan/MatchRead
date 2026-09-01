@@ -21,6 +21,7 @@ Pipeline:
 4. On pass: `apply-draw` → players, seats, matches, schedule, `published_at`.
    On fail unpublished: write report only — no seats left for public render.
    On fail when already published: keep the live sheet; ops `refresh_blocked_keep_published`; never clear `published_at`.
+   **Published sheet guard:** once `published_at` + seat count match `draw_size`, announced fixture upserts only sync schedule/`provider_match_id` onto seat-aligned R0 slots — they never rewrite sides or append `index >= draw_size/2` rows. Each apply also prunes those extras and refreshes R0 sides from seats.
 5. Reconcile results + live finished events → `apply-results`.
 6. Durable `matches` update first, then `claim_settlement`, then parent advance; audit repair/ops.
 7. `refresh_lock_at` when timed R0 exists.
@@ -38,7 +39,7 @@ Publish: migration `0019` fixes `assert_publish_requires_integrity` to call `is_
 Results reconcile:
 
 1. Pair-first bind archive rows → existing topology (`bindResultsByPlayerPair`: player pair before `provider_match_id`; rewrite stale/synthetic ids).
-2. **Shape B:** unbound finished results whose players occupy an adjacent official seat pair → create or fill the R0 match, then settle (`proposeShapeBRepairs`). Never invent slots without seats. Never overwrite a settled conflicting winner.
+2. **Shape B:** unbound finished results whose players occupy an adjacent official seat pair → create or fill the R0 match, then settle (`proposeShapeBRepairs`). Also **fill** when an R0 row exists but sides disagree with official seats. Never invent slots without seats. Never overwrite a settled conflicting winner.
 3. Audit remaining unbound/orphans to `ops_events` / `sync_repairs`.
 
 ### `settle-leagues`
@@ -61,6 +62,18 @@ Triggered by cron (~15m). Commissioner/founder can also settle in-process via we
 | `_shared/core.js` | Edge-safe grade / matchKey |
 
 `import_map.json` maps workspace packages for Deno.
+
+### Keeping `_shared/core.js` in sync
+
+Edge cannot import `@matchread/core` from npm workspaces at runtime. `_shared/core.js` is a **checked-in mirror** of selected exports from `packages/core` (bracket topology, `matchKey`, grading helpers).
+
+When you change any of the following in `packages/core`, update `_shared/core.js` in the **same PR**:
+
+- `matchKey` / round structure used by apply-results
+- Grading or scoring rules consumed by `settle-leagues`
+- Lock or eligibility helpers duplicated for Edge
+
+After editing, redeploy both Edge functions. Run `npm run verify:settlement` and provider architecture tests.
 
 ## Boundaries
 

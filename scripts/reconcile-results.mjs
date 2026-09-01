@@ -54,7 +54,7 @@ function parseArgs(argv) {
 }
 
 function usage() {
-  console.log(`Reconcile RapidAPI results → ingest-events
+  console.log(`Reconcile RapidAPI results → sync-facts
 
   --map <file>   Mapping JSON (required). See .provider-map.example.json
   --dry-run      Fetch + map only; do not POST
