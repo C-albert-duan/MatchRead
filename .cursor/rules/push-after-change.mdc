@@ -1,0 +1,45 @@
+---
+description: Commit and push every code change; switch gh account to match origin before push
+alwaysApply: true
+---
+
+# Push to GitHub after every code change (non-negotiable)
+
+When this turn **changes tracked project files** (code, config, migrations, architecture docs), finish by **committing and pushing to `origin`** in the same response. Question-only or read-only turns do not commit.
+
+This repo’s remote owner is **`C-albert-duan`** (`origin` → `github.com/C-albert-duan/MatchRead`). Use that account for push unless `origin` changes.
+
+## Before push: switch GitHub account
+
+Several `gh` accounts exist on this machine. **Always switch to the account that owns `origin` before `git push`.**
+
+```bash
+# 1) Owner from remote (e.g. C-albert-duan)
+git remote get-url origin
+
+# 2) Switch active gh account to that owner
+gh auth switch --user C-albert-duan
+
+# 3) Confirm
+gh auth status
+```
+
+If push returns **403 Permission denied**, switch to the remote owner and retry once. Do not guess a different account.
+
+## Commit → push workflow
+
+1. `git status` and `git diff` — stage only intentional changes.
+2. Write a concise commit message (why, not a file list).
+3. `git add` relevant paths → `git commit`.
+4. `gh auth switch --user <origin-owner>` → `git push origin <branch>`.
+5. `git status` — branch should be up to date with remote.
+
+## Do not push
+
+- `.env`, credentials, API keys, or other secrets
+- Untracked `discussion/` PDFs/ZIPs/HTML unless the user asked to include them
+- `git push --force` to `main`/`master` unless explicitly requested
+
+## Deploy is separate
+
+Push updates GitHub (and Vercel from `main`). Supabase Edge deploy (`sync-facts`, etc.) is still manual when ingest logic changes — push alone does not deploy Edge functions.
