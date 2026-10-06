@@ -5,6 +5,9 @@ import {
   bindResultsByPlayerPair,
   createLiveSessionState,
   diffDrawSeats,
+  overlaySeatPatch,
+  planFakeByeUnwind,
+  r0IndexFromSeatPosition,
   drawPollIntervalMs,
   hashDrawSeats,
   isSilentSubscription,
@@ -78,6 +81,87 @@ describe("diffDrawSeats", () => {
     const next = [seat(0, { provider_player_id: "5" })];
     const changes = diffDrawSeats(prev, next);
     assert.equal(changes[0].change_kind, "tbd_filled");
+  });
+
+  it("emits bye_to_tbd when a published bye becomes official TBD", () => {
+    const prev = [seat(0, { kind: "bye", provider_player_id: null })];
+    const next = [
+      seat(0, { kind: "tbd", provider_player_id: null, last_name: "Qualifier" }),
+    ];
+    const changes = diffDrawSeats(prev, next);
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].change_kind, "bye_to_tbd");
+    assert.equal(changes[0].old_kind, "bye");
+    assert.equal(changes[0].new_kind, "tbd");
+  });
+
+  it("emits tbd_to_bye only when the official sheet is a bye", () => {
+    const prev = [seat(1, { kind: "tbd", provider_player_id: null })];
+    const next = [seat(1, { kind: "bye", provider_player_id: null })];
+    const changes = diffDrawSeats(prev, next);
+    assert.equal(changes[0].change_kind, "tbd_to_bye");
+  });
+});
+
+describe("overlaySeatPatch / planFakeByeUnwind", () => {
+  it("rewrites published bye to tbd and clears player_id", () => {
+    const patch = overlaySeatPatch(
+      { kind: "bye", player_id: null },
+      { kind: "tbd", tbd_label: "Qualifier", entry: "q" }
+    );
+    assert.equal(patch.kind, "tbd");
+    assert.equal(patch.tbd_label, "Qualifier");
+    assert.equal(patch.player_id, null);
+    assert.equal(patch.entry, "q");
+  });
+
+  it("does not rewrite an official bye that stays a bye", () => {
+    assert.equal(
+      overlaySeatPatch({ kind: "bye" }, { kind: "bye" }),
+      null
+    );
+  });
+
+  it("unwinds fake R0 bye settle and an unplayed parent side", () => {
+    const slot = r0IndexFromSeatPosition(1);
+    assert.equal(slot.indexInRound, 0);
+    assert.equal(slot.childSide, "b");
+    const plan = planFakeByeUnwind({
+      childWinnerId: "p-named",
+      remainingPlayerId: "p-named",
+      vacatedPlayerId: null,
+      parentWinnerId: null,
+      parentSettledAt: null,
+      parentOccupantId: "p-named",
+    });
+    assert.equal(plan.clearChildSettlement, true);
+    assert.equal(plan.clearParentSide, true);
+  });
+
+  it("does not unwind a parent that already has a played result", () => {
+    const plan = planFakeByeUnwind({
+      childWinnerId: "p-named",
+      remainingPlayerId: "p-named",
+      vacatedPlayerId: null,
+      parentWinnerId: "p-named",
+      parentSettledAt: "2026-09-20T00:00:00Z",
+      parentOccupantId: "p-named",
+    });
+    assert.equal(plan.clearChildSettlement, true);
+    assert.equal(plan.clearParentSide, false);
+  });
+
+  it("does not unwind a named-vs-named R0 result", () => {
+    const plan = planFakeByeUnwind({
+      childWinnerId: "p-a",
+      remainingPlayerId: "p-a",
+      vacatedPlayerId: "p-b",
+      parentWinnerId: null,
+      parentSettledAt: null,
+      parentOccupantId: "p-a",
+    });
+    assert.equal(plan.clearChildSettlement, false);
+    assert.equal(plan.clearParentSide, false);
   });
 });
 
@@ -183,6 +267,236 @@ describe("bindResultsByPlayerPair", () => {
     assert.equal(bindings.length, 1);
     assert.equal(bindings[0].provider_match_id, "871044");
     assert.equal(bindings[0].bound_by, "pair");
+  });
+
+  function side(match_key, round, index_in_round, a, b, provider_match_id = null) {
+    return {
+      match_key,
+      round,
+      index_in_round,
+      side_a_provider_id: a,
+      side_b_provider_id: b,
+      provider_match_id,
+    };
+  }
+
+  it("binds a unique later-round pair when R0 byes share the same player id", () => {
+    for (const { slots, laterRound, laterIndex } of [
+      { slots: 32, laterRound: 2, laterIndex: 1 },
+      { slots: 64, laterRound: 3, laterIndex: 1 },
+      { slots: 128, laterRound: 4, laterIndex: 2 },
+    ]) {
+      const laterKey = `r${laterRound}-m${laterIndex}`;
+      const { results, bindings, skipped } = bindResultsByPlayerPair(
+        [
+          {
+            id: "8710444",
+            player1Id: "pA",
+            player2Id: "pB",
+            match_winner: "pA",
+            result_type: "completed",
+          },
+        ],
+        [
+          side("r0-m8", 0, 8, "pA", null),
+          side("r0-m9", 0, 9, "pC", null),
+          side(laterKey, laterRound, laterIndex, null, "pA"),
+          side(`r${laterRound}-m0`, laterRound, 0, "pX", "pY"),
+        ],
+        { pA: "pA", pB: "pB" }
+      );
+      assert.equal(skipped.length, 0, `slots=${slots}`);
+      assert.equal(results.length, 1, `slots=${slots}`);
+      assert.equal(results[0].match_key, laterKey, `slots=${slots}`);
+      assert.equal(results[0].winner_provider_id, "pA");
+      assert.equal(results[0].voided, false);
+      assert.equal(bindings.length, 1);
+      assert.equal(bindings[0].match_key, laterKey);
+      assert.equal(bindings[0].bound_by, "partial");
+      const parent = advanceWinnerToParent(laterRound, laterIndex, "pA");
+      assert.equal(
+        parent.key,
+        `r${laterRound + 1}-m${Math.floor(laterIndex / 2)}`
+      );
+      assert.equal(
+        parent.sideColumn,
+        laterIndex % 2 === 0 ? "side_a_player_id" : "side_b_player_id"
+      );
+      assert.equal(parent.winnerPlayerId, "pA");
+    }
+  });
+
+  it("fails closed when two later-round one-sided matches fit the pair", () => {
+    const { results, bindings, skipped } = bindResultsByPlayerPair(
+      [
+        {
+          id: "8710555",
+          player1Id: "pA",
+          player2Id: "pB",
+          match_winner: "pA",
+          result_type: "completed",
+        },
+      ],
+      [
+        side("r0-m16", 0, 16, "pA", null),
+        side("r5-m1", 5, 1, "pB", null),
+        side("r6-m0", 6, 0, "pA", null),
+        side("r4-m0", 4, 0, "pX", "pY", "8710555"),
+      ],
+      { pA: "pA", pB: "pB" }
+    );
+    assert.equal(results.length, 0);
+    assert.equal(bindings.length, 0);
+    assert.equal(skipped.length, 1);
+    assert.equal(skipped[0].reason, "ambiguous later-round partial");
+  });
+
+  it("does not let a stale provider_match_id steal a unique later-round bind", () => {
+    const { results, bindings, skipped } = bindResultsByPlayerPair(
+      [
+        {
+          id: "8710666",
+          player1Id: "pA",
+          player2Id: "pB",
+          match_winner: "pA",
+          result_type: "completed",
+        },
+      ],
+      [
+        side("r0-m32", 0, 32, "pA", null),
+        side("r4-m0", 4, 0, "pX", "pY", "8710666"),
+        side("r1-m31", 1, 31, "pZ", null, "8710666"),
+        side("r4-m2", 4, 2, null, "pA"),
+      ],
+      { pA: "pA", pB: "pB" }
+    );
+    assert.equal(skipped.length, 0);
+    assert.equal(results.length, 1);
+    assert.equal(results[0].match_key, "r4-m2");
+    assert.equal(results[0].winner_provider_id, "pA");
+    assert.equal(bindings[0].match_key, "r4-m2");
+    assert.equal(bindings[0].provider_match_id, "8710666");
+    assert.equal(bindings[0].bound_by, "partial");
+  });
+
+  it("does not select an R0 one-sided match with the later-round partial rule", () => {
+    const { results, bindings, skipped } = bindResultsByPlayerPair(
+      [
+        {
+          id: "8710777",
+          player1Id: "pA",
+          player2Id: "pB",
+          match_winner: "pB",
+          result_type: "completed",
+        },
+      ],
+      [
+        side("r0-m0", 0, 0, "pA", null, "8710777"),
+        side("r1-m0", 1, 0, "pC", "pD"),
+      ],
+      { pA: "pA", pB: "pB" }
+    );
+    assert.equal(results.length, 0);
+    assert.equal(bindings.length, 0);
+    assert.equal(skipped.length, 1);
+    assert.equal(skipped[0].reason, "no match_key mapping");
+  });
+
+  it("binds the unique later-round hole and does not keep the archive id on R0", () => {
+    const { results, bindings, skipped } = bindResultsByPlayerPair(
+      [
+        {
+          id: "8800222",
+          player1Id: "pA",
+          player2Id: "pB",
+          match_winner: "pA",
+          result_type: "completed",
+        },
+      ],
+      [
+        side("r0-m4", 0, 4, "pA", null, "8800222"),
+        side("r2-m2", 2, 2, null, "pA"),
+      ],
+      { pA: "pA", pB: "pB" }
+    );
+    assert.equal(skipped.length, 0);
+    assert.equal(results.length, 1);
+    assert.equal(results[0].match_key, "r2-m2");
+    assert.equal(results[0].winner_provider_id, "pA");
+    assert.equal(results[0].provider_match_id, "8800222");
+    assert.equal(bindings.length, 1);
+    assert.equal(bindings[0].match_key, "r2-m2");
+    assert.equal(bindings[0].bound_by, "partial");
+    const parent = advanceWinnerToParent(2, 2, "pA");
+    assert.equal(parent.key, "r3-m1");
+    assert.equal(parent.sideColumn, "side_a_player_id");
+  });
+
+  it("rejects a later-round candidate whose provider_match_id is a different canonical id", () => {
+    const { results, bindings, skipped } = bindResultsByPlayerPair(
+      [
+        {
+          id: "8800333",
+          player1Id: "pA",
+          player2Id: "pB",
+          match_winner: "pA",
+          result_type: "completed",
+        },
+      ],
+      [
+        side("r0-m3", 0, 3, "pA", null, "8800333"),
+        side("r2-m1", 2, 1, "pA", null, "8800999"),
+      ],
+      { pA: "pA", pB: "pB" }
+    );
+    assert.equal(results.length, 0);
+    assert.equal(bindings.length, 0);
+    assert.equal(skipped[0].reason, "no match_key mapping");
+  });
+
+  it("ignores a foreign provider_match_id and keeps the single compatible later-round hole", () => {
+    const { results, bindings } = bindResultsByPlayerPair(
+      [
+        {
+          id: "8800444",
+          player1Id: "pA",
+          player2Id: "pB",
+          match_winner: "pB",
+          result_type: "completed",
+        },
+      ],
+      [
+        side("r3-m0", 3, 0, "pA", null, "7700001"),
+        side("r3-m1", 3, 1, null, "pA"),
+        side("r0-m1", 0, 1, "pA", null, "8800444"),
+      ],
+      { pA: "pA", pB: "pB" }
+    );
+    assert.equal(results.length, 1);
+    assert.equal(results[0].match_key, "r3-m1");
+    assert.equal(results[0].winner_provider_id, "pB");
+    assert.equal(bindings[0].match_key, "r3-m1");
+    assert.equal(bindings[0].bound_by, "partial");
+  });
+
+  it("leaves the row unbound when no later-round candidate exists", () => {
+    const { results, bindings, skipped } = bindResultsByPlayerPair(
+      [
+        {
+          id: "8800555",
+          player1Id: "pA",
+          player2Id: "pB",
+          match_winner: "pA",
+          result_type: "completed",
+        },
+      ],
+      [side("r1-m0", 1, 0, "pC", "pD"), side("r2-m0", 2, 0, "pE", "pF")],
+      { pA: "pA", pB: "pB" }
+    );
+    assert.equal(results.length, 0);
+    assert.equal(bindings.length, 0);
+    assert.equal(skipped.length, 1);
+    assert.equal(skipped[0].reason, "no match_key mapping");
   });
 });
 

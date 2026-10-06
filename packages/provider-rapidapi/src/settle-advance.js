@@ -32,8 +32,83 @@ function pairKey(a, b) {
   return x < y ? `${x}|${y}` : `${y}|${x}`;
 }
 
+function occupantIds(m) {
+  const a =
+    m.side_a_provider_id != null && String(m.side_a_provider_id) !== ""
+      ? String(m.side_a_provider_id)
+      : "";
+  const b =
+    m.side_b_provider_id != null && String(m.side_b_provider_id) !== ""
+      ? String(m.side_b_provider_id)
+      : "";
+  return { a, b };
+}
+
+/** One named side, one empty, and the named occupant is in the archive pair. */
+function isOneSidedKnownInPair(m, p1, p2) {
+  const { a, b } = occupantIds(m);
+  if (a && b) return false;
+  if (!a && !b) return false;
+  const known = a || b;
+  return known === p1 || known === p2;
+}
+
+/**
+ * Stored occupants may receive this archive pair: both named sides are the
+ * pair, or the single named side is one of the pair. Empty-empty is not a hit.
+ */
+function occupantsCompatibleWithPair(m, p1, p2) {
+  if (!p1 || !p2) return false;
+  const pair = new Set([p1, p2]);
+  const { a, b } = occupantIds(m);
+  if (a && b) return pair.has(a) && pair.has(b);
+  if (a) return pair.has(a);
+  if (b) return pair.has(b);
+  return false;
+}
+
+/** True when a stored id looks like a real archive id (not fx/synthetic short). */
+function looksCanonicalProviderId(raw) {
+  const id = String(raw || "").trim();
+  if (!id) return false;
+  if (/^fx-/i.test(id)) return false;
+  // Synthetic short fixture stubs: "802", "812", …
+  if (/^\d{1,4}$/.test(id)) return false;
+  return true;
+}
+
+/**
+ * Stored id may receive this archive row: empty, a non-canonical stub, or
+ * the same id. A different canonical id belongs to another match.
+ */
+function storedIdCompatible(stored, archiveId) {
+  const current = String(stored || "").trim();
+  if (!current) return true;
+  if (!looksCanonicalProviderId(current)) return true;
+  return current === String(archiveId || "").trim();
+}
+
+/**
+ * Later-round one-sided candidate. R0 is never a partial target.
+ * Occupant must be in the pair, and a foreign canonical provider_match_id
+ * excludes the row.
+ */
+function isValidLaterPartial(m, p1, p2, archiveId) {
+  if (!(Number(m.round) > 0)) return false;
+  if (!isOneSidedKnownInPair(m, p1, p2)) return false;
+  return storedIdCompatible(m.provider_match_id, archiveId);
+}
+
 /**
  * Map provider result rows onto match_keys using side player provider ids.
+ *
+ * Order: full pair (+ round / earliest), then exactly one valid later-round
+ * one-sided partial. R0 is not a partial target. A later-round row whose
+ * provider_match_id is a different canonical id is not a candidate. Zero
+ * valid later-round candidates stay unbound (an R0 row that already holds
+ * the archive id does not claim it). Two or more valid later-round
+ * candidates fail closed. Occupant-compatible provider_match_id is only a
+ * fallback for round > 0.
  *
  * @param {Array<{
  *   id?: string|number,
@@ -67,16 +142,6 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
     if (m.provider_match_id) {
       byProviderMatch.set(String(m.provider_match_id), m);
     }
-  }
-
-  /** True when a stored id looks like a real archive id (not fx/synthetic short). */
-  function looksCanonicalProviderId(raw) {
-    const id = String(raw || "").trim();
-    if (!id) return false;
-    if (/^fx-/i.test(id)) return false;
-    // Synthetic short fixture stubs seen in prod: "802", "812", …
-    if (/^\d{1,4}$/.test(id)) return false;
-    return true;
   }
 
   const results = [];
@@ -117,26 +182,35 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
       }
     }
 
-    // Partial sides: one side filled, other empty — unique hit only.
+    // Later-round partial only. R0 one-sided rows are not candidates, even
+    // when they already store this archive id. A foreign canonical id on a
+    // later-round row excludes it. Two valid hits fail closed.
     if (!target && p1 && p2) {
-      const partial = matchSides.filter((m) => {
-        const a = m.side_a_provider_id ? String(m.side_a_provider_id) : "";
-        const b = m.side_b_provider_id ? String(m.side_b_provider_id) : "";
-        if (a && b) return false;
-        if (!a && !b) return false;
-        const known = a || b;
-        return known === p1 || known === p2;
-      });
-      if (partial.length === 1) {
-        target = partial[0];
+      const laterPartials = matchSides.filter((m) =>
+        isValidLaterPartial(m, p1, p2, id)
+      );
+      if (laterPartials.length === 1) {
+        target = laterPartials[0];
         boundBy = "partial";
+      } else if (laterPartials.length > 1) {
+        skipped.push({
+          id: id || pairKey(p1, p2),
+          reason: "ambiguous later-round partial",
+        });
+        continue;
       }
     }
 
-    // Fall back to provider id only when it looks canonical.
+    // Canonical id fallback for a later-round row whose occupants can take
+    // this pair. Never an R0 one-sided row that is holding a stolen id.
     if (!target && id && looksCanonicalProviderId(id)) {
       const byId = byProviderMatch.get(id) || null;
-      if (byId) {
+      if (
+        byId &&
+        Number(byId.round) > 0 &&
+        occupantsCompatibleWithPair(byId, p1, p2) &&
+        storedIdCompatible(byId.provider_match_id, id)
+      ) {
         target = byId;
         boundBy = "provider_match_id";
       }

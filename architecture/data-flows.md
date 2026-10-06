@@ -16,11 +16,20 @@ sync-facts (Edge)
         ├─ official seats → classifyDraw (reject qualifying) → integrity → apply-draw
         │       → integrity first (before wipe): fail unpublished → no seats written;
         │         fail when already published → keep live sheet, ops alert, no unpublish
+        │         (`impossible_byes` when bye count exceeds the official slot-field
+        │          ceiling, or a first-round pair is bye vs bye; TBD is not a bye)
         │       → pass → players, seats, matches, schedule, published_at
-        │       → after publish: announced fixtures do not rewrite R0 sides or append
+        │       → after publish: overlay `bye_to_tbd` on official TBD seats,
+        │         unwind invented R0 bye-advance when the parent is unplayed;
+        │         announced fixtures do not rewrite R0 sides or append
         │         extra indices; prune index>=draw_size/2; refresh sides from seats
         ├─ results + live finished → apply-results
-        │       → Shape A pair-first bind/fill winners; Shape B create/fill R0 from
+        │       → Shape A pair-first bind (exactly one occupant-compatible
+        │         later-round partial; R0 is not a partial target; a foreign
+        │         canonical provider_match_id is not a candidate; zero stays
+        │         unbound; two valid later-round holes fail closed) then
+        │         apply-results fill/advance;
+        │         Shape B create/fill R0 from
         │         results archive + official seats (fail closed; heal wrong sides)
         │       → durable matches update, then claim_settlement, then parent advance
         │       → conflict: settled winner ≠ provider → audit, no overwrite
@@ -29,7 +38,8 @@ sync-facts (Edge)
 
 **Entry:** `supabase/functions/sync-facts/index.ts`  
 **Persist:** `_shared/apply-draw.ts`, `_shared/apply-results.ts` (findMatch prefers `match_key` over stale `provider_match_id`; claim after write)  
-**Provider:** `packages/provider-rapidapi` (`official/classify-draw.js`, `parse-draw.js`, pair-first `bindResultsByPlayerPair`)
+**Provider:** `packages/provider-rapidapi` (`official/classify-draw.js`, `parse-draw.js`, pair-first `bindResultsByPlayerPair`)  
+**Draw seats:** `parse-draw.js` copies official first-round sides. The Tennis API placeholder `{ id: 3700, name: "Unknown Player" }` is a bye only when that match has `result: "bye"`; the same object with empty `result` is a Q/LL TBD seat. After the bye is consumed the API drops that object: JSON `null` / omitted opposite a named player (empty `result`) is an official bye, not TBD. Name/id, seed-corner placement, and draw size never invent a bye.
 
 ---
 

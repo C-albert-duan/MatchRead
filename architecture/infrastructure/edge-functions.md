@@ -21,7 +21,7 @@ Pipeline:
 4. On pass: `apply-draw` → players, seats, matches, schedule, `published_at`.
    On fail unpublished: write report only — no seats left for public render.
    On fail when already published: keep the live sheet; ops `refresh_blocked_keep_published`; never clear `published_at`.
-   **Published sheet guard:** once `published_at` + seat count match `draw_size`, announced fixture upserts only sync schedule/`provider_match_id` onto seat-aligned R0 slots — they never rewrite sides or append `index >= draw_size/2` rows. Each apply also prunes those extras and refreshes R0 sides from seats.
+   **Published sheet guard:** once `published_at` + seat count match `draw_size`, announced fixture upserts only sync schedule/`provider_match_id` onto seat-aligned R0 slots — they never rewrite sides or append `index >= draw_size/2` rows. Each apply also prunes those extras and refreshes R0 sides from seats. Official TBD vs stored bye is `bye_to_tbd`: overlay writes `kind=tbd` / `player_id=null`, then unwinds the invented R0 bye-advance (`unwind_settlement_parent`) unless the parent is already played/settled.
 5. Reconcile results + live finished events → `apply-results`.
 6. Durable `matches` update first, then `claim_settlement`, then parent advance; audit repair/ops.
 7. `refresh_lock_at` when timed R0 exists.
@@ -38,7 +38,7 @@ Publish: migration `0019` fixes `assert_publish_requires_integrity` to call `is_
 
 Results reconcile:
 
-1. Pair-first bind archive rows → existing topology (`bindResultsByPlayerPair`: player pair before `provider_match_id`; rewrite stale/synthetic ids).
+1. Pair-first bind archive rows → existing topology (`bindResultsByPlayerPair`: full player pair, then exactly one valid later-round one-sided partial). A partial candidate must be round > 0, occupant-compatible, and must not already hold a different canonical `provider_match_id`. R0 is never selected by that rule, including when it already stores the archive id. Zero valid later-round candidates stay unbound. Two or more fail closed. Bound rows settle through `applyMatchResults` → `writeWinnerIntoParent`.
 2. **Shape B:** unbound finished results whose players occupy an adjacent official seat pair → create or fill the R0 match, then settle (`proposeShapeBRepairs`). Also **fill** when an R0 row exists but sides disagree with official seats. Never invent slots without seats. Never overwrite a settled conflicting winner.
 3. Audit remaining unbound/orphans to `ops_events` / `sync_repairs`.
 
@@ -56,7 +56,7 @@ Triggered by cron (~15m). Commissioner/founder can also settle in-process via we
 
 | File | Role |
 |------|------|
-| `_shared/apply-draw.ts` | Persist official field |
+| `_shared/apply-draw.ts` | Persist official field; published overlay includes `bye_to_tbd` + fake bye unwind |
 | `_shared/apply-results.ts` | Winners, voids, claims, advances |
 | `_shared/rapidapi.js` | Provider package facade |
 | `_shared/core.js` | Edge-safe grade / matchKey |
