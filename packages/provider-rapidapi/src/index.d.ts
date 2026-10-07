@@ -517,6 +517,15 @@ export declare function selectArchiveRows<T extends { id?: string | number | nul
   allowIds?: Array<string | number> | null
 ): T[];
 
+export declare function shouldReconcileDraw(
+  providerMatchIds?: Array<string | number> | null
+): boolean;
+
+export declare function drawProviderMatchWrites(
+  providerMatchIds: Array<string | number> | null | undefined,
+  fullDrawMatches: Record<string, string> | null | undefined
+): Record<string, string>;
+
 export declare function planArchiveResults(input: {
   rows?: Array<{ id?: string | number | null }>;
   allowIds?: Array<string | number> | null;

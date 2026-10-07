@@ -803,6 +803,8 @@ export {
   advanceWinnerToParent,
   parentMatchKey,
   selectArchiveRows,
+  shouldReconcileDraw,
+  drawProviderMatchWrites,
 } from "./settle-advance.js";
 export { bindResultsByPlayerPair };
 export {

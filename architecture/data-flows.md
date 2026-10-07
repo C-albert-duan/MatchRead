@@ -14,6 +14,10 @@ sync-facts (Edge)
         │  packages/provider-rapidapi
         ├─ calendar upsert → tournaments
         ├─ official seats → classifyDraw (reject qualifying) → integrity → apply-draw
+        │       → a present `providerMatchIds` list skips this draw write
+        │         (`syncEventDraw` returns before fixtures, archive load,
+        │         overlay, and `applyMatchFacts`); an omitted list still
+        │         reconciles the full draw
         │       → integrity first (before wipe): fail unpublished → no seats written;
         │         fail when already published → keep live sheet, ops alert, no unpublish
         │         (`impossible_byes` when bye count exceeds the official slot-field

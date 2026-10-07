@@ -27,6 +27,7 @@ import {
   overlayOfficialDraw,
   resolveOfficialSeats,
   shouldPollDraw,
+  shouldReconcileDraw,
   planArchiveResults,
   proposeShapeBRepairs,
   resolveLiveEvent,
@@ -682,11 +683,23 @@ async function syncEventDraw(
   env: {
     dryRun: boolean;
     force: boolean;
+    providerMatchIds: string[] | null;
   },
   event: SyncedEvent,
   log: string[]
 ): Promise<{ status: "published" | "announced" | "pending" }> {
   const label = event.slug;
+
+  // Allow-list isolation: this function loads the full archive and
+  // overlayOfficialDraw/applyMatchFacts writes every pair id. That write
+  // happens before syncEventResults applies providerMatchIds. Skip the
+  // whole reconciliation when a list is present. Absent list is unchanged.
+  if (!shouldReconcileDraw(env.providerMatchIds)) {
+    log.push(`${label} draw reconciliation skipped (providerMatchIds)`);
+    return {
+      status: event.published_at ? "published" : "pending",
+    };
+  }
 
   // Adaptive draw poll — still always refresh fixtures/announced matchups.
   const { count: tbdCount } = await admin

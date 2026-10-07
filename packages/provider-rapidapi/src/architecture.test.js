@@ -13,8 +13,11 @@ import {
   isSilentSubscription,
   onSocketDisconnect,
   parentMatchKey,
+  drawProviderMatchWrites,
+  overlayOfficialDraw,
   planArchiveResults,
   reconcileThenResume,
+  shouldReconcileDraw,
   resolveLiveEvent,
   shouldPollDraw,
   subscriptionDiff,
@@ -827,6 +830,99 @@ describe("archive allow-list", () => {
     assert.equal(planned.providerIdUpdates.length, 0);
     assert.equal(planned.applyResults.length, 0);
     assert.equal(planned.bound.skipped[0].reason, "ambiguous later-round partial");
+  });
+
+  it("skips draw provider-id writes when an allow-list is present and still settles the allowed row", () => {
+    const seats = [0, 1, 2, 3].map((position) => {
+      const names = [
+        ["Ada", "Alpha"],
+        ["Bea", "Bravo"],
+        ["Cam", "Gamma"],
+        ["Dee", "Delta"],
+      ];
+      const [given, last] = names[position];
+      return {
+        position,
+        seat_kind: "player",
+        last_name: last,
+        given_name: given,
+        player_ref: `p-${position}`,
+        country_code: "USA",
+        display_name: `${given} ${last}`,
+      };
+    });
+    const fixtures = [
+      {
+        id: "1001",
+        player1Id: "1",
+        player2Id: "2",
+        player1: { id: "1", name: "Ada Alpha" },
+        player2: { id: "2", name: "Bea Bravo" },
+      },
+      {
+        id: "1002",
+        player1Id: "3",
+        player2Id: "4",
+        player1: { id: "3", name: "Cam Gamma" },
+        player2: { id: "4", name: "Dee Delta" },
+      },
+    ];
+    const archive = [
+      {
+        id: "2001",
+        player1Id: "1",
+        player2Id: "2",
+        player1: { id: "1", name: "Ada Alpha" },
+        player2: { id: "2", name: "Bea Bravo" },
+        match_winner: "1",
+      },
+      {
+        id: "2002",
+        player1Id: "3",
+        player2Id: "4",
+        player1: { id: "3", name: "Cam Gamma" },
+        player2: { id: "4", name: "Dee Delta" },
+        match_winner: "3",
+      },
+    ];
+    const full = overlayOfficialDraw(seats, fixtures, { results: archive, prefix: "atp" });
+    assert.equal(full.ok, true);
+    if (!full.ok) throw new Error(full.reason);
+    assert.equal(full.matches["2001"], "r0-m0");
+    assert.equal(full.matches["2002"], "r0-m1");
+
+    assert.equal(shouldReconcileDraw(null), true);
+    assert.equal(shouldReconcileDraw(undefined), true);
+    assert.deepEqual(drawProviderMatchWrites(null, full.matches), full.matches);
+    assert.ok(drawProviderMatchWrites(null, full.matches)["2002"]);
+
+    const filteredOverlay = overlayOfficialDraw(seats, fixtures, {
+      results: archive.filter((row) => row.id === "2001"),
+      prefix: "atp",
+    });
+    assert.equal(filteredOverlay.ok, true);
+    if (!filteredOverlay.ok) throw new Error(filteredOverlay.reason);
+    assert.equal(filteredOverlay.matches["1002"], "r0-m1");
+
+    assert.equal(shouldReconcileDraw(["2001"]), false);
+    assert.deepEqual(drawProviderMatchWrites(["2001"], full.matches), {});
+    assert.equal(drawProviderMatchWrites(["2001"], full.matches)["2002"], undefined);
+    assert.equal(drawProviderMatchWrites(["2001"], filteredOverlay.matches)["1002"], undefined);
+
+    const planned = planArchiveResults({
+      rows: archive,
+      allowIds: ["2001"],
+      matchSides: [
+        side("r0-m0", 0, 0, "1", "2"),
+        side("r0-m1", 0, 1, "3", "4"),
+      ],
+      players: { "1": "1", "2": "2", "3": "3", "4": "4" },
+    });
+    assert.deepEqual(planned.archiveRows.map((row) => String(row.id)), ["2001"]);
+    assert.deepEqual(planned.applyResults.map((row) => row.match_key), ["r0-m0"]);
+    assert.equal(planned.applyResults[0].winner_provider_id, "1");
+    assert.equal(planned.applyResults.some((row) => row.provider_match_id === "2002"), false);
+    assert.equal(planned.providerIdUpdates.some((row) => row.provider_match_id === "2002"), false);
   });
 
   it("keeps full-pair binding when the allow-list includes that row", () => {

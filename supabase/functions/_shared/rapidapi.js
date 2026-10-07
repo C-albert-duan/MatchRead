@@ -5,6 +5,8 @@ export {
   auxiliaryLastName,
   bindResultsByPlayerPair,
   selectArchiveRows,
+  shouldReconcileDraw,
+  drawProviderMatchWrites,
   planArchiveResults,
   buildDrawFromFirstRound,
   canAdvanceWinner,

@@ -322,3 +322,28 @@ export function selectArchiveRows(rows, allowIds) {
   );
   return list.filter((row) => allow.has(String(row?.id ?? "").trim()));
 }
+
+/**
+ * Full draw reconciliation persists every fixture and archive pair id.
+ * `null` / omitted keeps that path. A present allow-list skips it entirely.
+ * Filtering archive rows while still indexing fixtures is not isolation.
+ *
+ * @param {Array<string|number>|null|undefined} providerMatchIds
+ */
+export function shouldReconcileDraw(providerMatchIds) {
+  return providerMatchIds == null;
+}
+
+/**
+ * Provider-match ids the draw path may write.
+ * An allow-list yields an empty map so unrelated ids cannot be persisted.
+ *
+ * @param {Array<string|number>|null|undefined} providerMatchIds
+ * @param {Record<string, string>|null|undefined} fullDrawMatches
+ * @returns {Record<string, string>}
+ */
+export function drawProviderMatchWrites(providerMatchIds, fullDrawMatches) {
+  if (!shouldReconcileDraw(providerMatchIds)) return {};
+  if (!fullDrawMatches || typeof fullDrawMatches !== "object") return {};
+  return fullDrawMatches;
+}
