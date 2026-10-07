@@ -14,6 +14,7 @@ import {
   onSocketDisconnect,
   parentMatchKey,
   drawProviderMatchWrites,
+  planProviderMatchRelocation,
   overlayOfficialDraw,
   planArchiveResults,
   reconcileThenResume,
@@ -501,8 +502,151 @@ describe("bindResultsByPlayerPair", () => {
     assert.equal(bindings.length, 0);
     assert.equal(skipped.length, 1);
     assert.equal(skipped[0].reason, "no match_key mapping");
+    const idle = planProviderMatchRelocation(bindings[0], [
+      side("r0-m0", 0, 0, "pA", null, "8800555"),
+      side("r1-m0", 1, 0, "pC", "pD"),
+      side("r2-m0", 2, 0, "pE", "pF"),
+    ]);
+    assert.equal(idle.releases.length, 0);
+    assert.equal(idle.assign, null);
+  });
+
+  it("moves an emitted provider id off the earlier holder onto the later hole", () => {
+    const holder = side("r0-m4", 0, 4, "pA", null, "8800222");
+    holder.winner_player_id = "uuid-a";
+    holder.settled_at = "2026-09-20T06:14:31.583Z";
+    holder.side_a_player_id = "uuid-a";
+    const later = side("r2-m2", 2, 2, null, "pA");
+    const matchSides = [holder, later];
+    const { results, bindings, skipped } = bindResultsByPlayerPair(
+      [
+        {
+          id: "8800222",
+          player1Id: "pA",
+          player2Id: "pB",
+          match_winner: "pA",
+          result_type: "completed",
+        },
+      ],
+      matchSides,
+      { pA: "pA", pB: "pB" }
+    );
+    assert.equal(skipped.length, 0);
+    assert.equal(bindings.length, 1);
+    assert.equal(bindings[0].match_key, "r2-m2");
+    const plan = planProviderMatchRelocation(bindings[0], matchSides);
+    assert.equal(plan.releases.length, 1);
+    assert.equal(plan.releases[0].match_key, "r0-m4");
+    assert.deepEqual(plan.releases[0].patch, { provider_match_id: null });
+    assert.equal(plan.assign.match_key, "r2-m2");
+    assert.deepEqual(plan.assign.patch, { provider_match_id: "8800222" });
+    const after = applyRelocation(matchSides, plan);
+    assert.equal(after.get("r0-m4").provider_match_id, null);
+    assert.equal(after.get("r0-m4").winner_player_id, "uuid-a");
+    assert.equal(after.get("r0-m4").settled_at, "2026-09-20T06:14:31.583Z");
+    assert.equal(after.get("r0-m4").side_a_player_id, "uuid-a");
+    assert.equal(after.get("r2-m2").provider_match_id, "8800222");
+    assert.equal(results[0].match_key, "r2-m2");
+    assert.equal(results[0].winner_provider_id, "pA");
+    const parent = advanceWinnerToParent(2, 2, results[0].winner_provider_id);
+    assert.equal(parent.key, "r3-m1");
+    assert.equal(parent.sideColumn, "side_a_player_id");
+  });
+
+  it("moves an emitted provider id off a later-round holder that is not the bound hole", () => {
+    const holder = side("r1-m4", 1, 4, "pC", "pD", "8800777");
+    holder.winner_player_id = "uuid-c";
+    holder.settled_at = "2026-09-01T00:00:00.000Z";
+    const later = side("r3-m1", 3, 1, null, "pA");
+    const matchSides = [holder, later];
+    const { bindings } = bindResultsByPlayerPair(
+      [
+        {
+          id: "8800777",
+          player1Id: "pA",
+          player2Id: "pB",
+          match_winner: "pA",
+          result_type: "completed",
+        },
+      ],
+      matchSides,
+      { pA: "pA", pB: "pB" }
+    );
+    assert.equal(bindings.length, 1);
+    assert.equal(bindings[0].match_key, "r3-m1");
+    const plan = planProviderMatchRelocation(bindings[0], matchSides);
+    assert.equal(plan.releases[0].match_key, "r1-m4");
+    assert.deepEqual(plan.releases[0].patch, { provider_match_id: null });
+    assert.equal(plan.assign.match_key, "r3-m1");
+    const after = applyRelocation(matchSides, plan);
+    assert.equal(after.get("r1-m4").provider_match_id, null);
+    assert.equal(after.get("r1-m4").winner_player_id, "uuid-c");
+    assert.equal(after.get("r1-m4").settled_at, "2026-09-01T00:00:00.000Z");
+    assert.equal(after.get("r3-m1").provider_match_id, "8800777");
+  });
+
+  it("does not release an existing provider id when the later hole has a different canonical id", () => {
+    const matchSides = [
+      side("r0-m3", 0, 3, "pA", null, "8800333"),
+      side("r2-m1", 2, 1, "pA", null, "8800999"),
+    ];
+    const { results, bindings } = bindResultsByPlayerPair(
+      [
+        {
+          id: "8800333",
+          player1Id: "pA",
+          player2Id: "pB",
+          match_winner: "pA",
+          result_type: "completed",
+        },
+      ],
+      matchSides,
+      { pA: "pA", pB: "pB" }
+    );
+    assert.equal(results.length, 0);
+    assert.equal(bindings.length, 0);
+    const plan = planProviderMatchRelocation(bindings[0], matchSides);
+    assert.equal(plan.releases.length, 0);
+    assert.equal(plan.assign, null);
+    assert.equal(matchSides[0].provider_match_id, "8800333");
+    assert.equal(matchSides[1].provider_match_id, "8800999");
+  });
+
+  it("does not release an existing provider id when two later-round holes match", () => {
+    const matchSides = [
+      side("r1-m2", 1, 2, "pA", "pZ", "8800888"),
+      side("r4-m0", 4, 0, "pA", null),
+      side("r5-m0", 5, 0, null, "pB"),
+    ];
+    const { results, bindings, skipped } = bindResultsByPlayerPair(
+      [
+        {
+          id: "8800888",
+          player1Id: "pA",
+          player2Id: "pB",
+          match_winner: "pA",
+          result_type: "completed",
+        },
+      ],
+      matchSides,
+      { pA: "pA", pB: "pB" }
+    );
+    assert.equal(results.length, 0);
+    assert.equal(bindings.length, 0);
+    assert.equal(skipped[0].reason, "ambiguous later-round partial");
+    const plan = planProviderMatchRelocation(bindings[0], matchSides);
+    assert.equal(plan.releases.length, 0);
+    assert.equal(plan.assign, null);
+    assert.equal(matchSides[0].provider_match_id, "8800888");
   });
 });
+
+function applyRelocation(matchSides, plan) {
+  const by = new Map(matchSides.map((row) => [row.match_key, { ...row }]));
+  for (const rel of plan.releases) Object.assign(by.get(rel.match_key), rel.patch);
+  if (plan.assign) Object.assign(by.get(plan.assign.match_key), plan.assign.patch);
+  return by;
+}
 
 describe("EventMapper resolveLiveEvent", () => {
   it("maps from live events by player pair", async () => {

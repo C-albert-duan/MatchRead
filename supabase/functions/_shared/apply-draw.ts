@@ -2,6 +2,7 @@
 // Apply official seats, matchups, schedule, and results (used by sync-facts).
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { relocateProviderMatchId } from "./apply-results.ts";
 import { buildRoundStructure, parseMatchKey } from "./core.js";
 import { advanceWinnerToParent, r0SlotFromSeatPair } from "./rapidapi.js";
 
@@ -1613,23 +1614,14 @@ async function applyMatchFacts(
       if (!providerMatchId || !parsed) continue;
       const pmid = String(providerMatchId);
 
-      // Unique (tournament_id, provider_match_id): free any prior holder
-      // (e.g. announced R0 row) before binding to the official node.
-      await admin
-        .from("matches")
-        .update({ provider_match_id: null })
-        .eq("tournament_id", tournamentId)
-        .eq("provider_match_id", pmid);
-
-      const { error } = await admin
-        .from("matches")
-        .update({ provider_match_id: pmid })
-        .eq("tournament_id", tournamentId)
-        .eq("round", parsed.round)
-        .eq("index_in_round", parsed.indexInRound);
-      if (error) {
+      // Same clear-then-set as results bindings. Release writes the id only.
+      const moved = await relocateProviderMatchId(admin, tournamentId, {
+        match_key: key,
+        provider_match_id: pmid,
+      });
+      if (!moved.ok) {
         return {
-          error: `provider_match_id: ${error.message}`,
+          error: `provider_match_id: ${moved.error}`,
           results: 0,
           schedule: 0,
           lockAt: null,

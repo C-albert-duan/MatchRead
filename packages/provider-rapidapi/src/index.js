@@ -805,6 +805,8 @@ export {
   selectArchiveRows,
   shouldReconcileDraw,
   drawProviderMatchWrites,
+  planProviderMatchRelocation,
+  providerMatchReleasePatch,
 } from "./settle-advance.js";
 export { bindResultsByPlayerPair };
 export {

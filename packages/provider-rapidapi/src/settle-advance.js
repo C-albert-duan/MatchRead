@@ -347,3 +347,39 @@ export function drawProviderMatchWrites(providerMatchIds, fullDrawMatches) {
   if (!fullDrawMatches || typeof fullDrawMatches !== "object") return {};
   return fullDrawMatches;
 }
+
+/** Only the provider id. Winner, sides, and settled_at stay on the old holder. */
+export function providerMatchReleasePatch() {
+  return { provider_match_id: null };
+}
+
+/**
+ * Clear-then-set for one emitted binding.
+ * No binding releases nothing and assigns nothing. A release patch never
+ * carries winner, sides, or settled_at. Any other row holding this id is
+ * released, whatever its round.
+ *
+ * @param {{ match_key?: string, provider_match_id?: string|number }|null|undefined} binding
+ * @param {Array<{
+ *   match_key?: string,
+ *   provider_match_id?: string|null,
+ * }>|null|undefined} matchSides
+ */
+export function planProviderMatchRelocation(binding, matchSides) {
+  const id = String(binding?.provider_match_id ?? "").trim();
+  const key = String(binding?.match_key ?? "").trim();
+  if (!binding || !id || !key) return { releases: [], assign: null };
+  const releases = [];
+  for (const row of Array.isArray(matchSides) ? matchSides : []) {
+    if (String(row?.match_key || "") === key) continue;
+    if (String(row?.provider_match_id ?? "").trim() !== id) continue;
+    releases.push({
+      match_key: String(row.match_key),
+      patch: providerMatchReleasePatch(),
+    });
+  }
+  return {
+    releases,
+    assign: { match_key: key, patch: { provider_match_id: id } },
+  };
+}

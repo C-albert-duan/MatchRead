@@ -4,7 +4,69 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { parseMatchKey } from "./core.js";
-import { advanceWinnerToParent } from "./rapidapi.js";
+import { advanceWinnerToParent, planProviderMatchRelocation } from "./rapidapi.js";
+
+/**
+ * Move one emitted provider_match_id onto its bound match.
+ * Clears that id from every other match in the tournament first.
+ * The release writes provider_match_id only.
+ * No binding is a no-op: nothing is released.
+ */
+export async function relocateProviderMatchId(
+  admin: SupabaseClient,
+  tournamentId: string,
+  binding: { match_key?: string; provider_match_id?: string } | null
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const id = tournamentId?.trim();
+  const pmid = String(binding?.provider_match_id || "").trim();
+  const key = String(binding?.match_key || "").trim();
+  if (!binding || !id || !pmid || !key) return { ok: true };
+
+  const { data: holders, error: readErr } = await admin
+    .from("matches")
+    .select("round, index_in_round, provider_match_id")
+    .eq("tournament_id", id)
+    .eq("provider_match_id", pmid);
+  if (readErr) return { ok: false, error: readErr.message };
+
+  const matchSides = (holders ?? []).map((row) => ({
+    match_key: `r${row.round}-m${row.index_in_round}`,
+    provider_match_id:
+      row.provider_match_id == null ? null : String(row.provider_match_id),
+  }));
+  if (!matchSides.some((row) => row.match_key === key)) {
+    matchSides.push({ match_key: key, provider_match_id: null });
+  }
+
+  const plan = planProviderMatchRelocation(
+    { match_key: key, provider_match_id: pmid },
+    matchSides
+  );
+  if (!plan.assign) return { ok: true };
+
+  for (const rel of plan.releases) {
+    const parsed = parseMatchKey(rel.match_key);
+    if (!parsed) continue;
+    const { error } = await admin
+      .from("matches")
+      .update(rel.patch)
+      .eq("tournament_id", id)
+      .eq("round", parsed.round)
+      .eq("index_in_round", parsed.indexInRound);
+    if (error) return { ok: false, error: error.message };
+  }
+
+  const parsed = parseMatchKey(plan.assign.match_key);
+  if (!parsed) return { ok: false, error: "bad match key" };
+  const { error } = await admin
+    .from("matches")
+    .update(plan.assign.patch)
+    .eq("tournament_id", id)
+    .eq("round", parsed.round)
+    .eq("index_in_round", parsed.indexInRound);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
 
 export type MatchResultIn = {
   match_id?: string;
@@ -194,6 +256,17 @@ export async function applyMatchResults(
       patch.provider_match_id = String(r.provider_match_id);
     }
 
+    if (patch.provider_match_id && (r.match_key || matchKeyOf(match))) {
+      const moved = await relocateProviderMatchId(admin, id, {
+        match_key: r.match_key || matchKeyOf(match),
+        provider_match_id: String(patch.provider_match_id),
+      });
+      if (!moved.ok) {
+        log.push(`results update failed: ${moved.error}`);
+        return { ok: false, error: moved.error, log };
+      }
+    }
+
     const unchanged =
       before.winner_player_id === (patch.winner_player_id ?? null) &&
       Boolean(before.voided) === voided;
@@ -210,13 +283,7 @@ export async function applyMatchResults(
         );
         if (did) advanced += 1;
       }
-      // Still refresh a stale provider_match_id when the row is otherwise settled.
-      if (patch.provider_match_id) {
-        await admin
-          .from("matches")
-          .update({ provider_match_id: patch.provider_match_id })
-          .eq("id", match.id);
-      }
+      // relocateProviderMatchId already moved the id. Winner and settled_at stay.
       skipped.push({ reason: "already settled", id: match.id });
       continue;
     }

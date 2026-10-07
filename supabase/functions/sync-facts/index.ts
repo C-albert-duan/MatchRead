@@ -14,7 +14,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { applyDrawFacts } from "../_shared/apply-draw.ts";
-import { applyMatchResults } from "../_shared/apply-results.ts";
+import { applyMatchResults, relocateProviderMatchId } from "../_shared/apply-results.ts";
 import {
   createClient as createRapid,
   getDualTourCalendar,
@@ -1164,19 +1164,19 @@ async function syncEventResults(
   const { bound, mapped, unbound, authDiff, shapeB } = planned;
 
   // Apply provider_match_id bindings discovered via pair match.
-  // Overwrite short/synthetic local ids so the next pass stays aligned.
+  // Clear the id on any other match in this tournament, then assign it.
   if (!env.dryRun) {
     for (const b of planned.providerIdUpdates) {
-      const parsed = b.match_key.match(/^r(\d+)-m(\d+)$/);
-      if (!parsed) continue;
       const realId = String(b.provider_match_id || "").trim();
-      if (!realId) continue;
-      await admin
-        .from("matches")
-        .update({ provider_match_id: realId })
-        .eq("tournament_id", event.id)
-        .eq("round", Number(parsed[1]))
-        .eq("index_in_round", Number(parsed[2]));
+      if (!realId || !b.match_key) continue;
+      const moved = await relocateProviderMatchId(admin, event.id, {
+        match_key: b.match_key,
+        provider_match_id: realId,
+      });
+      if (!moved.ok) {
+        log.push(`provider_match_id move failed: ${moved.error}`);
+        throw new Error(`provider_match_id move failed: ${moved.error}`);
+      }
     }
   }
 

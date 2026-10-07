@@ -526,6 +526,22 @@ export declare function drawProviderMatchWrites(
   fullDrawMatches: Record<string, string> | null | undefined
 ): Record<string, string>;
 
+export declare function providerMatchReleasePatch(): { provider_match_id: null };
+
+export declare function planProviderMatchRelocation(
+  binding:
+    | { match_key?: string; provider_match_id?: string | number }
+    | null
+    | undefined,
+  matchSides?: Array<{
+    match_key?: string;
+    provider_match_id?: string | null;
+  }> | null
+): {
+  releases: Array<{ match_key: string; patch: { provider_match_id: null } }>;
+  assign: { match_key: string; patch: { provider_match_id: string } } | null;
+};
+
 export declare function planArchiveResults(input: {
   rows?: Array<{ id?: string | number | null }>;
   allowIds?: Array<string | number> | null;

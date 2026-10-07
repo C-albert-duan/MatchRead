@@ -35,6 +35,11 @@ sync-facts (Edge)
         │         later-round partial; R0 is not a partial target; a foreign
         │         canonical provider_match_id is not a candidate; zero stays
         │         unbound; two valid later-round holes fail closed) then
+        │         an emitted binding clears that provider_match_id on any
+        │         other match in the tournament and assigns it to the bound
+        │         match (`planProviderMatchRelocation`); the release writes
+        │         only `provider_match_id`, so the previous holder's winner,
+        │         sides, and settled_at stay. Fail-closed binds release nothing.
         │         apply-results fill/advance;
         │         Shape B create/fill R0 from
         │         results archive + official seats (fail closed; heal wrong sides)

@@ -7,6 +7,8 @@ export {
   selectArchiveRows,
   shouldReconcileDraw,
   drawProviderMatchWrites,
+  planProviderMatchRelocation,
+  providerMatchReleasePatch,
   planArchiveResults,
   buildDrawFromFirstRound,
   canAdvanceWinner,
