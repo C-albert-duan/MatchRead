@@ -8,18 +8,25 @@
 //     "providerMatchIds"?: string[] }
 //
 // Secrets: INGEST_SECRET, RAPIDAPI_KEY, RAPIDAPI_HOST (optional),
-//          SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (platform)
+//          SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (platform),
+//          SENTRY_DSN (optional; empty disables Sentry)
 //
 // Deploy: npx supabase functions deploy sync-facts --no-verify-jwt
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { applyDrawFacts } from "../_shared/apply-draw.ts";
 import { applyMatchResults, relocateProviderMatchId } from "../_shared/apply-results.ts";
+import { captureEdgeError, flushSentry } from "../_shared/sentry.ts";
 import {
   createClient as createRapid,
   getDualTourCalendar,
   getLiveEvents,
+  absenceObservability,
+  absenceSignalLog,
+  classifyPlayerAbsences,
+  entryRowsFromInfo,
   getTournamentFixtures,
+  getTournamentInfo,
   getTournamentResults,
   mapLiveFinishedToIngest,
   mapResultsToIngest,
@@ -58,13 +65,13 @@ const MAX_EVENTS_PER_RUN = 10;
  * Sprint Directive 2.1 §3 — do not equate starts_on with main_draw_starts_on.
  */
 const PRODUCT_MAIN_DRAW: Record<string, string> = {
-  "t-atp-21349": "2026-08-30", // US Open ATP
-  "t-wta-16743": "2026-08-30", // US Open WTA
-  "t-atp-21348": "2026-08-23", // Winston-Salem
-  "t-atp-21347": "2026-08-13", // Cincinnati ATP
-  "t-wta-16740": "2026-08-13", // Cincinnati WTA
-  "t-wta-16741": "2026-08-24", // Monterrey
-  "t-wta-16742": "2026-08-24", // Cleveland
+  "t-atp-21349": "2026-08-30",
+  "t-wta-16743": "2026-08-30",
+  "t-atp-21348": "2026-08-23",
+  "t-atp-21347": "2026-08-13",
+  "t-wta-16740": "2026-08-13",
+  "t-wta-16741": "2026-08-24",
+  "t-wta-16742": "2026-08-24",
 };
 
 Deno.serve(async (req) => {
@@ -209,7 +216,8 @@ Deno.serve(async (req) => {
           env,
           event,
           liveEvents,
-          log
+          log,
+          pub.fixtures
         );
         if (rec.ingested > 0) {
           reconcile.ingested += rec.ingested;
@@ -220,14 +228,13 @@ Deno.serve(async (req) => {
       } catch (err) {
         publish.errors += 1;
         reconcile.errors += 1;
-        log.push(
-          `${event.slug} error: ${
-            err instanceof Error ? err.message : String(err)
-          }`
-        );
+        const message = err instanceof Error ? err.message : String(err);
+        log.push(`${event.slug} error: ${message}`);
+        captureEdgeError(err, { slug: event.slug, source: "sync-facts" });
       }
     }
 
+    await flushSentry();
     return json({
       ok: true,
       dryRun,
@@ -240,6 +247,8 @@ Deno.serve(async (req) => {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     log.push(`fatal: ${message}`);
+    captureEdgeError(err, { source: "sync-facts" });
+    await flushSentry();
     return json({ ok: false, error: message, log }, 500);
   }
 });
@@ -687,7 +696,10 @@ async function syncEventDraw(
   },
   event: SyncedEvent,
   log: string[]
-): Promise<{ status: "published" | "announced" | "pending" }> {
+): Promise<{
+  status: "published" | "announced" | "pending";
+  fixtures: unknown[] | null;
+}> {
   const label = event.slug;
 
   // Allow-list isolation: this function loads the full archive and
@@ -698,6 +710,7 @@ async function syncEventDraw(
     log.push(`${label} draw reconciliation skipped (providerMatchIds)`);
     return {
       status: event.published_at ? "published" : "pending",
+      fixtures: null,
     };
   }
 
@@ -766,6 +779,7 @@ async function syncEventDraw(
         : matchups.length
           ? "announced"
           : "pending",
+      fixtures,
     };
   }
 
@@ -792,7 +806,7 @@ async function syncEventDraw(
           ? ` draw_types_seen=${seen || reason} main_singles_found=false action=noop`
           : "")
     );
-    return { status: matchups.length ? "announced" : "pending" };
+    return { status: matchups.length ? "announced" : "pending", fixtures };
   }
 
   try {
@@ -817,12 +831,12 @@ async function syncEventDraw(
       name: "draw_identity_reject",
       payload: { slug: event.slug, error: String(err) },
     });
-    return { status: "pending" };
+    return { status: "pending", fixtures };
   }
 
   if ((official as { source?: string }).source === "first-round") {
     log.push(`${label} rejected fixture-sourced draw`);
-    return { status: matchups.length ? "announced" : "pending" };
+    return { status: matchups.length ? "announced" : "pending", fixtures };
   }
 
   // Never publish a non-eligible draw (override cannot promote).
@@ -839,7 +853,7 @@ async function syncEventDraw(
 
   if (!built.ok) {
     log.push(`${label} pending — ${built.reason}`);
-    return { status: matchups.length ? "announced" : "pending" };
+    return { status: matchups.length ? "announced" : "pending", fixtures };
   }
 
   await postRebuild(
@@ -863,7 +877,7 @@ async function syncEventDraw(
     log
   );
   log.push(`${label} published ${built.drawSize}-draw`);
-  return { status: "published" };
+  return { status: "published", fixtures };
 }
 
 async function loadProviderMaps(
@@ -1022,6 +1036,8 @@ async function applyShapeBRepairs(
     winner_ref: string;
     voided: boolean;
     provider_match_id: string;
+    official_score?: string | null;
+    fact_kind?: string | null;
   }[]
 > {
   const ingest: {
@@ -1030,6 +1046,8 @@ async function applyShapeBRepairs(
     winner_ref: string;
     voided: boolean;
     provider_match_id: string;
+    official_score?: string | null;
+    fact_kind?: string | null;
   }[] = [];
   if (!repairs.length) return ingest;
 
@@ -1100,6 +1118,8 @@ async function applyShapeBRepairs(
       winner_ref: r.winner_provider_id,
       voided: false,
       provider_match_id: r.provider_match_id,
+      official_score: r.official_score ?? null,
+      fact_kind: r.fact_kind ?? null,
     });
   }
   return ingest;
@@ -1115,14 +1135,11 @@ async function syncEventResults(
   },
   event: SyncedEvent,
   liveEvents: unknown[],
-  log: string[]
+  log: string[],
+  fixturesLoaded: unknown[] | null
 ): Promise<{ ingested: number }> {
   const maps = await loadProviderMaps(admin, event.id);
-  // Heal missing parent sides from prior bye/settles before pair-binding.
-  if (!env.dryRun) {
-    await applyMatchResults(admin, event.id, [], log);
-  }
-  const matchSides = await loadMatchSides(admin, event.id);
+  let matchSides = await loadMatchSides(admin, event.id);
   if (matchSides.length === 0) {
     log.push(`${event.slug} no match tree yet`);
     return { ingested: 0 };
@@ -1133,6 +1150,89 @@ async function syncEventResults(
     event.tour,
     event.provider_id
   );
+
+  let fixtures = fixturesLoaded;
+  if (!Array.isArray(fixtures)) {
+    try {
+      const loaded = await getTournamentFixtures(
+        rapid,
+        event.tour,
+        event.provider_id
+      );
+      fixtures = loaded.fixtures;
+    } catch (err) {
+      fixtures = null;
+      log.push(
+        `${event.slug} fixtures unread: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+    }
+  }
+  let info: unknown = null;
+  try {
+    const loaded = await getTournamentInfo(
+      rapid,
+      event.tour,
+      event.provider_id
+    );
+    info = loaded.info;
+  } catch (err) {
+    info = null;
+    log.push(
+      `${event.slug} entry list unread: ${
+        err instanceof Error ? err.message : String(err)
+      }`
+    );
+  }
+
+  const seats = await loadSeatProviders(admin, event.id);
+  const absences = classifyPlayerAbsences({
+    seats,
+    archiveRows: singles ?? [],
+    fixtures,
+    entries: entryRowsFromInfo(info),
+  });
+  const signals = absenceObservability({
+    absences,
+    ref: event.ref,
+    slug: event.slug,
+    tour: event.tour,
+    providerTournamentId: event.provider_id,
+    fixturesLoaded: Array.isArray(fixtures),
+    entriesLoaded: Array.isArray(entryRowsFromInfo(info)),
+  });
+  for (const signal of signals) {
+    log.push(absenceSignalLog(signal));
+    if (signal.kind === "error") {
+      captureEdgeError(new Error(signal.name), {
+        ref: String(signal.payload.ref ?? ""),
+        slug: String(signal.payload.slug ?? ""),
+        tour: String(signal.payload.tour ?? ""),
+        provider_tournament_id: String(signal.payload.provider_tournament_id ?? ""),
+        source: "sync-facts",
+      });
+    }
+    if (!env.dryRun) {
+      await admin.from("ops_events").insert({
+        kind: signal.kind,
+        name: signal.name,
+        payload: signal.payload,
+      });
+    }
+  }
+  if (absences.settleBlocked) {
+    log.push(
+      `${event.slug} settlement held: ingestion gap or unexplained absence`
+    );
+    return { ingested: 0 };
+  }
+
+  // Heal missing parent sides from prior bye/settles before pair-binding.
+  if (!env.dryRun) {
+    await applyMatchResults(admin, event.id, [], log);
+    matchSides = await loadMatchSides(admin, event.id);
+  }
 
   const mapping = {
     tournament_id: event.id,
@@ -1146,7 +1246,6 @@ async function syncEventResults(
   for (const m of matchSides) {
     if (m.provider_match_id) knownPm.add(String(m.provider_match_id));
   }
-  const seats = await loadSeatProviders(admin, event.id);
   const planned = planArchiveResults({
     rows: singles ?? [],
     allowIds: env.providerMatchIds,
@@ -1160,6 +1259,8 @@ async function syncEventResults(
       provider_match_id: m.provider_match_id,
       match_key: m.match_key,
     })),
+    fixtures,
+    info,
   });
   const { bound, mapped, unbound, authDiff, shapeB } = planned;
 
@@ -1194,8 +1295,10 @@ async function syncEventResults(
         })
       : [];
   const liveMapped = mapLiveFinishedToIngest(liveSource, mapping);
+  // A finished live frame is not an official result. Settlement stays on the
+  // archive. The count is logged and the winners are not applied.
 
-  // Merge: archive plan (pair-bound wins over id-mapped), then live.
+  // Merge: archive plan only (pair-bound wins over id-mapped).
   const byKey = new Map<
     string,
     {
@@ -1204,6 +1307,8 @@ async function syncEventResults(
       winner_ref: string | null;
       voided: boolean;
       provider_match_id?: string;
+      official_score?: string | null;
+      fact_kind?: string | null;
     }
   >();
   for (const r of planned.applyResults) {
@@ -1213,21 +1318,12 @@ async function syncEventResults(
       winner_provider_id: r.winner_provider_id ?? r.winner_ref,
       voided: Boolean(r.voided),
       provider_match_id: r.provider_match_id,
+      official_score: r.official_score ?? null,
+      fact_kind: r.fact_kind ?? null,
     });
   }
-  for (const r of liveMapped.results) {
-    if (!byKey.has(r.match_key)) {
-      byKey.set(r.match_key, {
-        match_key: r.match_key,
-        winner_ref: r.winner_ref,
-        winner_provider_id: r.winner_ref,
-        voided: r.voided,
-      });
-    }
-  }
-
   log.push(
-    `${event.slug} results bound=${bound.results.length} mapped=${mapped.results.length} live=${liveMapped.results.length} unbound=${unbound.length} orphans=${authDiff.orphans.length}`
+    `${event.slug} results bound=${bound.results.length} mapped=${mapped.results.length} live=${liveMapped.results.length} (not settled) unbound=${unbound.length} orphans=${authDiff.orphans.length}`
   );
 
   // Shape B: create/fill missing R0 matches from the planned archive rows.
@@ -1245,6 +1341,8 @@ async function syncEventResults(
       winner_provider_id: r.winner_provider_id,
       voided: r.voided,
       provider_match_id: r.provider_match_id,
+      official_score: r.official_score ?? null,
+      fact_kind: r.fact_kind ?? null,
     });
   }
   if (shapeB.length) {

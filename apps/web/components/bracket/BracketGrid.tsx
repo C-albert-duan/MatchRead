@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, type CSSProperties } from "react";
 import {
@@ -12,11 +12,13 @@ import {
   type SlotOccupant,
 } from "@matchread/core";
 import { PlayerChip } from "@/components/bracket/PlayerChip";
+import { matchSheetPresentation } from "@/lib/brackets/resolution";
 import { useT } from "@/components/shell/LocaleProvider";
 import {
   formatMatchWhen,
   type MatchScheduleRow,
 } from "@/lib/tournaments/format";
+import { useViewerTimeZone } from "@/lib/tournaments/viewer-zone";
 
 type Props = {
   drawSize: number;
@@ -85,13 +87,13 @@ export function BracketGrid({
   locked,
   official = EMPTY_OFFICIAL,
   schedule = EMPTY_SCHEDULE,
-  venueTz = "UTC",
   locale = "en",
   onPick,
   onConfidence,
 }: Props) {
   const t = useT();
   const tbc = t("calendar.dateTbc");
+  const viewerZone = useViewerTimeZone();
   const rounds = useMemo(() => buildRoundStructure(drawSize), [drawSize]);
   const r0Slots = drawSize / 2;
   const regionStyle = {
@@ -144,9 +146,8 @@ export function BracketGrid({
                 );
                 const chosen = picks[match.key] ?? null;
                 const result = official[match.key];
-                const graded = Boolean(
-                  result && (result.voided || result.winnerRef)
-                );
+                const sheet = matchSheetPresentation(result);
+                const graded = sheet.state === "official";
                 const voided = Boolean(result?.voided);
                 const officialWinner = result?.winnerRef ?? null;
                 const byeMatch = hasBye(a, b);
@@ -194,14 +195,27 @@ export function BracketGrid({
                   graded,
                 });
 
-                const when = schedule[match.key]
-                  ? formatMatchWhen(
-                      schedule[match.key],
-                      venueTz,
-                      locale,
-                      tbc
-                    )
-                  : null;
+                const when =
+                  viewerZone && schedule[match.key]
+                    ? formatMatchWhen(
+                        schedule[match.key],
+                        viewerZone,
+                        locale,
+                        tbc
+                      )
+                    : null;
+                const scoreText = sheet.showScore;
+                const stateLabel = t(sheet.labelKey);
+                const settledWinner = (playerRef: string | null) =>
+                  Boolean(
+                    graded &&
+                      !voided &&
+                      officialWinner &&
+                      playerRef &&
+                      officialWinner === playerRef
+                  );
+                const withdrawal =
+                  result?.factKind === "withdrawal" && !byeMatch;
 
                 if (byeMatch && advancer) {
                   return (
@@ -249,14 +263,15 @@ export function BracketGrid({
                     data-match-key={match.key}
                     data-round={match.round}
                     data-index={match.indexInRound}
-                    data-has-winner={
-                      officialWinner || chosen ? "true" : undefined
-                    }
+                    data-resolution={sheet.state}
+                    data-settled={graded ? "true" : undefined}
+                    data-fact-kind={result?.factKind || undefined}
+                    data-has-winner={officialWinner ? "true" : undefined}
                   >
                     <div
                       className="slot"
                       role="radiogroup"
-                      aria-label={`${round.label.match} match ${match.indexInRound + 1}${unpicked ? ", unpicked" : ""}${
+                      aria-label={`${round.label.match} match ${match.indexInRound + 1}, ${stateLabel}${unpicked ? ", unpicked" : ""}${
                         officialWinner
                           ? `, won by ${seatName(seats, officialWinner)}`
                           : ""
@@ -275,6 +290,7 @@ export function BracketGrid({
                             value={refOf(a) ?? ""}
                             checked={chosen === refOf(a)}
                             seat={0}
+                            officialWinner={settledWinner(refOf(a))}
                             onClick={() =>
                               a.kind === "player" &&
                               onPick?.(match.key, a.ref)
@@ -288,6 +304,7 @@ export function BracketGrid({
                             value={refOf(b) ?? ""}
                             checked={chosen === refOf(b)}
                             seat={1}
+                            officialWinner={settledWinner(refOf(b))}
                             onClick={() =>
                               b.kind === "player" &&
                               onPick?.(match.key, b.ref)
@@ -301,12 +318,14 @@ export function BracketGrid({
                             chosen={a.kind === "player" && chosen === a.ref}
                             grade={gradeA}
                             seat={0}
+                            officialWinner={settledWinner(refOf(a))}
                           />
                           <PlayerChip
                             occupant={b}
                             chosen={b.kind === "player" && chosen === b.ref}
                             grade={gradeB}
                             seat={1}
+                            officialWinner={settledWinner(refOf(b))}
                           />
                         </>
                       )}
@@ -340,6 +359,13 @@ export function BracketGrid({
                       <div className="grade-row" aria-hidden="true">
                         {gradeLabel}
                       </div>
+                    ) : null}
+                    <p className="match-state numeral">{stateLabel}</p>
+                    {scoreText ? (
+                      <p className="match-score numeral">{scoreText}</p>
+                    ) : null}
+                    {withdrawal ? (
+                      <p className="match-fact">{t("match.withdrawal")}</p>
                     ) : null}
                     {when ? (
                       <p className="match-when numeral">{when}</p>

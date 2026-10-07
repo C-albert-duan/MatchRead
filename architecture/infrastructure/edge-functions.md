@@ -22,7 +22,7 @@ Pipeline:
    On fail unpublished: write report only — no seats left for public render.
    On fail when already published: keep the live sheet; ops `refresh_blocked_keep_published`; never clear `published_at`.
    **Published sheet guard:** once `published_at` + seat count match `draw_size`, announced fixture upserts only sync schedule/`provider_match_id` onto seat-aligned R0 slots — they never rewrite sides or append `index >= draw_size/2` rows. Each apply also prunes those extras and refreshes R0 sides from seats. Official TBD vs stored bye is `bye_to_tbd`: overlay writes `kind=tbd` / `player_id=null`, then unwinds the invented R0 bye-advance (`unwind_settlement_parent`) unless the parent is already played/settled.
-5. Reconcile results + live finished events → `apply-results`.
+5. Reconcile archive results → `apply-results`. A finished live frame is counted and is not an official settlement.
 6. Durable `matches` update first, then `claim_settlement`, then parent advance; audit repair/ops.
 7. `refresh_lock_at` when timed R0 exists.
 
@@ -40,7 +40,7 @@ Results reconcile:
 
 1. Pair-first bind archive rows → existing topology (`bindResultsByPlayerPair`: full player pair, then exactly one valid later-round one-sided partial). Optional request field `providerMatchIds` skips `syncEventDraw` before any fixture/archive overlay or `applyMatchFacts` write, then filters the archive to those ids before bind, id-map, provider-id updates, unbound/Shape B, and `applyMatchResults`. Omitting it reconciles the full draw and plans the full archive. A supplied list also skips live rows, so an id outside the list cannot be applied. Filtering archive rows while still indexing fixtures is not used. A partial candidate must be round > 0, occupant-compatible, and must not already hold a different canonical `provider_match_id`. R0 is never selected by that rule, including when it already stores the archive id. Zero valid later-round candidates stay unbound. Two or more fail closed. An emitted binding releases that `provider_match_id` from any other match in the tournament, then assigns it (`relocateProviderMatchId` / `planProviderMatchRelocation`) on both the provider-id update loop and `applyMatchResults`. The release changes only `provider_match_id`. Fail-closed binds release nothing. Bound rows settle through `applyMatchResults` → `writeWinnerIntoParent`.
 2. **Shape B:** unbound finished results whose players occupy an adjacent official seat pair → create or fill the R0 match, then settle (`proposeShapeBRepairs`). Also **fill** when an R0 row exists but sides disagree with official seats. Never invent slots without seats. Never overwrite a settled conflicting winner.
-3. Audit remaining unbound/orphans to `ops_events` / `sync_repairs`.
+3. Audit remaining unbound/orphans to `ops_events` / `sync_repairs`. A player missing locally and present upstream, or missing while a fixture or entry list was not loaded, is `ops_events` kind `error` (`ingestion_gap` / `unexplained_absence`) with `ref`, `slug`, `tour`, and `provider_tournament_id`. Settlement returns before apply. There is no S1 severity type. When the Edge secret `SENTRY_DSN` is set, `sync-facts` also sends that error to Sentry and both functions report caught failures. An empty DSN leaves the Deno SDK disabled. The web app reports through `@sentry/nextjs` from `reportError` when `SENTRY_DSN` or `NEXT_PUBLIC_SENTRY_DSN` is set.
 
 ### `settle-leagues`
 
@@ -57,7 +57,8 @@ Triggered by cron (~15m). Commissioner/founder can also settle in-process via we
 | File | Role |
 |------|------|
 | `_shared/apply-draw.ts` | Persist official field; published overlay includes `bye_to_tbd` + fake bye unwind |
-| `_shared/apply-results.ts` | Winners, voids, claims, advances |
+| `_shared/apply-results.ts` | Winners, voids, claims, advances, official score fill |
+| `_shared/sentry.ts` | Optional `@sentry/deno`. Disabled when `SENTRY_DSN` is empty |
 | `_shared/rapidapi.js` | Provider package facade |
 | `_shared/core.js` | Edge-safe grade / matchKey |
 
@@ -65,7 +66,9 @@ Triggered by cron (~15m). Commissioner/founder can also settle in-process via we
 
 ### Keeping `_shared/core.js` in sync
 
-Edge cannot import `@matchread/core` from npm workspaces at runtime. `_shared/core.js` is a **checked-in mirror** of selected exports from `packages/core` (bracket topology, `matchKey`, grading helpers).
+Edge cannot import `@matchread/core` from the npm registry. The package is a private workspace at `0.0.0` (`npm:@matchread/core@^0.1.0` is not a published module). The same is true of every other private package under `packages/`. `_shared/core.js` is a **checked-in mirror** of selected exports from `packages/core` (bracket topology, `matchKey`, grading helpers). Edge loads it by relative path. `import_map.json` may point `@matchread/provider-rapidapi` at that package's JavaScript entry. It must not point any `@matchread/*` name at an `npm:` URL.
+
+`packages/core/src/edge-grade.test.ts` grades one bracket with both copies and rejects any `npm:` specifier for a private workspace package under `supabase/functions`.
 
 When you change any of the following in `packages/core`, update `_shared/core.js` in the **same PR**:
 
