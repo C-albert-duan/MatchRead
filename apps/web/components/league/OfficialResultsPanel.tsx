@@ -16,6 +16,7 @@ import {
 import { useLocale, useT, useTf } from "@/components/shell/LocaleProvider";
 import {
   formatMatchWhen,
+  matchWhenTimeZone,
   type MatchScheduleRow,
 } from "@/lib/tournaments/format";
 
@@ -287,6 +288,7 @@ export function OfficialResultsPanel({
               b.kind !== "unpicked";
             const matchBusy =
               busy?.kind === "save" && busy.matchKey === match.key;
+            const whenZone = matchWhenTimeZone(schedule[match.key], venueTz);
 
             return (
               <li
@@ -300,12 +302,14 @@ export function OfficialResultsPanel({
                     {round.label.match} {match.indexInRound + 1}
                     {" · "}
                     <span className="numeral">
-                      {formatMatchWhen(
-                        schedule[match.key],
-                        venueTz,
-                        locale,
-                        tbc
-                      )}
+                      {whenZone
+                        ? formatMatchWhen(
+                            schedule[match.key],
+                            whenZone,
+                            locale,
+                            tbc
+                          )
+                        : tbc}
                     </span>
                     {matchBusy ? (
                       <span className="result-match-pending">

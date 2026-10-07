@@ -76,10 +76,28 @@ describe("parseFixtureInstant", () => {
     assert.equal(parsed?.scheduled_at, "2026-08-11T18:30:00.000Z");
   });
 
-  it("does not invent midnight as a kickoff", () => {
-    const parsed = parseFixtureInstant({ date: "2026-08-11T00:00:00.000Z" });
-    assert.equal(parsed?.has_time, false);
-    assert.equal(parsed?.scheduled_at, "2026-08-11T00:00:00.000Z");
+  it("stores midnight as the civil date, not a zoned instant", () => {
+    const midnight = parseFixtureInstant({ date: "2026-09-01T00:00:00.000Z" });
+    const bare = parseFixtureInstant({ date: "2026-09-01" });
+    const noOffset = parseFixtureInstant({ date: "2026-09-01T00:00:00" });
+    const offset = parseFixtureInstant({ date: "2026-09-01T00:00:00+09:00" });
+    const separate = parseFixtureInstant({ date: "2026-09-01", time: "00:00" });
+    assert.equal(midnight?.has_time, false);
+    assert.equal(midnight?.scheduled_at, "2026-09-01T12:00:00.000Z");
+    assert.equal(bare?.scheduled_at, midnight?.scheduled_at);
+    assert.equal(noOffset?.scheduled_at, midnight?.scheduled_at);
+    assert.equal(offset?.scheduled_at, midnight?.scheduled_at);
+    assert.equal(separate?.scheduled_at, midnight?.scheduled_at);
+    assert.equal(separate?.has_time, false);
+  });
+
+  it("does not read an offset-less clock in the process timezone", () => {
+    const parsed = parseFixtureInstant({ date: "2026-09-01T18:30:00" });
+    assert.equal(parsed?.has_time, true);
+    assert.equal(parsed?.scheduled_at, "2026-09-01T18:30:00.000Z");
+    const zoned = parseFixtureInstant({ date: "2026-09-01T18:30:00-04:00" });
+    assert.equal(zoned?.has_time, true);
+    assert.equal(zoned?.scheduled_at, "2026-09-01T22:30:00.000Z");
   });
 
   it("joins a date and a clock", () => {
@@ -104,6 +122,14 @@ describe("firstMainDrawBall", () => {
       { round: { name: "First" }, date: "2026-08-13" },
     ]);
     assert.equal(ball?.scheduled_at, "2026-08-13T17:00:00.000Z");
+  });
+
+  it("ignores a midnight first-round row as a kickoff", () => {
+    const ball = firstMainDrawBall([
+      { round: { name: "First" }, date: "2026-08-13T00:00:00.000Z" },
+      { round: { name: "First" }, date: "2026-08-13T00:00:00" },
+    ]);
+    assert.equal(ball, null);
   });
 
   it("does not invent a lock from date-only first-round rows", () => {
@@ -219,6 +245,33 @@ describe("buildDrawFromFirstRound", () => {
 });
 
 describe("overlayOfficialDraw", () => {
+  it("records a midnight fixture as the same civil date as the fixture parser", () => {
+    const seats = [
+      seat(0, { last_name: "Alpha", given_name: "Ann", player_ref: "p-a" }),
+      seat(1, { last_name: "Beta", given_name: "Bo", player_ref: "p-b" }),
+    ];
+    const fixtures = [
+      {
+        id: 1,
+        player1Id: 1,
+        player2Id: 2,
+        player1: { id: 1, name: "Ann Alpha" },
+        player2: { id: 2, name: "Bo Beta" },
+        date: "2026-09-01T00:00:00.000Z",
+      },
+    ];
+    const built = overlayOfficialDraw(seats, fixtures, { prefix: "atp" });
+    assert.equal(built.ok, true);
+    if (!built.ok) throw new Error(built.reason);
+    assert.equal(built.schedule.length, 1);
+    assert.equal(built.schedule[0].match_key, "r0-m0");
+    assert.equal(built.schedule[0].has_time, false);
+    assert.equal(
+      built.schedule[0].scheduled_at,
+      parseFixtureInstant({ date: "2026-09-01" })?.scheduled_at
+    );
+  });
+
   it("maps provider ids onto official slots without reordering", () => {
     const seats = [
       seat(0, {

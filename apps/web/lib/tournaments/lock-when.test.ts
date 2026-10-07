@@ -5,6 +5,7 @@ import {
   captionTimeZone,
   formatLockWhen,
   formatMatchWhen,
+  matchWhenTimeZone,
   viewerTimeZone,
 } from "./format.ts";
 
@@ -55,11 +56,39 @@ test("a US evening instant is the previous calendar day in New York", () => {
 });
 
 test("a date-only midnight UTC instant keeps that civil date in every viewer zone", () => {
-  const row = { scheduled_at: "2026-09-01T00:00:00.000Z", has_time: false as const };
+  // Stored before ingest wrote noon UTC. Formatting this in America/New_York
+  // used to print the previous day. The zone argument must not move the day.
+  const midnight = {
+    scheduled_at: "2026-09-01T00:00:00.000Z",
+    has_time: false as const,
+  };
+  const noon = {
+    scheduled_at: "2026-09-01T12:00:00.000Z",
+    has_time: false as const,
+  };
   for (const zone of ["UTC", "America/New_York", "Europe/London", "Asia/Tokyo"]) {
-    const label = formatMatchWhen(row, zone, "en", "TBC");
-    assert.equal(label, "01 SEP");
+    for (const row of [midnight, noon]) {
+      const label = formatMatchWhen(row, zone, "en", "TBC");
+      assert.equal(label, "01 SEP");
+      assert.equal(label.includes("·"), false);
+    }
   }
+  assert.equal(matchWhenTimeZone(midnight, null), "UTC");
+  assert.equal(matchWhenTimeZone(noon, null), "UTC");
+  assert.equal(
+    matchWhenTimeZone(
+      { scheduled_at: "2026-08-11T23:30:00.000Z", has_time: true },
+      null
+    ),
+    null
+  );
+  assert.equal(
+    matchWhenTimeZone(
+      { scheduled_at: "2026-08-11T23:30:00.000Z", has_time: true },
+      "America/New_York"
+    ),
+    "America/New_York"
+  );
 });
 
 test("an evening US instant keeps the viewer calendar day in four zones", () => {

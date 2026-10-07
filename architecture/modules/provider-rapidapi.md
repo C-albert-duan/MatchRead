@@ -25,6 +25,7 @@ HTTP client (index.js)
 | Concern | Behavior |
 |---------|----------|
 | Calendar | Dual-tour ATP/WTA events → canonical tournament rows |
+| Fixture instant | `parseFixtureInstant` is the only schedule parser (fixtures and official overlay). A bare date or midnight `T00:00` (with or without an offset) is the civil `YYYY-MM-DD` from that string, stored at noon UTC, `has_time` false. A clock with no offset is that UTC clock, not the process zone. Date-only rows are not a first ball |
 | Draw type | `classifyDraw`: provider/path type → terminal (slam qual=16) → seeds → size last. Size alone never selects. |
 | Official draw | Parse provider draw into seats (player / bye / TBD). `Unknown Player` (id 3700) is **not** a bye on name/id: match `result === "bye"` → bye; empty `result` → TBD. JSON `null` / omitted side (consumed placeholder) opposite a named player → bye, never TBD. Explicit `"Bye"` / `"Qualifier"` strings still map. Slot order from the draw; skip `qualifying`/`doubles` keys. No size/slug branch. |
 | Draw poll | Adaptive interval + force poll near `main_draw_starts_on` when unpublished |

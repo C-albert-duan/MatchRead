@@ -6,6 +6,11 @@ import { saveBracketPicks } from "@/app/actions/brackets";
 import { useT, useTf } from "@/components/shell/LocaleProvider";
 import { isTimedMatchStarted } from "@/lib/brackets/types";
 import { track } from "@/lib/telemetry";
+import {
+  formatMatchWhen,
+  matchWhenTimeZone,
+} from "@/lib/tournaments/format";
+import { useViewerTimeZone } from "@/lib/tournaments/viewer-zone";
 import type { BracketPicks } from "@matchread/core";
 
 export type AnnouncedMatchup = {
@@ -49,12 +54,12 @@ export function AnnouncedFirstRound({
   leagueSlug,
   tournamentId,
   tournamentRef,
-  venueTz = "UTC",
   locale = "en",
   enterHref,
 }: Props) {
   const t = useT();
   const tf = useTf();
+  const viewerZone = useViewerTimeZone();
   const router = useRouter();
   const editable = Boolean(leagueId && leagueSlug && tournamentId && tournamentRef) && !locked;
   const gateToEnter = Boolean(enterHref) && !editable && !locked;
@@ -121,14 +126,18 @@ export function AnnouncedFirstRound({
         {matchups.map((m) => {
           const winner = picks[m.match_key];
           const started = isTimedMatchStarted(m);
+          const scheduleRow = m.scheduled_at
+            ? { scheduled_at: m.scheduled_at, has_time: Boolean(m.has_time) }
+            : null;
+          const whenZone = matchWhenTimeZone(scheduleRow, viewerZone);
           const when =
-            m.scheduled_at && m.has_time
-              ? new Date(m.scheduled_at).toLocaleString(locale, {
-                  timeZone: venueTz,
-                  weekday: "short",
-                  hour: "numeric",
-                  minute: "2-digit",
-                })
+            whenZone && scheduleRow
+              ? formatMatchWhen(
+                  scheduleRow,
+                  whenZone,
+                  locale,
+                  t("calendar.dateTbc")
+                )
               : null;
           const sideDisabled = (!editable && !gateToEnter) || started;
           return (

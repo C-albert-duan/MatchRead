@@ -11,6 +11,9 @@ import {
   proposeShapeBRepairs,
   unboundProviderFixtures,
 } from "./reconcile-provider.js";
+import { parseFixtureInstant } from "./fixture-instant.js";
+
+export { parseFixtureInstant };
 
 /**
  * @typedef {object} RapidApiClientOptions
@@ -267,37 +270,6 @@ export async function getTournamentFixtures(
  * @param {Record<string, unknown>|null|undefined} row
  * @returns {{ scheduled_at: string, has_time: boolean } | null}
  */
-export function parseFixtureInstant(row) {
-  if (!row || typeof row !== "object") return null;
-  const rawDate = String(
-    row.date ?? row.start ?? row.startDate ?? row.datetime ?? ""
-  ).trim();
-  if (!rawDate) return null;
-
-  if (/T\d{2}:\d{2}/.test(rawDate)) {
-    const d = new Date(rawDate);
-    if (Number.isNaN(d.getTime())) return null;
-    const hasTime = !/T00:00(?::00)?/.test(rawDate);
-    return { scheduled_at: d.toISOString(), has_time: hasTime };
-  }
-
-  const day = rawDate.slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
-
-  const rawTime = String(row.time ?? row.startTime ?? row.hour ?? "").trim();
-  const hm = rawTime.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-  if (hm) {
-    const hh = String(hm[1]).padStart(2, "0");
-    const d = new Date(`${day}T${hh}:${hm[2]}:${hm[3] || "00"}Z`);
-    if (Number.isNaN(d.getTime())) return null;
-    return { scheduled_at: d.toISOString(), has_time: true };
-  }
-
-  const d = new Date(`${day}T12:00:00Z`);
-  if (Number.isNaN(d.getTime())) return null;
-  return { scheduled_at: d.toISOString(), has_time: false };
-}
-
 /** @param {Record<string, unknown>|null|undefined} row */
 export function fixtureRoundLabel(row) {
   if (!row || typeof row !== "object") return "";

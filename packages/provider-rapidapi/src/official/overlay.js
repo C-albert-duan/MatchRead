@@ -4,6 +4,8 @@
  * Later-round match_keys are mapped from the official tree + published pairs.
  */
 
+import { parseFixtureInstant } from "../fixture-instant.js";
+
 function fold(value) {
   return String(value || "")
     .toLowerCase()
@@ -71,21 +73,6 @@ function matchOfficialToProvider(seat, catalog, opts = {}) {
   if (given) {
     const named = hits.filter((p) => p.given === given || fold(p.name).includes(given));
     if (named.length === 1) return named[0];
-  }
-  return null;
-}
-
-function parseInstant(row) {
-  if (!row || typeof row !== "object") return null;
-  const rawDate = String(row.date ?? row.start ?? row.startDate ?? row.datetime ?? "").trim();
-  if (!rawDate) return null;
-  if (/T\d{2}:\d{2}/.test(rawDate)) {
-    const d = new Date(rawDate);
-    if (Number.isNaN(d.getTime())) return null;
-    return {
-      scheduled_at: d.toISOString(),
-      has_time: !/T00:00(?::00)?/.test(rawDate),
-    };
   }
   return null;
 }
@@ -222,7 +209,7 @@ function mapOfficialTree(seats, rows) {
         if (row) {
           const fxId = String(row.id ?? "").trim();
           if (fxId) matches[fxId] = key;
-          const instant = parseInstant(row);
+          const instant = parseFixtureInstant(row);
           if (instant) schedule.push({ match_key: key, ...instant });
           if (voidedRow(row) && !winnerIdFromRow(row)) {
             results.push({ match_key: key, winner_ref: null, voided: true });

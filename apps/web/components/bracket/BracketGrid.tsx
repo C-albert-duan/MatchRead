@@ -16,6 +16,7 @@ import { matchSheetPresentation } from "@/lib/brackets/resolution";
 import { useT } from "@/components/shell/LocaleProvider";
 import {
   formatMatchWhen,
+  matchWhenTimeZone,
   type MatchScheduleRow,
 } from "@/lib/tournaments/format";
 import { useViewerTimeZone } from "@/lib/tournaments/viewer-zone";
@@ -195,15 +196,18 @@ export function BracketGrid({
                   graded,
                 });
 
-                const when =
-                  viewerZone && schedule[match.key]
-                    ? formatMatchWhen(
-                        schedule[match.key],
-                        viewerZone,
-                        locale,
-                        tbc
-                      )
-                    : null;
+                const whenZone = matchWhenTimeZone(
+                  schedule[match.key],
+                  viewerZone
+                );
+                const when = whenZone
+                  ? formatMatchWhen(
+                      schedule[match.key],
+                      whenZone,
+                      locale,
+                      tbc
+                    )
+                  : null;
                 const scoreText = sheet.showScore;
                 const stateLabel = t(sheet.labelKey);
                 const settledWinner = (playerRef: string | null) =>

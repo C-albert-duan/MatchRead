@@ -12,6 +12,7 @@ import {
 import { useT } from "@/components/shell/LocaleProvider";
 import {
   formatMatchWhen,
+  matchWhenTimeZone,
   type MatchScheduleRow,
 } from "@/lib/tournaments/format";
 
@@ -67,12 +68,15 @@ export function BracketFind({
           left && right
             ? `${left} · ${right}`
             : left || right || t("bracket.notPlayed");
+        const whenZone = matchWhenTimeZone(schedule[match.key], venueTz);
         return {
           key: match.key,
           round: round.label.column,
           title,
           haystack: `${left} ${right} ${round.label.column}`.toLowerCase(),
-          when: formatMatchWhen(schedule[match.key], venueTz, locale, tbc),
+          when: whenZone
+            ? formatMatchWhen(schedule[match.key], whenZone, locale, tbc)
+            : "",
         };
       })
     );

@@ -96,6 +96,20 @@ function formatClock(instant: Date, timeZone: string, locale: string): string {
   }).format(instant);
 }
 
+/**
+ * Zone passed to formatMatchWhen.
+ * A date-only row is a civil date and does not wait for a viewer zone.
+ * A timed row stays hidden until that zone is known.
+ */
+export function matchWhenTimeZone(
+  row: MatchScheduleRow | null | undefined,
+  viewerZone: string | null | undefined
+): string | null {
+  if (!row?.scheduled_at) return null;
+  if (!row.has_time) return "UTC";
+  return viewerZone?.trim() || null;
+}
+
 /** Per-match when: `11 AUG · 14:00`, or the civil date alone when no clock is known. */
 export function formatMatchWhen(
   row: MatchScheduleRow | null | undefined,
@@ -104,8 +118,8 @@ export function formatMatchWhen(
   tbc: string
 ): string {
   if (!row?.scheduled_at) return tbc;
-  // A date-only row is stored as an instant with no kickoff. Its calendar day
-  // is the UTC day of that instant, in every viewer zone, and it has no clock.
+  // Date-only rows are a civil date stored as an instant. The day is the UTC
+  // calendar day of that instant, in every zone, and there is no clock.
   const zone = row.has_time ? zoneOrUtc(timeZone) : "UTC";
   const ymd = calendarDayInZone(row.scheduled_at, zone);
   if (!ymd) return tbc;
