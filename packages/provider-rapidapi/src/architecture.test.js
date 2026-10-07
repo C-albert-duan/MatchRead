@@ -13,6 +13,7 @@ import {
   isSilentSubscription,
   onSocketDisconnect,
   parentMatchKey,
+  planArchiveResults,
   reconcileThenResume,
   resolveLiveEvent,
   shouldPollDraw,
@@ -680,5 +681,162 @@ describe("reconcile withhold-then-heal", () => {
     );
     assert.equal(out.results[0].winner_provider_id, "b");
     assert.equal(out.results[0].voided, false);
+  });
+});
+
+describe("archive allow-list", () => {
+  function side(match_key, round, index_in_round, a, b, provider_match_id = null) {
+    return {
+      match_key,
+      round,
+      index_in_round,
+      side_a_provider_id: a,
+      side_b_provider_id: b,
+      provider_match_id,
+    };
+  }
+
+  const rows = [
+    { id: "100", player1Id: "1", player2Id: "2", match_winner: "1" },
+    { id: "200", player1Id: "3", player2Id: "4", match_winner: "3" },
+    { id: "300", player1Id: "5", player2Id: "6", match_winner: "5" },
+  ];
+  const matchSides = [
+    side("r0-m0", 0, 0, "1", "2"),
+    side("r0-m1", 0, 1, "3", "4"),
+    side("r2-m0", 2, 0, "5", null),
+  ];
+  const players = { "1": "1", "2": "2", "3": "3", "4": "4", "5": "5", "6": "6" };
+  const seats = [
+    { position: 0, provider_player_id: "1" },
+    { position: 1, provider_player_id: "2" },
+    { position: 2, provider_player_id: "3" },
+    { position: 3, provider_player_id: "4" },
+    { position: 4, provider_player_id: "7" },
+    { position: 5, provider_player_id: "8" },
+  ];
+  const storedMatches = [
+    { id: "r0-m0", provider_match_id: "100", match_key: "r0-m0" },
+    { id: "r0-m9", provider_match_id: "999", match_key: "r0-m9" },
+  ];
+
+  function plan(allowIds) {
+    return planArchiveResults({
+      rows,
+      allowIds,
+      matchSides,
+      players,
+      mapping: { players, matches: { "100": "r0-m0", "200": "r0-m1" } },
+      seats,
+      knownProviderMatchIds: [],
+      storedMatches,
+    });
+  }
+
+  function idsOf(list, key = "provider_match_id") {
+    return list.map((row) => String(row[key] ?? row.id ?? "")).sort();
+  }
+
+  it("keeps the full archive when the allow-list is omitted", () => {
+    const full = plan(null);
+    const direct = bindResultsByPlayerPair(rows, matchSides, players);
+    assert.deepEqual(
+      full.providerIdUpdates.map((b) => b.match_key).sort(),
+      direct.bindings.map((b) => b.match_key).sort()
+    );
+    assert.deepEqual(
+      full.applyResults.map((r) => r.match_key).sort(),
+      direct.results.map((r) => r.match_key).sort()
+    );
+    assert.equal(full.archiveRows.length, 3);
+    assert.equal(full.authDiff.orphans.some((o) => o.provider_match_id === "999"), true);
+  });
+
+  it("sends only one allowed archive row to bind, apply, Shape B, and provider-id updates", () => {
+    const one = plan(["300"]);
+    assert.deepEqual(one.archiveRows.map((r) => String(r.id)), ["300"]);
+    assert.deepEqual(idsOf(one.providerIdUpdates), ["300"]);
+    assert.deepEqual(one.applyResults.map((r) => r.match_key), ["r2-m0"]);
+    assert.equal(one.providerIdUpdates[0].bound_by, "partial");
+    assert.deepEqual(idsOf(one.unbound), []);
+    assert.deepEqual(idsOf(one.shapeB), []);
+    assert.equal(one.authDiff.orphans.length, 0);
+  });
+
+  it("does not bind or update a match for an excluded archive row", () => {
+    const kept = plan(["100"]);
+    assert.deepEqual(idsOf(kept.providerIdUpdates), ["100"]);
+    assert.deepEqual(kept.applyResults.map((r) => r.match_key), ["r0-m0"]);
+    assert.equal(kept.bound.results.some((r) => r.provider_match_id === "200"), false);
+    assert.equal(kept.mapped.results.some((r) => r.match_key === "r0-m1"), false);
+    assert.equal(kept.shapeB.some((r) => r.provider_match_id === "200"), false);
+    assert.equal(kept.unbound.some((r) => r.provider_match_id === "200"), false);
+    assert.equal(kept.authDiff.orphans.some((o) => o.provider_match_id === "999"), false);
+  });
+
+  it("proposes Shape B only for an allowed archive row", () => {
+    const planned = planArchiveResults({
+      rows: [
+        { id: "10", player1Id: "7", player2Id: "8", match_winner: "7" },
+        { id: "11", player1Id: "1", player2Id: "2", match_winner: "1" },
+      ],
+      allowIds: ["11"],
+      matchSides: [],
+      players: { "1": "1", "2": "2", "7": "7", "8": "8" },
+      seats,
+    });
+    assert.deepEqual(planned.shapeB.map((row) => row.provider_match_id), ["11"]);
+    assert.equal(planned.unbound.some((row) => row.provider_match_id === "10"), false);
+    assert.equal(planned.providerIdUpdates.length, 0);
+  });
+
+  it("accepts several allowed ids and ignores an unknown id", () => {
+    const many = plan(["100", "200", "404"]);
+    assert.deepEqual(many.archiveRows.map((r) => String(r.id)).sort(), ["100", "200"]);
+    assert.deepEqual(idsOf(many.providerIdUpdates), ["100", "200"]);
+    assert.deepEqual(many.applyResults.map((r) => r.match_key).sort(), ["r0-m0", "r0-m1"]);
+    assert.equal(many.applyResults.some((r) => r.match_key === "r2-m0"), false);
+  });
+
+  it("still refuses R0 as a partial target", () => {
+    const planned = planArchiveResults({
+      rows: [{ id: "8800222", player1Id: "pA", player2Id: "pB", match_winner: "pA" }],
+      allowIds: ["8800222"],
+      matchSides: [
+        side("r0-m4", 0, 4, "pA", null, "8800222"),
+        side("r2-m2", 2, 2, null, "pA"),
+      ],
+      players: { pA: "pA", pB: "pB" },
+    });
+    assert.equal(planned.providerIdUpdates.length, 1);
+    assert.equal(planned.providerIdUpdates[0].match_key, "r2-m2");
+    assert.equal(planned.providerIdUpdates[0].bound_by, "partial");
+    assert.equal(planned.applyResults[0].match_key, "r2-m2");
+  });
+
+  it("still fails closed when several later-round candidates match one archive row", () => {
+    const planned = planArchiveResults({
+      rows: [{ id: "8800111", player1Id: "pA", player2Id: "pB", match_winner: "pA" }],
+      allowIds: [8800111],
+      matchSides: [
+        side("r2-m0", 2, 0, "pA", null),
+        side("r2-m1", 2, 1, null, "pA"),
+      ],
+      players: { pA: "pA", pB: "pB" },
+    });
+    assert.equal(planned.providerIdUpdates.length, 0);
+    assert.equal(planned.applyResults.length, 0);
+    assert.equal(planned.bound.skipped[0].reason, "ambiguous later-round partial");
+  });
+
+  it("keeps full-pair binding when the allow-list includes that row", () => {
+    const open = plan(null);
+    const listed = plan(["100"]);
+    const openPair = open.providerIdUpdates.find((b) => b.provider_match_id === "100");
+    const listedPair = listed.providerIdUpdates.find((b) => b.provider_match_id === "100");
+    assert.equal(openPair.bound_by, "pair");
+    assert.equal(listedPair.bound_by, "pair");
+    assert.equal(listedPair.match_key, openPair.match_key);
+    assert.equal(listed.applyResults[0].winner_provider_id, "1");
   });
 });

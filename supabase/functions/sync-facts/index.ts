@@ -4,7 +4,8 @@
 // POST /functions/v1/sync-facts
 // Authorization: Bearer <INGEST_SECRET>
 // Body (optional):
-//   { "dryRun"?: false, "year"?: 2026, "slug"?: "t-atp-21347", "force"?: false }
+//   { "dryRun"?: false, "year"?: 2026, "slug"?: string, "force"?: false,
+//     "providerMatchIds"?: string[] }
 //
 // Secrets: INGEST_SECRET, RAPIDAPI_KEY, RAPIDAPI_HOST (optional),
 //          SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (platform)
@@ -26,9 +27,7 @@ import {
   overlayOfficialDraw,
   resolveOfficialSeats,
   shouldPollDraw,
-  bindResultsByPlayerPair,
-  diffProviderAuthoritative,
-  unboundProviderFixtures,
+  planArchiveResults,
   proposeShapeBRepairs,
   resolveLiveEvent,
   getExtendEvent,
@@ -102,6 +101,8 @@ Deno.serve(async (req) => {
     force?: boolean;
     /** Upsert calendar metadata only (surface/tier/ends_on) — skip draw/results. */
     calendarOnly?: boolean;
+    /** When set, reconcile only these archive match ids. Omitted = full archive. */
+    providerMatchIds?: unknown;
   } = {};
   try {
     const text = await req.text();
@@ -115,6 +116,19 @@ Deno.serve(async (req) => {
   const calendarOnly = Boolean(body.calendarOnly);
   const onlySlug = body.slug?.trim() || body.ref?.trim() || null;
   const year = Number(body.year) || new Date().getUTCFullYear();
+  let providerMatchIds: string[] | null = null;
+  if (body.providerMatchIds != null) {
+    if (!Array.isArray(body.providerMatchIds)) {
+      return json({ error: "providerMatchIds must be an array" }, 400);
+    }
+    providerMatchIds = [
+      ...new Set(
+        body.providerMatchIds
+          .map((id) => String(id ?? "").trim())
+          .filter(Boolean)
+      ),
+    ];
+  }
 
   const admin = createClient(supabaseUrl, serviceKey);
   const host =
@@ -126,6 +140,7 @@ Deno.serve(async (req) => {
   const env = {
     dryRun,
     force,
+    providerMatchIds,
   };
 
   try {
@@ -1083,6 +1098,7 @@ async function syncEventResults(
   env: {
     dryRun: boolean;
     force: boolean;
+    providerMatchIds: string[] | null;
   },
   event: SyncedEvent,
   liveEvents: unknown[],
@@ -1113,18 +1129,31 @@ async function syncEventResults(
     matches: maps.matches,
   };
 
-  // Prefer pair+round binding; fall back to fixture-id map.
-  const bound = bindResultsByPlayerPair(
-    (singles ?? []) as Parameters<typeof bindResultsByPlayerPair>[0],
+  const knownPm = new Set(Object.keys(maps.matches || {}));
+  for (const m of matchSides) {
+    if (m.provider_match_id) knownPm.add(String(m.provider_match_id));
+  }
+  const seats = await loadSeatProviders(admin, event.id);
+  const planned = planArchiveResults({
+    rows: singles ?? [],
+    allowIds: env.providerMatchIds,
     matchSides,
-    maps.players
-  );
-  const mapped = mapResultsToIngest(singles ?? [], mapping);
+    players: maps.players,
+    mapping,
+    seats,
+    knownProviderMatchIds: knownPm,
+    storedMatches: matchSides.map((m) => ({
+      id: m.match_key,
+      provider_match_id: m.provider_match_id,
+      match_key: m.match_key,
+    })),
+  });
+  const { bound, mapped, unbound, authDiff, shapeB } = planned;
 
   // Apply provider_match_id bindings discovered via pair match.
   // Overwrite short/synthetic local ids so the next pass stays aligned.
   if (!env.dryRun) {
-    for (const b of bound.bindings) {
+    for (const b of planned.providerIdUpdates) {
       const parsed = b.match_key.match(/^r(\d+)-m(\d+)$/);
       if (!parsed) continue;
       const realId = String(b.provider_match_id || "").trim();
@@ -1138,20 +1167,22 @@ async function syncEventResults(
     }
   }
 
-  const liveMapped = mapLiveFinishedToIngest(
-    liveEvents.filter((row) => {
-      const rec =
-        row && typeof row === "object"
-          ? (row as { matchId?: string })
-          : {};
-      return (
-        String(rec.matchId || "").split("-")[2] === String(event.provider_id)
-      );
-    }),
-    mapping
-  );
+  const liveSource =
+    env.providerMatchIds == null
+      ? liveEvents.filter((row) => {
+          const rec =
+            row && typeof row === "object"
+              ? (row as { matchId?: string })
+              : {};
+          return (
+            String(rec.matchId || "").split("-")[2] ===
+            String(event.provider_id)
+          );
+        })
+      : [];
+  const liveMapped = mapLiveFinishedToIngest(liveSource, mapping);
 
-  // Merge: pair-bound wins, then id-mapped, then live.
+  // Merge: archive plan (pair-bound wins over id-mapped), then live.
   const byKey = new Map<
     string,
     {
@@ -1162,20 +1193,12 @@ async function syncEventResults(
       provider_match_id?: string;
     }
   >();
-  for (const r of mapped.results) {
+  for (const r of planned.applyResults) {
     byKey.set(r.match_key, {
       match_key: r.match_key,
       winner_ref: r.winner_ref,
-      winner_provider_id: r.winner_ref,
-      voided: r.voided,
-    });
-  }
-  for (const r of bound.results) {
-    byKey.set(r.match_key, {
-      match_key: r.match_key,
-      winner_ref: r.winner_ref,
-      winner_provider_id: r.winner_provider_id,
-      voided: r.voided,
+      winner_provider_id: r.winner_provider_id ?? r.winner_ref,
+      voided: Boolean(r.voided),
       provider_match_id: r.provider_match_id,
     });
   }
@@ -1190,41 +1213,11 @@ async function syncEventResults(
     }
   }
 
-  // Provider-authoritative: fixtures present remotely but unbound → audit (never silent).
-  const knownPm = new Set(Object.keys(maps.matches || {}));
-  for (const m of matchSides) {
-    if (m.provider_match_id) knownPm.add(String(m.provider_match_id));
-  }
-  const unbound = unboundProviderFixtures(
-    singles ?? [],
-    [
-      ...bound.results.map((r) => ({
-        match_key: r.match_key,
-        provider_match_id: r.provider_match_id,
-      })),
-      ...bound.bindings.map((b) => ({
-        match_key: b.match_key,
-        provider_match_id: b.provider_match_id,
-      })),
-    ],
-    knownPm
-  );
-  const authDiff = diffProviderAuthoritative(
-    singles ?? [],
-    matchSides.map((m) => ({
-      id: m.match_key,
-      provider_match_id: m.provider_match_id,
-      match_key: m.match_key,
-    }))
-  );
-
   log.push(
     `${event.slug} results bound=${bound.results.length} mapped=${mapped.results.length} live=${liveMapped.results.length} unbound=${unbound.length} orphans=${authDiff.orphans.length}`
   );
 
-  // Shape B: create/fill missing R0 matches from results archive + official seats.
-  const seats = await loadSeatProviders(admin, event.id);
-  const shapeB = proposeShapeBRepairs(unbound, seats, matchSides);
+  // Shape B: create/fill missing R0 matches from the planned archive rows.
   const shapeBIngest = await applyShapeBRepairs(
     admin,
     event,

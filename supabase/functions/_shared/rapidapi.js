@@ -4,6 +4,8 @@ export {
   assertDrawBelongsToTournament,
   auxiliaryLastName,
   bindResultsByPlayerPair,
+  selectArchiveRows,
+  planArchiveResults,
   buildDrawFromFirstRound,
   canAdvanceWinner,
   canonicalizeDisplayName,

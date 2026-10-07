@@ -24,6 +24,9 @@ sync-facts (Edge)
         │         announced fixtures do not rewrite R0 sides or append
         │         extra indices; prune index>=draw_size/2; refresh sides from seats
         ├─ results + live finished → apply-results
+        │       → optional `providerMatchIds` keeps only those archive rows
+        │         before bind, id-map, provider-id updates, Shape B, and apply;
+        │         omitted list still plans the full archive
         │       → Shape A pair-first bind (exactly one occupant-compatible
         │         later-round partial; R0 is not a partial target; a foreign
         │         canonical provider_match_id is not a candidate; zero stays

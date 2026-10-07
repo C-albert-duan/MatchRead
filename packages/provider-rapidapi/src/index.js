@@ -2,6 +2,15 @@ import {
   auxiliaryLastName,
   canonicalizeDisplayName,
 } from "./normalize.js";
+import {
+  bindResultsByPlayerPair,
+  selectArchiveRows,
+} from "./settle-advance.js";
+import {
+  diffProviderAuthoritative,
+  proposeShapeBRepairs,
+  unboundProviderFixtures,
+} from "./reconcile-provider.js";
 
 /**
  * @typedef {object} RapidApiClientOptions
@@ -641,6 +650,104 @@ export function mapResultsToIngest(matches, mapping) {
   return { results, skipped };
 }
 
+/**
+ * Pure archive-result plan used by sync-facts.
+ * `allowIds == null` plans the full row set. An array plans only those ids.
+ * Orphan detection is scoped to the same set so a partial list does not flag
+ * every other stored match.
+ *
+ * @param {{
+ *   rows?: Array<{ id?: string|number|null }>,
+ *   allowIds?: Array<string|number>|null,
+ *   matchSides: Array<{ match_key: string, round: number, index_in_round: number, side_a_provider_id: string|null, side_b_provider_id: string|null, provider_match_id?: string|null }>,
+ *   players?: Record<string, string>,
+ *   mapping?: { players?: Record<string, string>, matches?: Record<string, string> },
+ *   seats?: Array<{ position: number, provider_player_id?: string|null }>,
+ *   knownProviderMatchIds?: Set<string>|string[],
+ *   storedMatches?: Array<{ id?: string, provider_match_id?: string|null, match_key?: string }>,
+ * }} input
+ */
+export function planArchiveResults(input) {
+  const allowIds = input.allowIds === undefined ? null : input.allowIds;
+  const archiveRows = selectArchiveRows(input.rows ?? [], allowIds);
+  const players = input.players || {};
+  const matchSides = input.matchSides || [];
+  const bound = bindResultsByPlayerPair(archiveRows, matchSides, players);
+  const mapped = mapResultsToIngest(archiveRows, {
+    players,
+    matches: {},
+    ...(input.mapping || {}),
+  });
+
+  const known = new Set(
+    input.knownProviderMatchIds instanceof Set
+      ? input.knownProviderMatchIds
+      : input.knownProviderMatchIds || []
+  );
+  const unbound = unboundProviderFixtures(
+    archiveRows,
+    [
+      ...bound.results.map((r) => ({
+        match_key: r.match_key,
+        provider_match_id: r.provider_match_id,
+      })),
+      ...bound.bindings.map((b) => ({
+        match_key: b.match_key,
+        provider_match_id: b.provider_match_id,
+      })),
+    ],
+    known
+  );
+
+  const stored = Array.isArray(input.storedMatches) ? input.storedMatches : [];
+  const allow =
+    allowIds == null
+      ? null
+      : new Set(
+          (Array.isArray(allowIds) ? allowIds : [])
+            .map((id) => String(id ?? "").trim())
+            .filter(Boolean)
+        );
+  const storedScoped = allow
+    ? stored.filter((m) =>
+        allow.has(String(m?.provider_match_id ?? "").trim())
+      )
+    : stored;
+  const authDiff = diffProviderAuthoritative(archiveRows, storedScoped);
+  const shapeB = proposeShapeBRepairs(unbound, input.seats || [], matchSides);
+
+  const byKey = new Map();
+  for (const r of mapped.results) {
+    byKey.set(r.match_key, {
+      match_key: r.match_key,
+      winner_ref: r.winner_ref,
+      winner_provider_id: r.winner_ref,
+      voided: r.voided,
+    });
+  }
+  for (const r of bound.results) {
+    byKey.set(r.match_key, {
+      match_key: r.match_key,
+      winner_ref: r.winner_ref,
+      winner_provider_id: r.winner_provider_id,
+      voided: r.voided,
+      provider_match_id: r.provider_match_id,
+    });
+  }
+
+  return {
+    archiveRows,
+    bound,
+    mapped,
+    unbound,
+    shapeB,
+    authDiff,
+    providerIdUpdates: bound.bindings,
+    applyResults: [...byKey.values()],
+  };
+}
+
+
 /** @param {number} attempt */
 export function backoffMs(attempt) {
   const base = Math.min(8000, 400 * 2 ** attempt);
@@ -694,9 +801,10 @@ export {
 } from "./event-mapper.js";
 export {
   advanceWinnerToParent,
-  bindResultsByPlayerPair,
   parentMatchKey,
+  selectArchiveRows,
 } from "./settle-advance.js";
+export { bindResultsByPlayerPair };
 export {
   diffProviderAuthoritative,
   unboundProviderFixtures,

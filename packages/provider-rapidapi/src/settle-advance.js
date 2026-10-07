@@ -303,3 +303,22 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
 
   return { results, skipped, bindings };
 }
+
+/**
+ * Optional archive-row allow-list.
+ * `null` / omitted keeps every row. An array keeps only those provider match ids.
+ * Ids that are not in `rows` match nothing and are ignored.
+ *
+ * @param {Array<{ id?: string|number|null }>} rows
+ * @param {Array<string|number>|null|undefined} [allowIds]
+ */
+export function selectArchiveRows(rows, allowIds) {
+  const list = Array.isArray(rows) ? rows : [];
+  if (allowIds == null) return list;
+  const allow = new Set(
+    (Array.isArray(allowIds) ? allowIds : [])
+      .map((id) => String(id ?? "").trim())
+      .filter(Boolean)
+  );
+  return list.filter((row) => allow.has(String(row?.id ?? "").trim()));
+}

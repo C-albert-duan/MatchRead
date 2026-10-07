@@ -512,6 +512,42 @@ export declare function proposeShapeBRepairs(
   result_type: string | null;
 }>;
 
+export declare function selectArchiveRows<T extends { id?: string | number | null }>(
+  rows: T[],
+  allowIds?: Array<string | number> | null
+): T[];
+
+export declare function planArchiveResults(input: {
+  rows?: Array<{ id?: string | number | null }>;
+  allowIds?: Array<string | number> | null;
+  matchSides: Array<{
+    match_key: string;
+    round: number;
+    index_in_round: number;
+    side_a_provider_id: string | null;
+    side_b_provider_id: string | null;
+    provider_match_id?: string | null;
+  }>;
+  players?: Record<string, string>;
+  mapping?: { players?: Record<string, string>; matches?: Record<string, string> };
+  seats?: Array<{ position: number; provider_player_id?: string | null }>;
+  knownProviderMatchIds?: Set<string> | string[];
+  storedMatches?: Array<{
+    id?: string;
+    provider_match_id?: string | null;
+    match_key?: string;
+  }>;
+}): {
+  archiveRows: Array<{ id?: string | number | null }>;
+  bound: ReturnType<typeof bindResultsByPlayerPair>;
+  mapped: { results: Array<{ match_key: string; winner_ref: string | null; voided: boolean }>; skipped: { id: string; reason: string }[] };
+  unbound: Array<{ provider_match_id: string }>;
+  shapeB: Array<{ match_key: string; provider_match_id: string }>;
+  authDiff: { orphans: Array<{ provider_match_id: string }>; missingFromStore: string[] };
+  providerIdUpdates: Array<{ match_key: string; provider_match_id: string }>;
+  applyResults: Array<{ match_key: string; provider_match_id?: string }>;
+};
+
 export declare function bindResultsByPlayerPair(
   rows: ProviderMatchResult[],
   matchSides: Array<{
