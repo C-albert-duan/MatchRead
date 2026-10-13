@@ -1,5 +1,5 @@
 -- 0016_pure_fact_draws.sql
--- Strip Toronto placeholder draw so entry opens only after a verified provider import.
+-- Strip dual-city event placeholder draw so entry opens only after a verified provider import.
 -- Idempotent.
 
 -- Remove fake seats (migration 0014 placeholders had no provider_player_id).
@@ -14,7 +14,7 @@ delete from public.draw_seats ds
      or ds.player_ref ~ '^wta-[0-9]+$'
    );
 
--- Drop the draw row so the calendar treats Toronto as draw-pending until import.
+-- Drop the draw row so the calendar treats dual-city event as draw-pending until import.
 delete from public.draws d
  using public.tournaments t
  where d.tournament_id = t.id

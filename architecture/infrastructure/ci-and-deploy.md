@@ -30,7 +30,7 @@ Useful root scripts (also used in CI):
 
 ## Database deploy
 
-- Live chain: `supabase/migrations/0001`–`0020` (see [supabase.md](./supabase.md))
+- Live chain: `supabase/migrations/0001`–`0022` (see [supabase.md](./supabase.md))
 - Archive under `supabase/migrations/archive/` — **never apply on prod**
 - Helpers: `scripts/docker-migrate.mjs`, `scripts/apply-sql-migration.mjs`
 - Edge deploy: `supabase functions deploy sync-facts settle-leagues --no-verify-jwt`

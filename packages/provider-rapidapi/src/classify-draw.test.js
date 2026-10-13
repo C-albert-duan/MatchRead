@@ -18,7 +18,7 @@ describe("classifyDraw", () => {
     if (c.kind === "rejected") assert.equal(c.reason, "qualifying");
   });
 
-  it("rejects zero seeds on a 128 field (US Open qualifying signature)", () => {
+  it("rejects zero seeds on a 128 field (slam qualifying signature)", () => {
     const c = classifyDraw({
       size: 128,
       expectedSize: 128,

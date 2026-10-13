@@ -1,0 +1,267 @@
+{
+  "captured_at": "2026-09-20T01:19:29.125Z",
+  "source": "Tennis API GET /tennis/v2/tournament/{tour}/{name}/{year}/draws?includeAll=true",
+  "note": "Live first-round singles rows. Event titles redacted. Discriminator fields: player.id, player.name, result, seed1, seed2, player.seed.",
+  "unknown_without_result_bye": [
+    {
+      "date": null,
+      "roundId": 4,
+      "draw": 4,
+      "result": "",
+      "complete": null,
+      "live": null,
+      "timeGame": null,
+      "reserveInt": null,
+      "reserveString": null,
+      "odd1": null,
+      "odd2": null,
+      "seed1": null,
+      "seed2": "7",
+      "player1Id": 3700,
+      "player2Id": 9357,
+      "tournamentId": 16748,
+      "player1": {
+        "id": 3700,
+        "name": "Unknown Player",
+        "countryAcr": "N/A",
+        "seed": null,
+        "odd": null,
+        "image": "/tennis/v2/ms-api/uploads/Photo/wta/03700.jpg",
+        "image_p_name": "/tennis/v2/ms-api/uploads/Photo/wta_name/u._player.jpg",
+        "stats": null
+      },
+      "player2": {
+        "id": 9357,
+        "name": "Magda Linette",
+        "countryAcr": "POL",
+        "seed": "7",
+        "odd": null,
+        "image": "/tennis/v2/ms-api/uploads/Photo/wta/09357.jpg",
+        "image_p_name": "/tennis/v2/ms-api/uploads/Photo/wta_name/m._linette.jpg",
+        "stats": null
+      },
+      "tournament": {
+        "id": 16748,
+        "name": "[redacted]"
+      },
+      "h2h": null
+    },
+    {
+      "date": null,
+      "roundId": 4,
+      "draw": 8,
+      "result": "",
+      "complete": null,
+      "live": null,
+      "timeGame": null,
+      "reserveInt": null,
+      "reserveString": null,
+      "odd1": null,
+      "odd2": null,
+      "seed1": null,
+      "seed2": "5",
+      "player1Id": 3700,
+      "player2Id": 72414,
+      "tournamentId": 16748,
+      "player1": {
+        "id": 3700,
+        "name": "Unknown Player",
+        "countryAcr": "N/A",
+        "seed": null,
+        "odd": null,
+        "image": "/tennis/v2/ms-api/uploads/Photo/wta/03700.jpg",
+        "image_p_name": "/tennis/v2/ms-api/uploads/Photo/wta_name/u._player.jpg",
+        "stats": null
+      },
+      "player2": {
+        "id": 72414,
+        "name": "Maya Joint",
+        "countryAcr": "AUS",
+        "seed": "5",
+        "odd": null,
+        "image": "/tennis/v2/ms-api/uploads/Photo/wta/72414.jpg",
+        "image_p_name": "/tennis/v2/ms-api/uploads/Photo/wta_name/m._joint.jpg",
+        "stats": null
+      },
+      "tournament": {
+        "id": 16748,
+        "name": "[redacted]"
+      },
+      "h2h": null
+    },
+    {
+      "date": null,
+      "roundId": 4,
+      "draw": 4,
+      "result": "",
+      "complete": null,
+      "live": null,
+      "timeGame": null,
+      "reserveInt": null,
+      "reserveString": null,
+      "odd1": null,
+      "odd2": null,
+      "seed1": null,
+      "seed2": "6WC",
+      "player1Id": 3700,
+      "player2Id": 49081,
+      "tournamentId": 16747,
+      "player1": {
+        "id": 3700,
+        "name": "Unknown Player",
+        "countryAcr": "N/A",
+        "seed": null,
+        "odd": null,
+        "image": "/tennis/v2/ms-api/uploads/Photo/wta/03700.jpg",
+        "image_p_name": "/tennis/v2/ms-api/uploads/Photo/wta_name/u._player.jpg",
+        "stats": null
+      },
+      "player2": {
+        "id": 49081,
+        "name": "Leylah Annie Fernandez",
+        "countryAcr": "CAN",
+        "seed": "6WC",
+        "odd": null,
+        "image": "/tennis/v2/ms-api/uploads/Photo/wta/49081.jpg",
+        "image_p_name": "/tennis/v2/ms-api/uploads/Photo/wta_name/l._a._fernandez.jpg",
+        "stats": null
+      },
+      "tournament": {
+        "id": 16747,
+        "name": "[redacted]"
+      },
+      "h2h": null
+    },
+    {
+      "date": null,
+      "roundId": 4,
+      "draw": 6,
+      "result": "",
+      "complete": null,
+      "live": null,
+      "timeGame": null,
+      "reserveInt": null,
+      "reserveString": null,
+      "odd1": null,
+      "odd2": null,
+      "seed1": null,
+      "seed2": null,
+      "player1Id": 13267,
+      "player2Id": 3700,
+      "tournamentId": 16747,
+      "player1": {
+        "id": 13267,
+        "name": "Barbora Krejcikova",
+        "countryAcr": "CZE",
+        "seed": null,
+        "odd": null,
+        "image": "/tennis/v2/ms-api/uploads/Photo/wta/13267.jpg",
+        "image_p_name": "/tennis/v2/ms-api/uploads/Photo/wta_name/b._krejcikova.jpg",
+        "stats": null
+      },
+      "player2": {
+        "id": 3700,
+        "name": "Unknown Player",
+        "countryAcr": "N/A",
+        "seed": null,
+        "odd": null,
+        "image": "/tennis/v2/ms-api/uploads/Photo/wta/03700.jpg",
+        "image_p_name": "/tennis/v2/ms-api/uploads/Photo/wta_name/u._player.jpg",
+        "stats": null
+      },
+      "tournament": {
+        "id": 16747,
+        "name": "[redacted]"
+      },
+      "h2h": null
+    }
+  ],
+  "official_result_bye": [
+    {
+      "date": null,
+      "roundId": 4,
+      "draw": 1,
+      "result": "bye",
+      "complete": null,
+      "live": null,
+      "timeGame": null,
+      "reserveInt": null,
+      "reserveString": null,
+      "odd1": null,
+      "odd2": null,
+      "seed1": "1",
+      "seed2": null,
+      "player1Id": 77934,
+      "player2Id": 3700,
+      "tournamentId": 16747,
+      "player1": {
+        "id": 77934,
+        "name": "Mirra Andreeva",
+        "countryAcr": "RUS",
+        "seed": "1",
+        "odd": null,
+        "image": "/tennis/v2/ms-api/uploads/Photo/wta/77934.jpg",
+        "image_p_name": "/tennis/v2/ms-api/uploads/Photo/wta_name/m._andreeva.jpg",
+        "stats": null
+      },
+      "player2": {
+        "id": 3700,
+        "name": "Unknown Player",
+        "countryAcr": "N/A",
+        "seed": null,
+        "odd": null,
+        "image": "/tennis/v2/ms-api/uploads/Photo/wta/03700.jpg",
+        "image_p_name": "/tennis/v2/ms-api/uploads/Photo/wta_name/u._player.jpg",
+        "stats": null
+      },
+      "tournament": {
+        "id": 16747,
+        "name": "[redacted]"
+      },
+      "h2h": null
+    },
+    {
+      "date": null,
+      "roundId": 4,
+      "draw": 12,
+      "result": "bye",
+      "complete": null,
+      "live": null,
+      "timeGame": null,
+      "reserveInt": null,
+      "reserveString": null,
+      "odd1": null,
+      "odd2": null,
+      "seed1": null,
+      "seed2": "3",
+      "player1Id": 3700,
+      "player2Id": 67792,
+      "tournamentId": 16747,
+      "player1": {
+        "id": 3700,
+        "name": "Unknown Player",
+        "countryAcr": "N/A",
+        "seed": null,
+        "odd": null,
+        "image": "/tennis/v2/ms-api/uploads/Photo/wta/03700.jpg",
+        "image_p_name": "/tennis/v2/ms-api/uploads/Photo/wta_name/u._player.jpg",
+        "stats": null
+      },
+      "player2": {
+        "id": 67792,
+        "name": "Alexandra Eala",
+        "countryAcr": "PHI",
+        "seed": "3",
+        "odd": null,
+        "image": "/tennis/v2/ms-api/uploads/Photo/wta/67792.jpg",
+        "image_p_name": "/tennis/v2/ms-api/uploads/Photo/wta_name/a._eala.jpg",
+        "stats": null
+      },
+      "tournament": {
+        "id": 16747,
+        "name": "[redacted]"
+      },
+      "h2h": null
+    }
+  ]
+}

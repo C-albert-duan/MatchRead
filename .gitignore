@@ -42,6 +42,10 @@ Thumbs.db
 supabase/.branches
 supabase/.temp
 
+# Raw provider capture (may contain tokens). Never commit.
+captures/
+fixtures/live-capture-oct-2026/
+
 # Debug / local tooling
 *.log
 npm-debug.log*

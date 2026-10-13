@@ -1,5 +1,5 @@
 -- 0020_clear_misclassified_uso_wta_draw.sql
--- WTA US Open (t-wta-16743) stored a qualifying 128 sheet as seats while
+-- t-wta-16743 stored a qualifying 128 sheet as seats while
 -- published_at stayed null (or the sheet was wrongly published). Clear it so
 -- rediscovery can accept the main-singles draw. Fail closed on fiction;
 -- fail open only for a validated main sheet.

@@ -72,7 +72,7 @@ test("authenticated live checklist", async ({ browser }) => {
   const anonPage = await anon.newPage();
 
   try {
-    // 1–2 anon landing + calendar (Cincinnati still present; e2e hidden)
+    // 1–2 anon landing + calendar (e2e temp event stays hidden)
     await anonPage.goto("/", { waitUntil: "domcontentloaded" });
     const hasSignOut = await anonPage
       .getByRole("button", { name: /Sign out/i })
@@ -86,11 +86,13 @@ test("authenticated live checklist", async ({ browser }) => {
     );
 
     await anonPage.goto("/tournaments", { waitUntil: "domcontentloaded" });
-    const cin = await anonPage
-      .getByRole("link", { name: /Cincinnati/i })
-      .first()
-      .isVisible()
-      .catch(() => false);
+    const calLink = anonPage.locator('a[href^="/tournaments/"]').first();
+    const calVisible = await calLink.isVisible().catch(() => false);
+    let pubRef = process.env.LIVE_REF || "";
+    if (!pubRef && calVisible) {
+      const href = await calLink.getAttribute("href");
+      pubRef = href?.match(/\/tournaments\/([^/?#]+)/)?.[1] || "";
+    }
     const e2eVisible = await anonPage
       .getByText(/E2E Live Checklist/i)
       .first()
@@ -98,21 +100,21 @@ test("authenticated live checklist", async ({ browser }) => {
       .catch(() => false);
     record(
       2,
-      "Sees Cincinnati on the calendar",
-      cin && !e2eVisible ? "pass" : cin ? "pass" : "fail",
-      `cincinnati=${cin} e2eHidden=${!e2eVisible}`
+      "Sees an event on the calendar",
+      calVisible && !e2eVisible ? "pass" : calVisible ? "pass" : "fail",
+      `calendar=${calVisible} slug=${pubRef} e2eHidden=${!e2eVisible}`
     );
 
-    // 3–4 Cincinnati public draw as anon
-    await anonPage.goto("/tournaments/cin-2026", { waitUntil: "domcontentloaded" });
+    // 3–4 public draw as anon
+    await anonPage.goto(`/tournaments/${pubRef}`, { waitUntil: "domcontentloaded" });
     const drawOk = await anonPage
       .getByRole("heading", { name: /Official draw/i })
       .isVisible()
       .catch(() => false);
     record(
       3,
-      "Opens Cincinnati without signing in",
-      /cin-2026/.test(anonPage.url()) ? "pass" : "fail",
+      "Opens a public event without signing in",
+      pubRef && anonPage.url().includes(`/tournaments/${pubRef}`) ? "pass" : "fail",
       anonPage.url()
     );
     record(
@@ -182,32 +184,32 @@ test("authenticated live checklist", async ({ browser }) => {
       );
     }
 
-    // 8 lock deadline on Cincinnati
-    const tCin = await restGet(
-      "tournaments?select=lock_at&ref=eq.cin-2026"
+    // 8 lock deadline on the public slug
+    const tPub = await restGet(
+      `tournaments?select=lock_at&ref=eq.${pubRef}`
     );
     const lockAt =
-      tCin.ok && Array.isArray(tCin.body) && tCin.body[0]?.lock_at
-        ? new Date(tCin.body[0].lock_at)
+      tPub.ok && Array.isArray(tPub.body) && tPub.body[0]?.lock_at
+        ? new Date(tPub.body[0].lock_at)
         : null;
     record(
       8,
       "Entry locks at the correct deadline",
       lockAt && lockAt.getTime() <= Date.now() ? "pass" : "fail",
-      lockAt ? `cin lock_at=${lockAt.toISOString()}` : "missing lock_at"
+      lockAt ? `lock_at=${lockAt.toISOString()}` : "missing lock_at"
     );
 
-    // 9–10 live results on Cincinnati
-    await anonPage.goto("/tournaments/cin-2026", { waitUntil: "domcontentloaded" });
+    // 9–10 live results on the public slug
+    await anonPage.goto(`/tournaments/${pubRef}`, { waitUntil: "domcontentloaded" });
     const won = await anonPage.getByText(/WON:/i).count();
-    const cinIdRow = await restGet("tournaments?select=id&ref=eq.cin-2026");
-    const cinId =
-      cinIdRow.ok && Array.isArray(cinIdRow.body) && cinIdRow.body[0]
-        ? cinIdRow.body[0].id
+    const pubIdRow = await restGet(`tournaments?select=id&ref=eq.${pubRef}`);
+    const pubId =
+      pubIdRow.ok && Array.isArray(pubIdRow.body) && pubIdRow.body[0]
+        ? pubIdRow.body[0].id
         : null;
-    const results = cinId
+    const results = pubId
       ? await restGet(
-          `match_results?select=match_key,winner_ref&tournament_id=eq.${cinId}`
+          `match_results?select=match_key,winner_ref&tournament_id=eq.${pubId}`
         )
       : { ok: false as const, status: 0, body: "" };
     const n = results.ok && Array.isArray(results.body) ? results.body.length : 0;

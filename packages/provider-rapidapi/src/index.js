@@ -1,13 +1,18 @@
 import {
   auxiliaryLastName,
   canonicalizeDisplayName,
+  officialFactKind,
+  officialScoreText,
+  splitResultAbsences,
 } from "./normalize.js";
 import {
   bindResultsByPlayerPair,
   selectArchiveRows,
 } from "./settle-advance.js";
 import {
+  classifyPlayerAbsences,
   diffProviderAuthoritative,
+  entryRowsFromInfo,
   proposeShapeBRepairs,
   unboundProviderFixtures,
 } from "./reconcile-provider.js";
@@ -47,6 +52,8 @@ export { parseFixtureInstant };
  * @property {string} match_key
  * @property {string|null} winner_ref
  * @property {boolean} voided
+ * @property {string|null} [official_score]
+ * @property {'played'|'withdrawal'|'void'|null} [fact_kind]
  */
 
 /**
@@ -55,6 +62,7 @@ export { parseFixtureInstant };
 export function createClient(opts) {
   const key = opts.key?.trim();
   const host = (opts.host || "tennis-api-atp-wta-itf.p.rapidapi.com").trim();
+  const onRawBody = typeof opts.onRawBody === "function" ? opts.onRawBody : null;
   if (!key) throw new Error("RAPIDAPI_KEY required");
 
   /**
@@ -78,6 +86,13 @@ export function createClient(opts) {
     }
 
     const text = await res.text();
+    if (onRawBody) {
+      try {
+        onRawBody({ path, status: res.status, bodyText: text });
+      } catch {
+        /* Capture must not fail the provider read. */
+      }
+    }
     let body = null;
     try {
       body = text ? JSON.parse(text) : null;
@@ -264,12 +279,6 @@ export async function getTournamentFixtures(
   return { tour: t, fixtures: rows, raw: body };
 }
 
-/**
- * Parse a provider fixture/result into a stored instant.
- * Date-only values do not invent a kickoff clock (`has_time: false`).
- * @param {Record<string, unknown>|null|undefined} row
- * @returns {{ scheduled_at: string, has_time: boolean } | null}
- */
 /** @param {Record<string, unknown>|null|undefined} row */
 export function fixtureRoundLabel(row) {
   if (!row || typeof row !== "object") return "";
@@ -521,39 +530,6 @@ export function buildDrawFromFirstRound(fixtures, opts) {
 }
 
 /**
- * Find National Bank Open week events: Montreal (ATP) + Toronto (WTA).
- * @param {{ atp: { tournaments: any[] }, wta: { tournaments: any[] } }} dual
- */
-export function resolveNationalBankOpenWeek(dual) {
-  const montreal = (dual.atp?.tournaments ?? []).find((row) => {
-    const name = String(row?.name ?? "").toLowerCase();
-    return name.includes("national bank") && name.includes("montreal");
-  });
-  const toronto = (dual.wta?.tournaments ?? []).find((row) => {
-    const name = String(row?.name ?? "").toLowerCase();
-    return name.includes("national bank") && name.includes("toronto");
-  });
-  return {
-    montreal: montreal
-      ? {
-          tour: "atp",
-          provider_tournament_id: String(montreal.id),
-          name: montreal.name,
-          starts_on: (montreal.date || montreal.start || "").slice?.(0, 10) || null,
-        }
-      : null,
-    toronto: toronto
-      ? {
-          tour: "wta",
-          provider_tournament_id: String(toronto.id),
-          name: toronto.name,
-          starts_on: (toronto.date || toronto.start || "").slice?.(0, 10) || null,
-        }
-      : null,
-  };
-}
-
-/**
  * Map finished singles results → ingest-events rows. Unmapped matches are skipped.
  * @param {ProviderMatchResult[]} matches
  * @param {ReconcileMapping} mapping
@@ -596,7 +572,13 @@ export function mapResultsToIngest(matches, mapping) {
     // Retirement still has a winner in this API — ingest the winner, do not void.
     if (!winnerId) {
       if (voidLike || !m.result) {
-        results.push({ match_key: matchKey, winner_ref: null, voided: true });
+        results.push({
+          match_key: matchKey,
+          winner_ref: null,
+          voided: true,
+          official_score: officialScoreText(m),
+          fact_kind: officialFactKind(m),
+        });
       } else {
         skipped.push({ id, reason: "finished but no match_winner" });
       }
@@ -616,6 +598,8 @@ export function mapResultsToIngest(matches, mapping) {
       match_key: matchKey,
       winner_ref: winnerRef,
       voided: false,
+      official_score: officialScoreText(m),
+      fact_kind: officialFactKind(m),
     });
   }
 
@@ -637,6 +621,9 @@ export function mapResultsToIngest(matches, mapping) {
  *   seats?: Array<{ position: number, provider_player_id?: string|null }>,
  *   knownProviderMatchIds?: Set<string>|string[],
  *   storedMatches?: Array<{ id?: string, provider_match_id?: string|null, match_key?: string }>,
+ *   fixtures?: unknown[]|null,
+ *   entries?: unknown[]|null,
+ *   info?: unknown,
  * }} input
  */
 export function planArchiveResults(input) {
@@ -695,6 +682,8 @@ export function planArchiveResults(input) {
       winner_ref: r.winner_ref,
       winner_provider_id: r.winner_ref,
       voided: r.voided,
+      official_score: r.official_score ?? null,
+      fact_kind: r.fact_kind ?? null,
     });
   }
   for (const r of bound.results) {
@@ -704,6 +693,8 @@ export function planArchiveResults(input) {
       winner_provider_id: r.winner_provider_id,
       voided: r.voided,
       provider_match_id: r.provider_match_id,
+      official_score: r.official_score ?? null,
+      fact_kind: r.fact_kind ?? null,
     });
   }
 
@@ -716,9 +707,17 @@ export function planArchiveResults(input) {
     authDiff,
     providerIdUpdates: bound.bindings,
     applyResults: [...byKey.values()],
+    absences: classifyPlayerAbsences({
+      seats: input.seats || [],
+      archiveRows,
+      fixtures: input.fixtures === undefined ? null : input.fixtures,
+      entries:
+        input.entries !== undefined
+          ? input.entries
+          : entryRowsFromInfo(input.info),
+    }),
   };
 }
-
 
 /** @param {number} attempt */
 export function backoffMs(attempt) {
@@ -753,6 +752,12 @@ export {
 } from "./official/draw-hash.js";
 export { diffDrawSeats, pairKey } from "./official/draw-diff.js";
 export {
+  overlaySeatPatch,
+  isFakeByeSettlement,
+  planFakeByeUnwind,
+  r0IndexFromSeatPosition,
+} from "./official/seat-overlay.js";
+export {
   drawPollIntervalMs,
   shouldPollDraw,
 } from "./official/draw-poll.js";
@@ -786,6 +791,11 @@ export {
   unboundProviderFixtures,
   r0SlotFromSeatPair,
   proposeShapeBRepairs,
+  planScorelineBackfill,
+  absenceObservability,
+  absenceSignalLog,
+  classifyPlayerAbsences,
+  entryRowsFromInfo,
 } from "./reconcile-provider.js";
 export {
   createLiveSessionState,
@@ -812,11 +822,26 @@ export {
   ADVANCING_OUTCOMES,
   canAdvanceWinner,
   outcomeDisposition,
+  officialScoreText,
+  officialFactKind,
+  splitResultAbsences,
+  matchLookupFromQuery,
+  mergeSettledFact,
+  settledFactSkipReason,
 } from "./normalize.js";
 export {
   assertDrawBelongsToTournament,
   evaluateDrawIntegrity,
+  maxOfficialByes,
 } from "./assert.js";
+export {
+  bindProcessSignals,
+  captureReport,
+  createFrameRecorder,
+  encodeCaptureLine,
+  runLiveCapture,
+  wtaTournamentIdFromLiveText,
+} from "./capture-ndjson.js";
 
 /**
  * Official seats from Tennis API draws. Never invent slot order from match ids.

@@ -94,7 +94,7 @@ Scripts already rewrite legacy URLs (`publish-draws.mjs`, `reconcile-results.mjs
 ### C. `discussion/` vs `architecture/`
 
 - **20 untracked files** under `discussion/` (PDF, HTML, ZIP, MD).
-- Topics (draw automation, reconciliation, US Open repair) are **largely implemented** in `sync-facts`, provider package, and migrations `0013`–`0020`.
+- Topics (draw automation, reconciliation, slam-week repair) are **largely implemented** in `sync-facts`, provider package, and migrations `0013`–`0020`.
 - Remaining references to **MatchStat**, **BullMQ workers**, **`settle-slate`**, **`ingest-events`** are design history, not runtime.
 - Risk: future readers treat `discussion/` as spec and re-implement obsolete paths.
 

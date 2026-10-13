@@ -1,4 +1,4 @@
-# Event-date + Cincinnati fixture diagnosis
+# Event-date + Masters event fixture diagnosis
 
 Generated: 2026-08-22T01:56:27.027Z
 
@@ -8,18 +8,18 @@ Read-only probe (`scripts/probe-event-dates.mjs`). No database writes.
 
 | Label | Tour | Provider id | startDate | endDate |
 |-------|------|-------------|-----------|---------|
-| Cincinnati | atp | 21347 | 2026-08-10T00:00:00.000Z | null |
-| Cincinnati | wta | 16740 | 2026-08-10T00:00:00.000Z | null |
-| Winston-Salem | atp | 21348 | 2026-08-24T00:00:00.000Z | null |
-| US Open | atp | 21349 | 2026-08-31T00:00:00.000Z | null |
-| US Open | wta | 16743 | 2026-08-31T00:00:00.000Z | null |
-| Monterrey | wta | 16741 | 2026-08-24T00:00:00.000Z | null |
+| Masters event | atp | 21347 | 2026-08-10T00:00:00.000Z | null |
+| Masters event | wta | 16740 | 2026-08-10T00:00:00.000Z | null |
+| 64-draw event | atp | 21348 | 2026-08-24T00:00:00.000Z | null |
+| slam event | atp | 21349 | 2026-08-31T00:00:00.000Z | null |
+| slam event | wta | 16743 | 2026-08-31T00:00:00.000Z | null |
+| 32-draw event | wta | 16741 | 2026-08-24T00:00:00.000Z | null |
 
 ## Stored rows
 
 Unavailable: no supabase service env
 
-## Cincinnati branches
+## Masters event branches
 
 ### ATP Fonseca–O'Connell
 
@@ -55,7 +55,7 @@ Stored: ```json
 
 ## What this means for Phase 3–4
 
-- Provider calendar dates confirm the directive: US Open `2026-08-31` (main draw should be **30 Aug**), Winston-Salem `2026-08-24` (expect **23 Aug**), Cincinnati `2026-08-10` (main draw ~**13 Aug**). Product must use `main_draw_starts_on`.
-- Cincinnati returns 90 singles per tour; name-based branch match needs player-id binding in DB (no supabase service env in this probe run).
+- Provider calendar dates confirm the directive: slam event `2026-08-31` (main draw should be **30 Aug**), 64-draw event `2026-08-24` (expect **23 Aug**), Masters event `2026-08-10` (main draw ~**13 Aug**). Product must use `main_draw_starts_on`.
+- Masters event returns 90 singles per tour; name-based branch match needs player-id binding in DB (no supabase service env in this probe run).
 - If WTA stored shape is `missing_match_row`, reconciliation must iterate the **provider** set and create/bind — a stored-row diff will never find it.
 - If ATP stored shape is `null_winner_row`, repair + `claim_settlement` is enough for that branch.

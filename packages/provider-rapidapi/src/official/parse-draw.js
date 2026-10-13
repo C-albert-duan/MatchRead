@@ -54,9 +54,60 @@ function isByeName(name) {
   return /^(bye|byes?)$/i.test(String(name || "").trim());
 }
 
-/** Tennis API placeholder opposite a seed bye (often id 3700). */
+/**
+ * Tennis API uses the same placeholder *object* for an official seed bye and
+ * an unnamed Q/LL seat (`id` 3700, name "Unknown Player"). For that object,
+ * name/id alone never decide; match-level `result` does (`"bye"` vs `""`).
+ *
+ * After the bye is consumed the API drops that object: the vacant side is
+ * JSON `null` / omitted with empty `result`. That remnant is an official
+ * bye, not TBD. TBD stays the 3700 object. Seed, slot, and draw size are
+ * not used.
+ */
 function isUnknownPlaceholder(name) {
   return /^unknown(\s+player)?$/i.test(String(name || "").trim());
+}
+
+function isUnknownPlaceholderPerson(raw) {
+  if (raw == null || typeof raw !== "object") return false;
+  const name = String(
+    raw.name ?? raw.fullName ?? raw.lastName ?? raw.playerName ?? ""
+  ).trim();
+  const last = String(raw.lastName ?? raw.last_name ?? "").trim();
+  const id = String(raw.id ?? raw.playerId ?? raw.player_id ?? "").trim();
+  return id === "3700" || isUnknownPlaceholder(name) || isUnknownPlaceholder(last);
+}
+
+function isNamedPlayerSide(raw) {
+  if (raw == null) return false;
+  if (typeof raw !== "object") {
+    const name = String(raw).trim();
+    return (
+      Boolean(name) &&
+      !isByeName(name) &&
+      !isTbdName(name) &&
+      !isUnknownPlaceholder(name)
+    );
+  }
+  if (raw.isBye === true || raw.bye === true || raw.is_bye === true) return false;
+  if (isUnknownPlaceholderPerson(raw)) return false;
+  const name = String(
+    raw.name ?? raw.fullName ?? raw.lastName ?? raw.playerName ?? ""
+  ).trim();
+  const last = String(raw.lastName ?? raw.last_name ?? "").trim();
+  if (isByeName(name) || isByeName(last)) return false;
+  if (isTbdName(name) || isTbdName(last) || raw.tbd === true) return false;
+  return Boolean(name || last);
+}
+
+function isOfficialByeResult(result) {
+  return String(result ?? "").trim().toLowerCase() === "bye";
+}
+
+function placeholderKind(result) {
+  return isOfficialByeResult(result)
+    ? { kind: "bye" }
+    : { kind: "tbd", last_name: "Qualifier" };
 }
 
 function isTbdName(name) {
@@ -162,16 +213,18 @@ export function parseSeedOrEntry(raw) {
   return { seed, entry: null };
 }
 
-function personFromUnknown(raw, seedHint, entryHint) {
+function personFromUnknown(raw, seedHint, entryHint, matchResult, oppositeNamed) {
   if (raw === null || raw === undefined) {
+    // Consumed official bye: vacant JSON side, not the 3700 Q object.
+    // Primary live shape: null opposite a named player. Never TBD.
+    if (oppositeNamed) return { kind: "bye" };
     return { kind: "bye" };
   }
   if (typeof raw !== "object") {
     const name = String(raw).trim();
-    if (!name || isByeName(name) || isUnknownPlaceholder(name)) {
-      return { kind: "bye" };
-    }
+    if (isByeName(name)) return { kind: "bye" };
     if (isTbdName(name)) return { kind: "tbd", last_name: "Qualifier" };
+    if (!name || isUnknownPlaceholder(name)) return placeholderKind(matchResult);
     const seedEntry = parseSeedOrEntry(seedHint);
     const entryFromHint = parseEntry(entryHint, name);
     const canon = canonicalizeDisplayName(name);
@@ -200,15 +253,12 @@ function personFromUnknown(raw, seedHint, entryHint) {
     : canon.lastName;
   const displayName = name ? canon.displayName : providedLast || canon.displayName;
   const id = String(raw.id ?? raw.playerId ?? raw.player_id ?? "").trim();
-  if (
-    isByeName(name) ||
-    isByeName(last) ||
-    isUnknownPlaceholder(name) ||
-    isUnknownPlaceholder(last)
-  ) {
+  if (isByeName(name) || isByeName(last)) {
     return { kind: "bye" };
   }
-  if (!name && !last && !id) return { kind: "tbd", last_name: "Qualifier" };
+  if (isUnknownPlaceholderPerson(raw) || isUnknownPlaceholder(name) || isUnknownPlaceholder(last)) {
+    return placeholderKind(matchResult);
+  }
   if (isTbdName(name) || isTbdName(last) || raw.tbd === true) {
     const entry = parseEntry(raw.entry ?? raw.entryStatus ?? entryHint, name);
     return {
@@ -217,6 +267,7 @@ function personFromUnknown(raw, seedHint, entryHint) {
       entry_status: entry,
     };
   }
+  if (!name && !last && !id) return placeholderKind(matchResult);
   if (!last || /^player\d*$/i.test(last)) {
     return { kind: "tbd", last_name: "Qualifier" };
   }
@@ -272,8 +323,20 @@ function matchSides(row) {
   }
   if (a === undefined && b === undefined) return null;
   return [
-    personFromUnknown(a, row.seed1 ?? row.player1Seed, row.entry1),
-    personFromUnknown(b, row.seed2 ?? row.player2Seed, row.entry2),
+    personFromUnknown(
+      a,
+      row.seed1 ?? row.player1Seed,
+      row.entry1,
+      row.result,
+      isNamedPlayerSide(b)
+    ),
+    personFromUnknown(
+      b,
+      row.seed2 ?? row.player2Seed,
+      row.entry2,
+      row.result,
+      isNamedPlayerSide(a)
+    ),
   ];
 }
 
@@ -589,32 +652,27 @@ export function drawNameCandidates(event) {
   push(event?.name);
   const base = String(event?.api_name || event?.name || "");
   push(base.replace(/\s+Open\s*$/i, ""));
-  // "Winston-Salem Open - Winston-Salem" → "Winston-Salem"
+  // "Title Open - City" → left of dash
   const dashCity = base.split(/\s+-\s+/)[0];
   push(dashCity);
   push(String(dashCity || "").replace(/\s+Open\s*$/i, ""));
-  // Slug hints for Mega draw name lookup
+  // Generic US / U.S. spelling variants from whatever the provider sent
+  for (const existing of [...out]) {
+    if (/u\.s\./i.test(existing)) {
+      push(existing.replace(/u\.s\./gi, "US"));
+    }
+    if (/\bus\b/i.test(existing)) {
+      push(existing.replace(/\bUS\b/g, "U.S."));
+    }
+  }
   const slug = String(event?.slug || event?.ref || "");
-  if (/us-open|21349|16743/i.test(slug) || /u\.?s\.?\s*open/i.test(base)) {
-    push("US Open");
-    push("U.S. Open");
-    push("US Open - New York");
-  }
-  if (/winston|21348/i.test(slug) || /winston/i.test(base)) {
-    push("Winston-Salem");
-    push("Winston-Salem Open");
-  }
-  if (/cincinnati|21347|16740/i.test(slug) || /cincinnati/i.test(base)) {
-    push("Cincinnati");
-    push("Cincinnati Open");
-  }
-  if (/monterrey|16741/i.test(slug) || /monterrey/i.test(base)) {
-    push("Monterrey");
-    push("Abierto GNP Seguros");
-  }
-  if (/cleveland|16742|tennis in the land/i.test(slug) || /cleveland|tennis in the land/i.test(base)) {
-    push("Cleveland");
-    push("Tennis in the Land");
+  const slugWords = slug
+    .replace(/^t-(atp|wta)-/i, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\b20\d{2}\b/g, "")
+    .trim();
+  if (slugWords && !/^\d+$/.test(slugWords)) {
+    push(slugWords);
   }
   return out;
 }

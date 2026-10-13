@@ -22,6 +22,8 @@ type Props = {
   checked?: boolean;
   /** Seat index within the match (0 = top, 1 = bottom) for connector targets. */
   seat?: 0 | 1;
+  /** Official settled winner for this match. Never inferred from score or seat order. */
+  officialWinner?: boolean;
 };
 
 function labelFor(
@@ -102,6 +104,7 @@ export function PlayerChip({
   value,
   checked,
   seat,
+  officialWinner = false,
 }: Props) {
   const t = useT();
   const meta = labelFor(occupant, t);
@@ -112,7 +115,7 @@ export function PlayerChip({
     grade === "correct" ? "name--correct" : "",
     grade === "incorrect" ? "name--incorrect" : "",
     grade === "voided" ? "name--voided" : "",
-    grade === "official" ? "name--official" : "",
+    grade === "official" || officialWinner ? "name--official" : "",
     occupant.kind !== "player" ? "name--placeholder" : "",
   ]
     .filter(Boolean)
@@ -122,6 +125,7 @@ export function PlayerChip({
   const dataAttrs = {
     ...(seat != null ? { "data-seat": String(seat) } : {}),
     ...(playerRef ? { "data-player-ref": playerRef } : {}),
+    ...(officialWinner ? { "data-official-winner": "true" } : {}),
   };
 
   const inner = (
@@ -138,6 +142,11 @@ export function PlayerChip({
       ) : null}
       {meta.entry ? (
         <span className="name-entry">{meta.entry}</span>
+      ) : null}
+      {officialWinner ? (
+        <span className="bye-tag name-win" aria-hidden="true">
+          {t("result.official")}
+        </span>
       ) : null}
     </>
   );

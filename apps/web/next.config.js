@@ -1,3 +1,5 @@
+const { withSentryConfig } = require("@sentry/nextjs/config");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Keep packages as plain TS sources; Next 14 transpiles workspace pkgs via this.
@@ -11,4 +13,19 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+const uploadSourceMaps = Boolean(
+  process.env.SENTRY_AUTH_TOKEN &&
+    process.env.SENTRY_ORG &&
+    process.env.SENTRY_PROJECT
+);
+
+module.exports = withSentryConfig(nextConfig, {
+  silent: true,
+  telemetry: false,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  sourcemaps: {
+    disable: uploadSourceMaps ? false : "disable-upload",
+  },
+});

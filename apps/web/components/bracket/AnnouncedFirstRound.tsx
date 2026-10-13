@@ -126,19 +126,23 @@ export function AnnouncedFirstRound({
         {matchups.map((m) => {
           const winner = picks[m.match_key];
           const started = isTimedMatchStarted(m);
-          const scheduleRow = m.scheduled_at
-            ? { scheduled_at: m.scheduled_at, has_time: Boolean(m.has_time) }
+          const whenZone = matchWhenTimeZone(
+            m.scheduled_at
+              ? { scheduled_at: m.scheduled_at, has_time: Boolean(m.has_time) }
+              : null,
+            viewerZone
+          );
+          const when = whenZone
+            ? formatMatchWhen(
+                {
+                  scheduled_at: m.scheduled_at || "",
+                  has_time: Boolean(m.has_time),
+                },
+                whenZone,
+                locale,
+                t("calendar.dateTbc")
+              )
             : null;
-          const whenZone = matchWhenTimeZone(scheduleRow, viewerZone);
-          const when =
-            whenZone && scheduleRow
-              ? formatMatchWhen(
-                  scheduleRow,
-                  whenZone,
-                  locale,
-                  t("calendar.dateTbc")
-                )
-              : null;
           const sideDisabled = (!editable && !gateToEnter) || started;
           return (
             <li key={m.match_key} className="league-card">

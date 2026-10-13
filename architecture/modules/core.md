@@ -28,7 +28,7 @@ Export barrel: `packages/core/src/index.ts`.
 | Consumer | How |
 |----------|-----|
 | `apps/web` | Direct workspace import for grading UI, Daily Check, eligibility helpers |
-| `settle-leagues` Edge | Deno cannot import the TS package; uses `supabase/functions/_shared/core.js` (kept in sync with grade/matchKey) |
+| `settle-leagues` Edge | Deno cannot import the TS package from the npm registry (`npm:@matchread/core@^0.1.0` is unpublished). Uses `supabase/functions/_shared/core.js`, kept in sync by `edge-grade.test.ts` |
 
 ## Boundaries
 

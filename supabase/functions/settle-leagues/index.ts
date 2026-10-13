@@ -2,11 +2,12 @@
 // Grade submitted brackets from picks + matches; write brackets.points/rank.
 // Auth: Authorization: Bearer <INGEST_SECRET>
 //
-// POST { "tournament_slug"?: "cin-2026", "tournament_ref"?: "cin-2026" }
+// POST { "tournament_slug"?: "<slug>", "tournament_ref"?: "<slug>" }
 // Alias tournament_ref → slug. Omit to settle tournaments with new results.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { gradeBracket, matchKey, rankRows } from "../_shared/core.js";
+import { captureEdgeError, flushSentry } from "../_shared/sentry.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -76,11 +77,15 @@ Deno.serve(async (req) => {
         log.push(
           `${slug} settle error: ${err instanceof Error ? err.message : err}`
         );
+        captureEdgeError(err, { slug, source: "settle-leagues" });
       }
     }
+    await flushSentry();
     return json({ ok: true, ...summary, log });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    captureEdgeError(err, { source: "settle-leagues" });
+    await flushSentry();
     return json({ ok: false, error: message, log }, 500);
   }
 });

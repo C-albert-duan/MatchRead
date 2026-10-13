@@ -1,5 +1,5 @@
 -- 0027_uso_fixture_off.sql
--- Strip the 0003 US Open 16-player UX fixture and the WTA Cincinnati 32-draw
+-- Strip the 0003 slam event 16-player UX fixture and the WTA Masters event 32-draw
 -- (doubles) sheet. Calendar metadata + date ranges. First-party ops capture.
 -- Idempotent.
 
@@ -48,7 +48,7 @@ update public.tournaments t
    );
 
 -- ---------------------------------------------------------------------------
--- Wipe ATP US Open fixture seats (Aldecoa / p-0 …)
+-- Wipe ATP slam event fixture seats (Aldecoa / p-0 …)
 -- ---------------------------------------------------------------------------
 
 delete from public.draw_seats ds
@@ -83,7 +83,7 @@ delete from public.draws d
    and t.ref = 'uso-2026';
 
 -- ---------------------------------------------------------------------------
--- Wipe WTA Cincinnati if the published sheet is not 64-player singles
+-- Wipe WTA Masters event if the published sheet is not 64-player singles
 -- ---------------------------------------------------------------------------
 
 do $$
@@ -157,7 +157,7 @@ create policy ops_events_select on public.ops_events
   using (true);
 
 -- ---------------------------------------------------------------------------
--- Lock proof: a direct write against in-play Cincinnati must fail
+-- Lock proof: a direct write against in-play Masters event must fail
 -- ---------------------------------------------------------------------------
 
 do $$

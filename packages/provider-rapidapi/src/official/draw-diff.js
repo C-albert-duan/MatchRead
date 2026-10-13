@@ -64,6 +64,8 @@ export function diffDrawSeats(prevSeats, nextSeats) {
 
     let change_kind = "other";
     if (ak === "tbd" && bk === "player" && bp) change_kind = "tbd_filled";
+    else if (ak === "bye" && bk === "tbd") change_kind = "bye_to_tbd";
+    else if (ak === "tbd" && bk === "bye") change_kind = "tbd_to_bye";
     else if (ak === "bye" && bk === "player") change_kind = "bye_to_player";
     else if (ak === "player" && bk === "bye") change_kind = "player_to_bye";
     else if (ak === "player" && bk === "player" && ap && bp && ap !== bp) {

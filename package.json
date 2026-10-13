@@ -22,8 +22,11 @@
     "preflight:trust": "node scripts/preflight-trust-boundary.mjs",
     "tennis:verify": "node scripts/tennis-verify.mjs",
     "probe:event-dates": "node scripts/probe-event-dates.mjs",
+    "capture:live": "node scripts/capture-live-ndjson.mjs",
+    "prove:cron": "node scripts/prove-cron.mjs",
+    "backfill:scorelines": "node scripts/backfill-scorelines.mjs",
     "ci:consumer-boundary": "node scripts/ci-consumer-boundary.mjs",
     "test:provider": "npm run test -w @matchread/provider-rapidapi",
-    "test:db": "npx supabase test db"
+    "test:db": "npx supabase test db && node --test packages/provider-rapidapi/src/absence-gap.integration.test.js"
   }
 }

@@ -36,7 +36,7 @@ end $$;
 comment on column public.tournaments.tour is
   'ATP or WTA. Required for provider paths and calendar identity.';
 
--- Same display name may appear once per tour (e.g. dual US Open rows).
+-- Same display name may appear once per tour (e.g. dual slam event rows).
 do $$
 begin
   if exists (
@@ -60,22 +60,22 @@ create unique index if not exists tournaments_provider_tournament_tour_uidx
   where provider_tournament_id is not null;
 
 -- ---------------------------------------------------------------------------
--- Montreal (ATP) — existing uso-2026 row
+-- colliding-slug event (ATP) — existing uso-2026 row
 -- ---------------------------------------------------------------------------
 
 update public.tournaments
    set tour = 'atp',
-       name = 'National Bank Open Montreal 2026',
+       name = 'dual-city event colliding-slug event 2026',
        provider_tournament_id = coalesce(provider_tournament_id, '21346'),
        surface = 'hard',
        starts_on = coalesce(starts_on, '2026-08-03'),
        lock_at = coalesce(lock_at, '2026-08-02 15:00:00+00'),
        draw_size = greatest(draw_size, 64),
-       venue_tz = coalesce(nullif(venue_tz, ''), 'America/Toronto')
+       venue_tz = coalesce(nullif(venue_tz, ''), 'America/dual-city event')
  where ref = 'uso-2026';
 
 -- ---------------------------------------------------------------------------
--- Toronto (WTA) — concurrent National Bank Open week
+-- dual-city event (WTA) — concurrent dual-city event week
 -- ---------------------------------------------------------------------------
 
 insert into public.tournaments (
@@ -91,13 +91,13 @@ insert into public.tournaments (
 )
 values (
   'nbo-tor-2026',
-  'National Bank Open Toronto 2026',
+  'dual-city event dual-city event 2026',
   'wta',
   'hard',
   '2026-08-03',
   '2026-08-02 15:00:00+00',
   64,
-  'America/Toronto',
+  'America/dual-city event',
   '16739'
 )
 on conflict (ref) do update set
@@ -110,5 +110,5 @@ on conflict (ref) do update set
   venue_tz = excluded.venue_tz,
   provider_tournament_id = excluded.provider_tournament_id;
 
--- No placeholder draw/seats — Toronto stays draw-pending until RapidAPI import
+-- No placeholder draw/seats — dual-city event stays draw-pending until RapidAPI import
 -- (scripts/import-nbo-draw.mjs --tour wta) writes verified provider_player_id seats.

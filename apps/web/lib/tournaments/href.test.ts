@@ -8,36 +8,36 @@ import {
 } from "./href.ts";
 
 test("tournamentHref reads the ref from the tournament object", () => {
-  assert.equal(tournamentHref("nbo-mtl-2026"), "/tournaments/nbo-mtl-2026");
-  assert.equal(tournamentHref("uso-2026"), "/tournaments/uso-2026");
-  assert.equal(tournamentHref("cin-wta-2026"), "/tournaments/cin-wta-2026");
+  assert.equal(tournamentHref("evt-alpha"), "/tournaments/evt-alpha");
+  assert.equal(tournamentHref("evt-slam"), "/tournaments/evt-slam");
+  assert.equal(tournamentHref("evt-wta"), "/tournaments/evt-wta");
 });
 
 test("tournamentHref never invents a slug", () => {
   assert.equal(tournamentHref(""), "/tournaments");
   assert.equal(tournamentHref("  "), "/tournaments");
-  assert.ok(!tournamentHref("nbo-mtl-2026").includes("uso-2026"));
+  assert.ok(!tournamentHref("evt-alpha").includes("evt-slam"));
 });
 
 test("enterHref and leagueNewHref encode the same ref", () => {
-  assert.equal(enterHref("uso-2026"), "/enter/uso-2026");
+  assert.equal(enterHref("evt-slam"), "/enter/evt-slam");
   assert.equal(
-    leagueNewHref("uso-2026"),
-    "/leagues/new?tournament=uso-2026"
+    leagueNewHref("evt-slam"),
+    "/leagues/new?tournament=evt-slam"
   );
 });
 
 test("calendar href is never a sign-in URL", () => {
-  assert.equal(tournamentHref("cin-2026"), "/tournaments/cin-2026");
-  assert.ok(!tournamentHref("cin-2026").includes("sign-in"));
-  assert.ok(!tournamentHref("uso-2026").includes("sign-in"));
+  assert.equal(tournamentHref("evt-1"), "/tournaments/evt-1");
+  assert.ok(!tournamentHref("evt-1").includes("sign-in"));
+  assert.ok(!tournamentHref("evt-slam").includes("sign-in"));
 });
 
 test("filling a bracket still gates anon through sign-in, not a saved pick", () => {
-  const next = enterHref("cin-2026");
-  assert.equal(next, "/enter/cin-2026");
+  const next = enterHref("evt-1");
+  assert.equal(next, "/enter/evt-1");
   assert.equal(
     signInNextHref(next),
-    "/sign-in?next=%2Fenter%2Fcin-2026"
+    "/sign-in?next=%2Fenter%2Fevt-1"
   );
 });

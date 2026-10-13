@@ -15,6 +15,7 @@ import {
   matchWhenTimeZone,
   type MatchScheduleRow,
 } from "@/lib/tournaments/format";
+import { useViewerTimeZone } from "@/lib/tournaments/viewer-zone";
 
 type Props = {
   drawSize: number;
@@ -38,12 +39,12 @@ export function BracketFind({
   picks,
   official,
   schedule,
-  venueTz,
   locale,
 }: Props) {
   const t = useT();
   const [query, setQuery] = useState("");
   const tbc = t("calendar.dateTbc");
+  const viewerZone = useViewerTimeZone();
 
   const displayPicks = useMemo(() => {
     const merged: BracketPicks = { ...picks };
@@ -68,7 +69,7 @@ export function BracketFind({
           left && right
             ? `${left} · ${right}`
             : left || right || t("bracket.notPlayed");
-        const whenZone = matchWhenTimeZone(schedule[match.key], venueTz);
+        const whenZone = matchWhenTimeZone(schedule[match.key], viewerZone);
         return {
           key: match.key,
           round: round.label.column,
@@ -80,7 +81,7 @@ export function BracketFind({
         };
       })
     );
-  }, [drawSize, seats, displayPicks, schedule, venueTz, locale, t, tbc]);
+  }, [drawSize, seats, displayPicks, schedule, viewerZone, locale, t, tbc]);
 
   const needle = query.trim().toLowerCase();
   const ready = needle.length >= 2;

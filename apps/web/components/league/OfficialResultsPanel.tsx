@@ -19,6 +19,7 @@ import {
   matchWhenTimeZone,
   type MatchScheduleRow,
 } from "@/lib/tournaments/format";
+import { useViewerTimeZone } from "@/lib/tournaments/viewer-zone";
 
 type Props = {
   leagueId: string;
@@ -70,7 +71,6 @@ export function OfficialResultsPanel({
   initialResults,
   isFounder,
   schedule = {},
-  venueTz = "UTC",
 }: Props) {
   const [results, setResults] = useState<Record<string, string>>(initialResults);
   const [message, setMessage] = useState<string | null>(null);
@@ -84,6 +84,7 @@ export function OfficialResultsPanel({
   const tf = useTf();
   const locale = useLocale();
   const tbc = t("calendar.dateTbc");
+  const viewerZone = useViewerTimeZone();
 
   async function saveWinner(
     matchKey: string,
@@ -288,7 +289,7 @@ export function OfficialResultsPanel({
               b.kind !== "unpicked";
             const matchBusy =
               busy?.kind === "save" && busy.matchKey === match.key;
-            const whenZone = matchWhenTimeZone(schedule[match.key], venueTz);
+            const whenZone = matchWhenTimeZone(schedule[match.key], viewerZone);
 
             return (
               <li

@@ -1,25 +1,14 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import { formatLockWhen } from "@/lib/tournaments/format";
 import {
   formatWhenCaption,
   type TournamentTimeLabels,
   type TournamentTimeRow,
 } from "@/lib/tournaments/time-facts";
+import { useViewerTimeZone } from "@/lib/tournaments/viewer-zone";
 
-function subscribeNoop() {
-  return () => {};
-}
-
-/** Browser IANA zone after mount; null on the server (avoids hydration mismatch). */
-export function useViewerTimeZone(): string | null {
-  return useSyncExternalStore(
-    subscribeNoop,
-    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
-    () => null
-  );
-}
+export { useViewerTimeZone };
 
 type EntryLockWhenProps = {
   lockAt: string;

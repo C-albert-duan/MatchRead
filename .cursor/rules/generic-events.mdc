@@ -1,0 +1,33 @@
+---
+description: Solve draws/ingest/UI from architecture — never name-specific events or the ISO KR country English name
+alwaysApply: true
+---
+
+# Generic events only (non-negotiable)
+
+Fix the **data model, ingest, and UI for every official event**. Do not special-case a league, tour, or named tournament. Do not put those names in chat, commits, comments, tests, or docs.
+
+## Architecture, not named events
+
+- Drive behavior from provider fields (`provider_tournament_id`, `ref`, draw size, slot map, byes, TBD seats, timed `lock_at`).
+- One path for all events. If a 32/64/96/128-slot field, Q/LL TBD, seed bye, or date-only fixture fails, fix the shared pipeline.
+- Chat and `architecture/` describe types of events (`64-draw`, `Masters-size with seed byes`), never a proper event or league title.
+
+```text
+❌ if (name === "… Open") { drawSize = 32 }
+❌ docs: "workaround for this week's named event"
+✅ slot count = official draw size from the provider
+✅ public copy = `tournaments.name` / `ref` at runtime, never a hard-coded title
+```
+
+The **live product** still shows official names the provider published. Agents and source must not hard-code them or use them as the reason for a patch.
+
+## Forbidden country token
+
+Never write the English short name of ISO 3166-1 **KR** (`KOR`), nor obvious inflections or native-script equivalents, in chat, docs, code, comments, fixtures, or commits. Use `KR` / `KOR`, a provider country code, or a generic label (`country`, `nation`).
+
+## Allowed
+
+- Generic nouns: event, tournament, tour, draw, round, seat, qualifier
+- Runtime reads of provider/DB names and country codes
+- Synthetic fixture ids (`evt-1`, `fx-1`) and generic player last names

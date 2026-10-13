@@ -1,5 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   buildDrawFromFirstRound,
   firstMainDrawBall,
@@ -9,9 +12,17 @@ import {
   overlayOfficialDraw,
   parseOfficialDraw,
   parseFixtureInstant,
-  resolveNationalBankOpenWeek,
+  diffDrawSeats,
+  overlaySeatPatch,
 } from "./index.js";
 import { drawNameCandidates } from "./official/parse-draw.js";
+
+const GOLDEN_PLACEHOLDERS = JSON.parse(
+  readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "api-draw-placeholder-shapes.golden.json"),
+    "utf8"
+  )
+);
 
 function seat(position, overrides = {}) {
   const kind = overrides.seat_kind || (overrides.is_bye ? "bye" : "player");
@@ -34,36 +45,6 @@ describe("normalizeTour", () => {
     assert.equal(normalizeTour(undefined), "atp");
     assert.equal(normalizeTour("ATP"), "atp");
     assert.equal(normalizeTour("wta"), "wta");
-  });
-});
-
-describe("resolveNationalBankOpenWeek", () => {
-  it("finds Montreal ATP and Toronto WTA", () => {
-    const week = resolveNationalBankOpenWeek({
-      atp: {
-        tournaments: [
-          { id: 21346, name: "National Bank Open - Montreal", date: "2026-08-03T00:00:00.000Z" },
-          { id: 1, name: "Other" },
-        ],
-      },
-      wta: {
-        tournaments: [
-          { id: 16739, name: "National Bank Open - Toronto", date: "2026-08-03T00:00:00.000Z" },
-        ],
-      },
-    });
-    assert.deepEqual(week.montreal, {
-      tour: "atp",
-      provider_tournament_id: "21346",
-      name: "National Bank Open - Montreal",
-      starts_on: "2026-08-03",
-    });
-    assert.deepEqual(week.toronto, {
-      tour: "wta",
-      provider_tournament_id: "16739",
-      name: "National Bank Open - Toronto",
-      starts_on: "2026-08-03",
-    });
   });
 });
 
@@ -631,7 +612,7 @@ describe("parseOfficialDraw", () => {
     assert.equal(parsed.ok, false);
   });
 
-  it("reads a flat multi-round singles list (Cincinnati / Mega draws shape)", () => {
+  it("reads a flat multi-round singles list (Masters / mega-draw shape)", () => {
     const r128 = Array.from({ length: 64 }, (_, i) => {
       const draw = i + 1;
       if (draw === 1) {
@@ -725,25 +706,384 @@ describe("parseOfficialDraw", () => {
     assert.equal(parsed.seats.length, 64);
     assert.equal(parsed.seats[0].last_name, "Alpha0");
   });
+
+  it("classifies live Unknown Player by match result, not by name (both sides)", () => {
+    const placeholders = [
+      ...GOLDEN_PLACEHOLDERS.unknown_without_result_bye,
+      ...GOLDEN_PLACEHOLDERS.official_result_bye,
+    ];
+    const singles = placeholders.map((row, i) => ({
+      roundId: 4,
+      draw: i + 1,
+      result: row.result,
+      seed1: row.seed1,
+      seed2: row.seed2,
+      player1Id: row.player1Id,
+      player2Id: row.player2Id,
+      player1: row.player1,
+      player2: row.player2,
+    }));
+    while (singles.length < 16) {
+      const i = singles.length;
+      singles.push({
+        roundId: 4,
+        draw: i + 1,
+        result: "",
+        player1: {
+          id: 1100 + i,
+          name: `Alpha${i} Smith`,
+          countryAcr: "USA",
+          seed: String(i + 1),
+        },
+        player2: { id: 2100 + i, name: `Beta${i} Jones`, countryAcr: "ESP" },
+      });
+    }
+    const parsed = parseOfficialDraw(
+      { singles },
+      { prefix: "wta", expectedDrawSize: 32 }
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+
+    const kinds = (matchIndex) => [
+      parsed.seats[matchIndex * 2].seat_kind,
+      parsed.seats[matchIndex * 2 + 1].seat_kind,
+    ];
+    // Golden unknown_without_result_bye: Unknown as player1, then player1, then player1, then player2.
+    assert.deepEqual(kinds(0), ["tbd", "player"]);
+    assert.deepEqual(kinds(1), ["tbd", "player"]);
+    assert.deepEqual(kinds(2), ["tbd", "player"]);
+    assert.deepEqual(kinds(3), ["player", "tbd"]);
+    // Golden official_result_bye: Unknown as player2, then player1.
+    assert.deepEqual(kinds(4), ["player", "bye"]);
+    assert.deepEqual(kinds(5), ["bye", "player"]);
+
+    const byes = parsed.seats.filter((s) => s.seat_kind === "bye");
+    const tbds = parsed.seats.filter((s) => s.seat_kind === "tbd");
+    assert.equal(byes.length, 2);
+    assert.equal(tbds.length, 4);
+    assert.equal(
+      tbds.every((s) => s.last_name === "Qualifier" && s.is_bye === false),
+      true
+    );
+    assert.equal(
+      byes.every((s) => s.last_name === "Bye" && s.is_bye === true),
+      true
+    );
+  });
+
+  it("reads Unknown Player without result:bye as TBD (16-match first round)", () => {
+    const unknown = {
+      id: 3700,
+      name: "Unknown Player",
+      countryAcr: "N/A",
+      seed: null,
+    };
+    const singles = Array.from({ length: 16 }, (_, i) => {
+      const draw = i + 1;
+      const named = {
+        id: 100 + i,
+        name: `Alpha${i} Smith`,
+        countryAcr: "USA",
+        seed: String(i + 1),
+      };
+      const other = { id: 200 + i, name: `Beta${i} Jones`, countryAcr: "ESP" };
+      if (draw === 1) {
+        return { roundId: 4, draw, result: "", player1: unknown, player2: named };
+      }
+      if (draw === 5) {
+        return { roundId: 4, draw, result: "", player1: named, player2: unknown };
+      }
+      if (draw === 9) {
+        return { roundId: 4, draw, result: "", player1: unknown, player2: other };
+      }
+      if (draw === 16) {
+        return { roundId: 4, draw, result: "", player1: other, player2: unknown };
+      }
+      return { roundId: 4, draw, result: "", player1: named, player2: other };
+    });
+    const parsed = parseOfficialDraw(
+      { singles },
+      { prefix: "wta", expectedDrawSize: 32 }
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "tbd").length, 4);
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "bye").length, 0);
+    assert.equal(parsed.seats[0].seat_kind, "tbd");
+    assert.equal(parsed.seats[9].seat_kind, "tbd");
+    assert.equal(parsed.seats[16].seat_kind, "tbd");
+    assert.equal(parsed.seats[31].seat_kind, "tbd");
+  });
+
+  it("keeps official result:bye as bye next to Unknown-without-bye TBD", () => {
+    const unknown = {
+      id: 3700,
+      name: "Unknown Player",
+      countryAcr: "N/A",
+      seed: null,
+    };
+    const singles = Array.from({ length: 16 }, (_, i) => {
+      const draw = i + 1;
+      const named = {
+        id: 300 + i,
+        name: `Gamma${i} Smith`,
+        countryAcr: "USA",
+        seed: String(i + 1),
+      };
+      const other = { id: 400 + i, name: `Delta${i} Jones`, countryAcr: "ESP" };
+      if (draw <= 2) {
+        return {
+          roundId: 4,
+          draw,
+          result: "bye",
+          player1: named,
+          player2: unknown,
+        };
+      }
+      if (draw <= 4) {
+        return {
+          roundId: 4,
+          draw,
+          result: "bye",
+          player1: unknown,
+          player2: named,
+        };
+      }
+      if (draw <= 6) {
+        return {
+          roundId: 4,
+          draw,
+          result: "",
+          player1: unknown,
+          player2: other,
+        };
+      }
+      if (draw <= 8) {
+        return {
+          roundId: 4,
+          draw,
+          result: "",
+          player1: other,
+          player2: unknown,
+        };
+      }
+      return { roundId: 4, draw, result: "", player1: named, player2: other };
+    });
+    const parsed = parseOfficialDraw(
+      { singles },
+      { prefix: "wta", expectedDrawSize: 32 }
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "bye").length, 4);
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "tbd").length, 4);
+    assert.equal(parsed.seats[1].seat_kind, "bye");
+    assert.equal(parsed.seats[4].seat_kind, "bye");
+    assert.equal(parsed.seats[8].seat_kind, "tbd");
+    assert.equal(parsed.seats[13].seat_kind, "tbd");
+  });
+
+  function syntheticNamed(id, last, seed = null) {
+    return {
+      id,
+      name: `${last} Smith`,
+      countryAcr: "USA",
+      seed,
+    };
+  }
+
+  function unknown3700() {
+    return {
+      id: 3700,
+      name: "Unknown Player",
+      countryAcr: "N/A",
+      seed: null,
+    };
+  }
+
+  function firstRoundWithNullByes(matchCount, nullByeCount) {
+    const namedPairs = matchCount - nullByeCount;
+    const singles = [];
+    for (let i = 0; i < nullByeCount; i++) {
+      singles.push({
+        roundId: 4,
+        draw: null,
+        result: "",
+        player1Id: 5000 + i,
+        player2Id: null,
+        player1: syntheticNamed(5000 + i, `Seeded${i}`, String((i % 32) + 1)),
+        player2: null,
+      });
+    }
+    for (let i = 0; i < namedPairs; i++) {
+      singles.push({
+        roundId: 4,
+        draw: i + 1,
+        result: "6-4 6-2",
+        player1: syntheticNamed(6000 + i, `Alpha${i}`),
+        player2: syntheticNamed(7000 + i, `Beta${i}`),
+      });
+    }
+    return singles;
+  }
+
+  it("treats named vs null + empty result as bye, not TBD (64-match first round)", () => {
+    const parsed = parseOfficialDraw(
+      { singles: firstRoundWithNullByes(64, 32) },
+      { prefix: "atp", expectedDrawSize: 128 }
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    assert.equal(parsed.seats.length, 128);
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "bye").length, 32);
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "tbd").length, 0);
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "player").length, 96);
+    assert.equal(parsed.seats[1].seat_kind, "bye");
+    assert.equal(parsed.seats[1].is_bye, true);
+  });
+
+  it("keeps 3700 + empty result as TBD", () => {
+    const singles = Array.from({ length: 16 }, (_, i) => ({
+      roundId: 4,
+      draw: i + 1,
+      result: "",
+      player1: i === 0 ? unknown3700() : syntheticNamed(100 + i, `Alpha${i}`),
+      player2: i === 0 ? syntheticNamed(200, "Beta0") : syntheticNamed(200 + i, `Beta${i}`),
+    }));
+    const parsed = parseOfficialDraw(
+      { singles },
+      { prefix: "wta", expectedDrawSize: 32 }
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    assert.equal(parsed.seats[0].seat_kind, "tbd");
+    assert.equal(parsed.seats[1].seat_kind, "player");
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "tbd").length, 1);
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "bye").length, 0);
+  });
+
+  it("keeps 3700 + result bye as bye", () => {
+    const singles = Array.from({ length: 16 }, (_, i) => ({
+      roundId: 4,
+      draw: i + 1,
+      result: i === 0 ? "bye" : "",
+      player1: i === 0 ? syntheticNamed(100, "Alpha0") : syntheticNamed(100 + i, `Alpha${i}`),
+      player2: i === 0 ? unknown3700() : syntheticNamed(200 + i, `Beta${i}`),
+    }));
+    const parsed = parseOfficialDraw(
+      { singles },
+      { prefix: "wta", expectedDrawSize: 32 }
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    assert.equal(parsed.seats[0].seat_kind, "player");
+    assert.equal(parsed.seats[1].seat_kind, "bye");
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "bye").length, 1);
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "tbd").length, 0);
+  });
+
+  it("keeps named vs named with a score as two player seats", () => {
+    const singles = Array.from({ length: 16 }, (_, i) => ({
+      roundId: 4,
+      draw: i + 1,
+      result: "7-6(5) 6-4",
+      player1: syntheticNamed(100 + i, `Alpha${i}`),
+      player2: syntheticNamed(200 + i, `Beta${i}`),
+    }));
+    const parsed = parseOfficialDraw(
+      { singles },
+      { prefix: "atp", expectedDrawSize: 32 }
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    assert.equal(parsed.seats.every((s) => s.seat_kind === "player"), true);
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "tbd").length, 0);
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "bye").length, 0);
+  });
+
+  it("treats named vs null + empty result as bye on a 32-match first round", () => {
+    const parsed = parseOfficialDraw(
+      { singles: firstRoundWithNullByes(32, 16) },
+      { prefix: "atp", expectedDrawSize: 64 }
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    assert.equal(parsed.seats.length, 64);
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "bye").length, 16);
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "tbd").length, 0);
+    assert.equal(parsed.seats.filter((s) => s.seat_kind === "player").length, 48);
+  });
+
+  it("does not emit bye_to_tbd when published byes match a null-side official bye parse", () => {
+    const parsed = parseOfficialDraw(
+      { singles: firstRoundWithNullByes(64, 32) },
+      { prefix: "atp", expectedDrawSize: 128 }
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    const published = parsed.seats.map((s) => ({
+      position: s.position,
+      kind: s.seat_kind,
+      seat_kind: s.seat_kind,
+      provider_player_id: s.provider_player_id ?? null,
+    }));
+    const incoming = parsed.seats.map((s) => ({
+      position: s.position,
+      kind: s.seat_kind,
+      seat_kind: s.seat_kind,
+      provider_player_id: s.provider_player_id ?? null,
+    }));
+    const changes = diffDrawSeats(published, incoming).filter(
+      (c) => c.change_kind === "bye_to_tbd"
+    );
+    assert.equal(changes.length, 0);
+  });
+
+  it("preserves tbd_to_bye overlay and does not patch bye that stays bye", () => {
+    assert.equal(
+      overlaySeatPatch({ kind: "tbd" }, { kind: "bye" }),
+      null
+    );
+    assert.equal(overlaySeatPatch({ kind: "bye" }, { kind: "bye" }), null);
+    const published = [
+      {
+        position: 1,
+        kind: "tbd",
+        seat_kind: "tbd",
+        provider_player_id: null,
+      },
+    ];
+    const incoming = [
+      {
+        position: 1,
+        kind: "bye",
+        seat_kind: "bye",
+        provider_player_id: null,
+      },
+    ];
+    const changes = diffDrawSeats(published, incoming);
+    assert.equal(changes[0].change_kind, "tbd_to_bye");
+  });
 });
 
 describe("drawNameCandidates", () => {
   it("uses api_name and strips trailing Open", () => {
     const names = drawNameCandidates({
-      ref: "cin-wta-2026",
-      api_name: "Cincinnati Open",
+      ref: "evt-1",
+      api_name: "Harbor Open",
     });
-    assert.ok(names.includes("Cincinnati Open"));
-    assert.ok(names.includes("Cincinnati"));
-    assert.equal(names.includes("Western & Southern Open"), false);
+    assert.ok(names.includes("Harbor Open"));
+    assert.ok(names.includes("Harbor"));
   });
 
-  it("adds US Open aliases from slug", () => {
+  it("splits a city suffix and adds US / U.S. spelling variants", () => {
     const names = drawNameCandidates({
-      slug: "t-atp-21349",
-      api_name: "US Open - New York",
+      slug: "t-atp-1",
+      api_name: "U.S. Championship - Harbor",
     });
-    assert.ok(names.includes("US Open"));
+    assert.ok(names.includes("U.S. Championship"));
+    assert.ok(names.includes("US Championship"));
   });
 });
 
@@ -769,6 +1109,29 @@ describe("mapLiveFinishedToIngest", () => {
     assert.deepEqual(results, [
       { match_key: "r0-m0", winner_ref: "p-a", voided: false },
     ]);
+  });
+
+  it("does not copy a live score string onto the official result", () => {
+    const { results } = mapLiveFinishedToIngest(
+      [
+        {
+          id: "live-score",
+          status: "Finished",
+          matchId: "11-22-21347-12",
+          winnerId: 11,
+          score: "6-4 6-3",
+        },
+      ],
+      {
+        tournament_id: "t",
+        provider_tournament_id: "21347",
+        players: { "11": "p-a" },
+        matches: { "11|22": "r0-m0" },
+      }
+    );
+    assert.equal(results.length, 1);
+    assert.equal("official_score" in results[0], false);
+    assert.equal(results[0].winner_ref, "p-a");
   });
 
   it("skips finished live events without a winner id", () => {
@@ -808,7 +1171,13 @@ describe("mapResultsToIngest", () => {
     );
     assert.equal(skipped.length, 0);
     assert.deepEqual(results, [
-      { match_key: "r0-m0", winner_ref: "p-0", voided: false },
+      {
+        match_key: "r0-m0",
+        winner_ref: "p-0",
+        voided: false,
+        official_score: "6-2 2-0 ret.",
+        fact_kind: "played",
+      },
     ]);
   });
 
@@ -828,7 +1197,13 @@ describe("mapResultsToIngest", () => {
     );
     assert.equal(skipped.length, 0);
     assert.deepEqual(results, [
-      { match_key: "r0-m1", winner_ref: null, voided: true },
+      {
+        match_key: "r0-m1",
+        winner_ref: null,
+        voided: true,
+        official_score: null,
+        fact_kind: "withdrawal",
+      },
     ]);
   });
 });

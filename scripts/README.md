@@ -11,11 +11,14 @@ Env: copy `.env.provider.example` → `.env.provider` (gitignored).
 | `sync-lock-at.mjs` | `npm run sync:lock-at` | Refresh `lock_at` from first timed R0 ball |
 | `probe-rapidapi.mjs` | `npm run probe:rapidapi` | Provider connectivity smoke test |
 | `probe-event-dates.mjs` | `npm run probe:event-dates` | Read-only calendar/date diagnosis |
+| `capture-live-ndjson.mjs` | `npm run capture:live` | Raw REST live + WTA companion NDJSON (gitignored) |
+| `prove-cron.mjs` | `npm run prove:cron` | Read-only cron run history |
 | `tennis-verify.mjs` | `npm run tennis:verify -- --slug …` | Integrity vs DB (+ optional live provider) |
 | `preflight-trust-boundary.mjs` | `npm run preflight:trust` | Trust checks (`--live` for hosted probe) |
 | `ci-consumer-boundary.mjs` | `npm run ci:consumer-boundary` | CI: web uses `public_calendar` only |
 | `verify-settlement-math.mjs` | `npm run verify:settlement` | Offline scoring invariant (CI) |
 | `backfill-settle-advance.mjs` | — | One-shot: re-bind results + parent advance |
+| `backfill-scorelines.mjs` | `npm run backfill:scorelines` | Dry-run scoreline fills from the results archive. `--write` applies null `official_score` only |
 | `docker-migrate.mjs` | — | `docker compose --profile migrate` only |
 | `apply-sql-migration.mjs` | — | Apply one SQL via Management API |
 | `e2e-live-pipeline.mjs` | — | Apply `e2e-live-setup.sql` / cleanup |

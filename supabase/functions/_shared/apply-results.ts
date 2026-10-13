@@ -4,7 +4,13 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { parseMatchKey } from "./core.js";
-import { advanceWinnerToParent, planProviderMatchRelocation } from "./rapidapi.js";
+import {
+  advanceWinnerToParent,
+  matchLookupFromQuery,
+  mergeSettledFact,
+  planProviderMatchRelocation,
+  settledFactSkipReason,
+} from "./rapidapi.js";
 
 /**
  * Move one emitted provider_match_id onto its bound match.
@@ -76,6 +82,8 @@ export type MatchResultIn = {
   winner_provider_id?: string | null;
   winner_ref?: string | null;
   voided?: boolean;
+  official_score?: string | null;
+  fact_kind?: "played" | "withdrawal" | "void" | null;
 };
 
 export type ApplyMatchResultsOk = {
@@ -137,7 +145,12 @@ export async function applyMatchResults(
   });
 
   for (const r of ordered) {
-    const match = await findMatch(admin, id, r);
+    const found = await findMatch(admin, id, r);
+    if (!found.ok) {
+      log.push(`results lookup failed: ${found.error}`);
+      return { ok: false, error: found.error, log };
+    }
+    const match = found.row;
     if (!match) {
       skipped.push({
         reason: "match not found",
@@ -155,41 +168,6 @@ export async function applyMatchResults(
 
     const voided = Boolean(r.voided);
     let winnerId: string | null = null;
-
-    // Settled + different winner → conflict (never overwrite).
-    if (
-      match.settled_at &&
-      match.winner_player_id &&
-      !voided
-    ) {
-      // Resolve candidate winner early for conflict check when already settled.
-      let candidate: string | null = r.winner_player_id ?? null;
-      if (!candidate) {
-        const providerId =
-          (r.winner_provider_id && String(r.winner_provider_id).trim()) ||
-          extractProviderId(r.winner_ref);
-        if (providerId) {
-          candidate = await resolvePlayerId(admin, providerId, playerCache);
-        }
-      }
-      if (candidate && candidate !== match.winner_player_id) {
-        skipped.push({ reason: "winner conflict", id: match.id });
-        if (runId) {
-          await admin.from("ops_events").insert({
-            kind: "reconcile",
-            name: "winner_conflict",
-            payload: {
-              tournament_id: id,
-              match_id: match.id,
-              match_key: r.match_key,
-              existing: match.winner_player_id,
-              incoming: candidate,
-            },
-          });
-        }
-        continue;
-      }
-    }
 
     if (!voided) {
       if (r.winner_player_id) {
@@ -227,10 +205,101 @@ export async function applyMatchResults(
       }
     }
 
+    const decision = mergeSettledFact(
+      {
+        settled_at: match.settled_at,
+        winner_player_id: match.winner_player_id,
+        voided: match.voided,
+        official_score: match.official_score,
+        fact_kind: match.fact_kind,
+      },
+      {
+        winner_player_id: winnerId,
+        voided,
+        official_score: r.official_score ?? null,
+        fact_kind: r.fact_kind ?? null,
+      }
+    );
+
+    if (decision.conflicts.includes("winner") && runId) {
+        await admin.from("ops_events").insert({
+          kind: "reconcile",
+          name: "winner_conflict",
+          payload: {
+            tournament_id: id,
+            match_id: match.id,
+            match_key: r.match_key,
+            existing: match.winner_player_id,
+            incoming: winnerId,
+            voided_existing: Boolean(match.voided),
+            voided_incoming: voided,
+          },
+        });
+    }
+    if (decision.conflicts.includes("score") && runId) {
+      await admin.from("ops_events").insert({
+        kind: "reconcile",
+        name: "score_conflict",
+        payload: {
+          tournament_id: id,
+          match_id: match.id,
+          match_key: r.match_key,
+          existing: match.official_score,
+          incoming: r.official_score ?? null,
+        },
+      });
+    }
+    if (decision.conflicts.includes("fact_kind") && runId) {
+      await admin.from("ops_events").insert({
+        kind: "reconcile",
+        name: "fact_kind_conflict",
+        payload: {
+          tournament_id: id,
+          match_id: match.id,
+          match_key: r.match_key,
+          existing: match.fact_kind,
+          incoming: r.fact_kind ?? null,
+        },
+      });
+    }
+
+    if (decision.action !== "write") {
+      if (Object.keys(decision.patch).length > 0) {
+        const { error } = await admin
+          .from("matches")
+          .update(decision.patch)
+          .eq("id", match.id);
+        if (error) {
+          log.push(`results update failed: ${error.message}`);
+          return { ok: false, error: error.message, log };
+        }
+        updated += 1;
+      }
+      const heldWinner = match.voided ? null : match.winner_player_id;
+      if (decision.action !== "conflict" && heldWinner) {
+        const did = await writeWinnerIntoParent(
+          admin,
+          id,
+          match.round,
+          match.index_in_round,
+          heldWinner,
+          now
+        );
+        if (did) advanced += 1;
+      }
+      skipped.push({
+        reason: settledFactSkipReason(decision),
+        id: match.id,
+      });
+      continue;
+    }
+
     const patch: Record<string, unknown> = {
       voided,
       winner_player_id: voided ? null : winnerId,
       settled_at: now,
+      official_score: decision.patch.official_score ?? null,
+      fact_kind: decision.patch.fact_kind ?? null,
     };
 
     if (
@@ -267,27 +336,6 @@ export async function applyMatchResults(
       }
     }
 
-    const unchanged =
-      before.winner_player_id === (patch.winner_player_id ?? null) &&
-      Boolean(before.voided) === voided;
-    if (unchanged && !patch.side_a_player_id && !patch.side_b_player_id) {
-      // Bye / prior settle may have set winner without parent advance — heal.
-      if (!voided && winnerId) {
-        const did = await writeWinnerIntoParent(
-          admin,
-          id,
-          match.round,
-          match.index_in_round,
-          winnerId,
-          now
-        );
-        if (did) advanced += 1;
-      }
-      // relocateProviderMatchId already moved the id. Winner and settled_at stay.
-      skipped.push({ reason: "already settled", id: match.id });
-      continue;
-    }
-
     // Write matches first — never latch a claim before the durable row exists.
     const { error } = await admin
       .from("matches")
@@ -298,6 +346,10 @@ export async function applyMatchResults(
       return { ok: false, error: error.message, log };
     }
     updated += 1;
+
+    // M3 hook: this branch has no provisional_winner and no live_match_state.
+    // Once that field exists, clear it here, after this durable official write.
+    // Do not clear it on a winner conflict. Do not add the column in M1.
 
     const claimOutcome = voided ? "void" : "winner";
     const { data: claimStatus, error: claimErr } = await admin.rpc(
@@ -428,15 +480,7 @@ async function healSettledAdvances(
   return n;
 }
 
-async function findMatch(
-  admin: SupabaseClient,
-  tournamentId: string,
-  r: {
-    match_id?: string;
-    provider_match_id?: string;
-    match_key?: string;
-  }
-): Promise<{
+type MatchRow = {
   id: string;
   round: number;
   index_in_round: number;
@@ -446,17 +490,43 @@ async function findMatch(
   winner_player_id: string | null;
   voided: boolean | null;
   settled_at: string | null;
-} | null> {
+  official_score: string | null;
+  fact_kind: string | null;
+};
+
+type MatchLookup = { ok: true; row: MatchRow | null } | { ok: false; error: string };
+
+async function readMatch(
+  query: PromiseLike<{
+    data: MatchRow | null;
+    error: { message?: string } | null;
+  }>
+): Promise<MatchLookup> {
+  const looked = matchLookupFromQuery(await query);
+  if (!looked.ok) return looked;
+  return { ok: true, row: (looked.row as MatchRow | null) ?? null };
+}
+
+async function findMatch(
+  admin: SupabaseClient,
+  tournamentId: string,
+  r: {
+    match_id?: string;
+    provider_match_id?: string;
+    match_key?: string;
+  }
+): Promise<MatchLookup> {
   const cols =
-    "id, round, index_in_round, side_a_player_id, side_b_player_id, provider_match_id, winner_player_id, voided, settled_at";
+    "id, round, index_in_round, side_a_player_id, side_b_player_id, provider_match_id, winner_player_id, voided, settled_at, official_score, fact_kind";
   if (r.match_id) {
-    const { data } = await admin
-      .from("matches")
-      .select(cols)
-      .eq("id", r.match_id)
-      .eq("tournament_id", tournamentId)
-      .maybeSingle();
-    return data ?? null;
+    return readMatch(
+      admin
+        .from("matches")
+        .select(cols)
+        .eq("id", r.match_id)
+        .eq("tournament_id", tournamentId)
+        .maybeSingle()
+    );
   }
 
   // Prefer bracket key over provider_match_id. Local rows can carry stale /
@@ -464,28 +534,31 @@ async function findMatch(
   if (r.match_key) {
     const parsed = parseMatchKey(r.match_key);
     if (parsed) {
-      const { data } = await admin
-        .from("matches")
-        .select(cols)
-        .eq("tournament_id", tournamentId)
-        .eq("round", parsed.round)
-        .eq("index_in_round", parsed.indexInRound)
-        .maybeSingle();
-      if (data) return data;
+      const bySlot = await readMatch(
+        admin
+          .from("matches")
+          .select(cols)
+          .eq("tournament_id", tournamentId)
+          .eq("round", parsed.round)
+          .eq("index_in_round", parsed.indexInRound)
+          .maybeSingle()
+      );
+      if (!bySlot.ok || bySlot.row) return bySlot;
     }
   }
 
   if (r.provider_match_id) {
-    const { data } = await admin
-      .from("matches")
-      .select(cols)
-      .eq("tournament_id", tournamentId)
-      .eq("provider_match_id", String(r.provider_match_id))
-      .maybeSingle();
-    return data ?? null;
+    return readMatch(
+      admin
+        .from("matches")
+        .select(cols)
+        .eq("tournament_id", tournamentId)
+        .eq("provider_match_id", String(r.provider_match_id))
+        .maybeSingle()
+    );
   }
 
-  return null;
+  return { ok: true, row: null };
 }
 
 async function resolvePlayerId(

@@ -16,6 +16,10 @@ export type OfficialMatch = {
   winnerRef: string | null;
   /** Void outranks correct/incorrect — pick neither scores nor misses. */
   voided?: boolean;
+  /** Published score text. Grading ignores it. */
+  officialScore?: string | null;
+  /** played | withdrawal | void. Grading ignores it. */
+  factKind?: "played" | "withdrawal" | "void" | null;
 };
 
 export type OfficialResults = Record<string, OfficialMatch>;

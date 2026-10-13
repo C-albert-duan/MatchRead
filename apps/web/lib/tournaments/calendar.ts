@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { formatTournamentDate } from "@/lib/tournaments/dates";
-import { formatLockWhen } from "@/lib/tournaments/format";
+import { captionTimeZone, formatLockWhen } from "@/lib/tournaments/format";
 export { formatTournamentDate };
 export { formatLockWhen };
 export {
@@ -88,11 +88,13 @@ export function surfaceLabelKey(
 
 export function formatTournamentWhen(
   row: Pick<CalendarTournament, "starts_on" | "main_draw_starts_on" | "hasDraw" | "surface">,
-  labels: { drawOpen: string; drawPending: string }
+  labels: { drawOpen: string; drawPending: string },
+  locale: string
 ) {
   const parts: string[] = [];
   const day = row.main_draw_starts_on || row.starts_on;
-  if (day) parts.push(day);
+  const when = day ? formatTournamentDate(day, locale) : null;
+  if (when) parts.push(when);
   parts.push(row.hasDraw ? labels.drawOpen : labels.drawPending);
   return parts.join(" · ");
 }
@@ -120,7 +122,7 @@ export function formatUpcomingAction(
     parts.push(
       `${labels.entryLocks} ${formatLockWhen(
         row.lock_at,
-        timeZone || row.venue_tz || "UTC",
+        captionTimeZone(timeZone, row.venue_tz),
         locale,
         { today: labels.today, tomorrow: labels.tomorrow },
         now
@@ -128,11 +130,8 @@ export function formatUpcomingAction(
     );
   } else {
     const day = row.main_draw_starts_on || row.starts_on;
-    if (day) {
-      parts.push(
-        `${labels.starts} ${formatTournamentDate(day, locale) ?? day}`
-      );
-    }
+    const when = day ? formatTournamentDate(day, locale) : null;
+    if (when) parts.push(`${labels.starts} ${when}`);
   }
   return parts.join(" · ");
 }

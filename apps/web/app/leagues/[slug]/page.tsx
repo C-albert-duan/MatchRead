@@ -243,6 +243,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
   const settledTournaments = new Set(
     (scoredRows ?? []).map((s) => s.tournament_id)
   );
+  const dateTbc = t("calendar.dateTbc");
 
   return (
     <AppShell signedIn email={user.email}>
@@ -373,7 +374,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                     t.starts_on,
                     locale,
                     (t as { ends_on?: string | null }).ends_on
-                  ) ?? t.starts_on;
+                  ) ?? dateTbc;
                 const lockAt =
                   shouldShowEntryLock(t) && t.lock_at ? t.lock_at : null;
                 const labels = timeLabels();

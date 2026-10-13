@@ -1,6 +1,8 @@
 export type RapidApiClientOptions = {
   key: string;
   host?: string;
+  /** Exact response body, before JSON.parse. Used for raw NDJSON capture. */
+  onRawBody?: (row: { path: string; status: number; bodyText: string }) => void;
 };
 
 export type Tour = "atp" | "wta";
@@ -28,6 +30,8 @@ export type IngestResultRow = {
   match_key: string;
   winner_ref: string | null;
   voided: boolean;
+  official_score?: string | null;
+  fact_kind?: "played" | "withdrawal" | "void" | null;
 };
 
 export type CalendarQueryOptions = {
@@ -346,24 +350,6 @@ export declare function getTournamentResults(
   raw: unknown;
 }>;
 
-export declare function resolveNationalBankOpenWeek(dual: {
-  atp: { tournaments: ProviderCalendarTournament[] };
-  wta: { tournaments: ProviderCalendarTournament[] };
-}): {
-  montreal: {
-    tour: "atp";
-    provider_tournament_id: string;
-    name: string;
-    starts_on: string | null;
-  } | null;
-  toronto: {
-    tour: "wta";
-    provider_tournament_id: string;
-    name: string;
-    starts_on: string | null;
-  } | null;
-};
-
 export declare function mapResultsToIngest(
   matches: ProviderMatchResult[],
   mapping: ReconcileMapping
@@ -391,6 +377,38 @@ export declare function diffDrawSeats(
   old_kind: string;
   new_kind: string;
 }>;
+
+export declare function overlaySeatPatch(
+  existing: { kind?: string; seat_kind?: string } | null | undefined,
+  incoming: {
+    kind?: string;
+    seat_kind?: string;
+    tbd_label?: string | null;
+    last_name?: string | null;
+    entry?: string | null;
+    seed?: number | null;
+  } | null | undefined
+): Record<string, unknown> | null;
+
+export declare function isFakeByeSettlement(s: {
+  childWinnerId?: string | null;
+  remainingPlayerId?: string | null;
+  vacatedPlayerId?: string | null;
+}): boolean;
+
+export declare function planFakeByeUnwind(s: {
+  childWinnerId?: string | null;
+  remainingPlayerId?: string | null;
+  vacatedPlayerId?: string | null;
+  parentWinnerId?: string | null;
+  parentSettledAt?: string | null;
+  parentOccupantId?: string | null;
+}): { clearChildSettlement: boolean; clearParentSide: boolean };
+
+export declare function r0IndexFromSeatPosition(position: number): {
+  indexInRound: number;
+  childSide: "a" | "b";
+};
 
 export declare function drawPollIntervalMs(input?: {
   now?: Date;
@@ -512,6 +530,52 @@ export declare function proposeShapeBRepairs(
   result_type: string | null;
 }>;
 
+export declare function planScorelineBackfill(input: {
+  matches: Array<{
+    id: string;
+    match_key: string;
+    round: number;
+    index_in_round: number;
+    provider_match_id?: string | null;
+    side_a_provider_id?: string | null;
+    side_b_provider_id?: string | null;
+    settled_at?: string | null;
+    winner_player_id?: string | null;
+    voided?: boolean | null;
+    official_score?: string | null;
+    fact_kind?: string | null;
+  }>;
+  archiveRows?: Array<Record<string, unknown>>;
+  players?: Record<string, string>;
+}): {
+  fills: Array<{
+    match_id: string;
+    match_key: string;
+    official_score?: string;
+    fact_kind?: string;
+  }>;
+  conflicts: Array<{
+    kind: string;
+    match_id: string;
+    match_key: string;
+    existing: unknown;
+    incoming: unknown;
+  }>;
+  unchanged: Array<{ match_id: string; match_key: string }>;
+  unmatchedLocal: Array<{ match_id: string; match_key: string; reason: string }>;
+  unmatchedArchive: Array<{
+    provider_match_id: string;
+    reason: string;
+    official_score: string | null;
+  }>;
+  skippedUnsettled: Array<{
+    match_id: string;
+    match_key: string;
+    reason: string;
+    official_score: string;
+  }>;
+};
+
 export declare function selectArchiveRows<T extends { id?: string | number | null }>(
   rows: T[],
   allowIds?: Array<string | number> | null
@@ -542,6 +606,47 @@ export declare function planProviderMatchRelocation(
   assign: { match_key: string; patch: { provider_match_id: string } } | null;
 };
 
+export declare function entryRowsFromInfo(info: unknown): unknown[] | null;
+
+export declare function absenceObservability(input: {
+  absences: {
+    withdrawal?: string[];
+    ingestionGap?: string[];
+    unexplained?: string[];
+  };
+  ref: string;
+  slug: string;
+  tour: string;
+  providerTournamentId: string | number;
+  fixturesLoaded: boolean;
+  entriesLoaded: boolean;
+}): Array<{
+  kind: "error" | "reconcile";
+  name: string;
+  payload: Record<string, unknown>;
+}>;
+
+export declare function absenceSignalLog(row: {
+  kind: string;
+  name: string;
+  payload: Record<string, unknown>;
+}): string;
+
+export declare function classifyPlayerAbsences(input: {
+  seats?: Array<{
+    provider_player_id?: string | null;
+    player_id?: string | null;
+  }>;
+  archiveRows?: unknown[];
+  fixtures?: unknown[] | null;
+  entries?: unknown[] | null;
+}): {
+  withdrawal: string[];
+  ingestionGap: string[];
+  unexplained: string[];
+  settleBlocked: boolean;
+};
+
 export declare function planArchiveResults(input: {
   rows?: Array<{ id?: string | number | null }>;
   allowIds?: Array<string | number> | null;
@@ -562,6 +667,9 @@ export declare function planArchiveResults(input: {
     provider_match_id?: string | null;
     match_key?: string;
   }>;
+  fixtures?: unknown[] | null;
+  entries?: unknown[] | null;
+  info?: unknown;
 }): {
   archiveRows: Array<{ id?: string | number | null }>;
   bound: ReturnType<typeof bindResultsByPlayerPair>;
@@ -571,6 +679,12 @@ export declare function planArchiveResults(input: {
   authDiff: { orphans: Array<{ provider_match_id: string }>; missingFromStore: string[] };
   providerIdUpdates: Array<{ match_key: string; provider_match_id: string }>;
   applyResults: Array<{ match_key: string; provider_match_id?: string }>;
+  absences: {
+    withdrawal: string[];
+    ingestionGap: string[];
+    unexplained: string[];
+    settleBlocked: boolean;
+  };
 };
 
 export declare function bindResultsByPlayerPair(
@@ -733,6 +847,7 @@ export declare function assertDrawBelongsToTournament(
     provider_season_id?: string | null;
   }
 ): void;
+export declare function maxOfficialByes(slotCount: number): number;
 export declare function evaluateDrawIntegrity(input: {
   seats: unknown[];
   tournament?: {
@@ -741,9 +856,13 @@ export declare function evaluateDrawIntegrity(input: {
     surface?: string | null;
     bracket_eligible?: boolean | null;
     draw_checked_at?: string | null;
+    draw_size?: number | null;
   };
   drawTour?: string | null;
   drawProviderId?: string | null;
+  drawPathHint?: string | null;
+  drawProviderType?: string | null;
+  terminalRoundMatches?: number | null;
   source?: string | null;
   sourceSnapshotId?: string | null;
 }): {
@@ -753,4 +872,100 @@ export declare function evaluateDrawIntegrity(input: {
   checkedAt: string;
   sourceSnapshotId?: string | null;
 };
+
+export declare function officialScoreText(
+  row: Record<string, unknown> | null | undefined
+): string | null;
+
+export declare function mergeSettledFact(
+  existing: {
+    settled_at?: string | null;
+    winner_player_id?: string | null;
+    voided?: boolean | null;
+    official_score?: string | null;
+    fact_kind?: string | null;
+  },
+  incoming: {
+    winner_player_id?: string | null;
+    voided?: boolean | null;
+    official_score?: string | null;
+    fact_kind?: string | null;
+  }
+): {
+  action: "write" | "fill" | "conflict" | "noop";
+  patch: Record<string, unknown>;
+  conflicts: string[];
+};
+
+export declare function settledFactSkipReason(
+  decision:
+    | { action?: string; conflicts?: string[] }
+    | null
+    | undefined
+): string;
+
+export declare function matchLookupFromQuery(result: {
+  data?: unknown;
+  error?: { message?: string } | null;
+} | null | undefined):
+  | { ok: true; row: unknown }
+  | { ok: false; error: string };
+
+export declare function encodeCaptureLine(record: {
+  captured_at: string;
+  path: string;
+  status: number;
+  body_text: string;
+}): string;
+
+export type FrameRecorder = {
+  filePath: string;
+  recordText(frame: {
+    transport?: string;
+    path?: string;
+    status?: number;
+    payload: string;
+  }): Promise<void>;
+  recordJson(frame: {
+    transport?: string;
+    path?: string;
+    status?: number;
+    payload: unknown;
+  }): Promise<void>;
+  recordBinary(
+    bytes: Uint8Array,
+    meta?: { transport?: string; path?: string }
+  ): Promise<void>;
+  lifecycle(event: string, detail?: string | null): Promise<void>;
+  drained(): Promise<void>;
+  close(): Promise<void>;
+};
+
+export declare function createFrameRecorder(filePath: string): FrameRecorder;
+
+export declare function bindProcessSignals(
+  recorder: FrameRecorder,
+  proc?: NodeJS.Process
+): void;
+
+export declare function captureReport(
+  records: Array<Record<string, unknown>>
+): {
+  lines: number;
+  http: { path: string; status: unknown; bytes: number }[];
+};
+
+export declare function wtaTournamentIdFromLiveText(
+  text: string | null | undefined
+): string | null;
+
+export declare function runLiveCapture(session: {
+  recorder: FrameRecorder;
+  read: (path: string) => Promise<{
+    path?: string;
+    status: number;
+    bodyText: string;
+  }>;
+  year: number | string;
+}): Promise<void>;
 

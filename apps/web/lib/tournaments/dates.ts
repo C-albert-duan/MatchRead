@@ -1,4 +1,10 @@
-/** Draw-sheet date or range: `13–23 Aug 2026`. Month follows the locale. Never a raw ISO date. */
+import { formatUtcMonth } from "./format.ts";
+
+/**
+ * Draw-sheet date or range: `13–23 Aug 2026`.
+ * These are calendar dates, not instants. Month follows the locale in UTC.
+ * Viewer-local clocks go through format.ts. An unreadable value is null.
+ */
 export function formatTournamentDate(
   startsOn: string | null,
   locale: string,
@@ -6,7 +12,7 @@ export function formatTournamentDate(
 ): string | null {
   if (!startsOn) return null;
   const start = parseDay(startsOn);
-  if (!start) return startsOn.includes("T") ? startsOn.slice(0, 10) : startsOn;
+  if (!start) return null;
   const end = endsOn ? parseDay(endsOn) : null;
   if (!end || end.getTime() === start.getTime()) {
     return formatOneDay(start, locale);
@@ -30,9 +36,7 @@ function parseDay(value: string): Date | null {
 }
 
 function monthShort(d: Date, locale: string): string {
-  return d
-    .toLocaleString(locale, { month: "short", timeZone: "UTC" })
-    .replace(".", "");
+  return formatUtcMonth(d, locale);
 }
 
 function formatOneDay(d: Date, locale: string): string {

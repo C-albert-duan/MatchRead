@@ -46,6 +46,8 @@ export default async function FounderIntegrityPage() {
         "terminal_without_winner",
         "tier_unmapped",
         "draw_identity_reject",
+        "ingestion_gap",
+        "unexplained_absence",
       ])
       .order("created_at", { ascending: false })
       .limit(25),
@@ -143,14 +145,36 @@ export default async function FounderIntegrityPage() {
           </h2>
           {blockedRes.data && blockedRes.data.length > 0 ? (
             <ul className="stack gap-sm">
-              {blockedRes.data.map((row) => (
-                <li key={row.id} className="t-body">
-                  <span className="numeral">
-                    {new Date(row.created_at).toISOString()}
-                  </span>{" "}
-                  {row.name}
-                </li>
-              ))}
+              {blockedRes.data.map((row) => {
+                const payload =
+                  row.payload &&
+                  typeof row.payload === "object" &&
+                  !Array.isArray(row.payload)
+                    ? (row.payload as {
+                        ref?: string;
+                        slug?: string;
+                        tour?: string;
+                        provider_tournament_id?: string;
+                      })
+                    : null;
+                const where = [
+                  payload?.ref,
+                  payload?.slug,
+                  payload?.tour,
+                  payload?.provider_tournament_id,
+                ]
+                  .filter(Boolean)
+                  .join(" · ");
+                return (
+                  <li key={row.id} className="t-body">
+                    <span className="numeral">
+                      {new Date(row.created_at).toISOString()}
+                    </span>{" "}
+                    {row.name}
+                    {where ? <span className="t-caption"> {where}</span> : null}
+                  </li>
+                );
+              })}
             </ul>
           ) : (
             <p className="t-body">{t("founder.integrity.alertsEmpty")}</p>

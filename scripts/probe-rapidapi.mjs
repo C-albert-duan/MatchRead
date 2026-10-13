@@ -12,11 +12,7 @@
  */
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
-import {
-  createClient,
-  getDualTourCalendar,
-  resolveNationalBankOpenWeek,
-} from "@matchread/provider-rapidapi";
+import { createClient, getDualTourCalendar } from "@matchread/provider-rapidapi";
 
 function loadEnvProvider() {
   const path = resolve(process.cwd(), ".env.provider");
@@ -58,9 +54,14 @@ if (mode === "calendar") {
     pageNo: 1,
   });
   console.log(`ATP rows=${dual.atp.tournaments.length} WTA rows=${dual.wta.tournaments.length}`);
-  const week = resolveNationalBankOpenWeek(dual);
-  console.log("National Bank Open week (name match):");
-  console.log(JSON.stringify(week, null, 2));
+  const sample = [...dual.atp.tournaments, ...dual.wta.tournaments]
+    .slice(0, 8)
+    .map((row) => ({
+      id: row?.id,
+      date: row?.date || row?.start || null,
+    }));
+  console.log("Sample provider ids (first 8):");
+  console.log(JSON.stringify(sample, null, 2));
   console.log("\nOK — dual-tour calendar fetched.");
   process.exit(0);
 }

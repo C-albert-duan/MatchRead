@@ -4,7 +4,13 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { relocateProviderMatchId } from "./apply-results.ts";
 import { buildRoundStructure, parseMatchKey } from "./core.js";
-import { advanceWinnerToParent, r0SlotFromSeatPair } from "./rapidapi.js";
+import {
+  advanceWinnerToParent,
+  overlaySeatPatch,
+  planFakeByeUnwind,
+  r0IndexFromSeatPosition,
+  r0SlotFromSeatPair,
+} from "./rapidapi.js";
 
 type SeatIn = {
   position: number;
@@ -412,6 +418,14 @@ export async function applyDrawFacts(
           { allowReplacement: true }
         );
         if (overlay.error) return fail(overlay.error, log);
+        if (overlay.byeToTbdPositions.length > 0) {
+          await unwindFakeByeAdvances(
+            admin,
+            tournamentId,
+            overlay.byeToTbdPositions,
+            log
+          );
+        }
 
         if (changes.length > 0) {
           await admin.from("draw_revisions").upsert(
@@ -1236,6 +1250,8 @@ async function refreshRoundZeroSides(
     }
     await admin.from("matches").update(patch).eq("id", m.id);
     if (byeWinner) {
+      // M3 hook: this bye winner is official. Clear provisional_winner
+      // here only after M3 adds that field.
       await advanceWinnerIntoParentMatch(
         admin,
         tournamentId,
@@ -1262,7 +1278,12 @@ async function overlayExistingSeats(
   playerByProvider: Map<string, string>,
   log: string[],
   opts: { allowReplacement?: boolean } = {}
-): Promise<{ error: string | null; mapped: number; filled: number }> {
+): Promise<{
+  error: string | null;
+  mapped: number;
+  filled: number;
+  byeToTbdPositions: number[];
+}> {
   const named = seats
     .filter(
       (s) =>
@@ -1277,17 +1298,20 @@ async function overlayExistingSeats(
       country_code: s.country_code,
     }));
   const upErr = await upsertPlayers(admin, named, playerByProvider, log);
-  if (upErr) return { error: upErr, mapped: 0, filled: 0 };
+  if (upErr) return { error: upErr, mapped: 0, filled: 0, byeToTbdPositions: [] };
 
   const { data: current, error } = await admin
     .from("seats")
     .select("position, kind, tbd_label, player_id")
     .eq("tournament_id", tournamentId);
-  if (error) return { error: error.message, mapped: 0, filled: 0 };
+  if (error) {
+    return { error: error.message, mapped: 0, filled: 0, byeToTbdPositions: [] };
+  }
 
   const byPos = new Map((current ?? []).map((s) => [Number(s.position), s]));
   let mapped = 0;
   let filled = 0;
+  const byeToTbdPositions: number[] = [];
 
   for (const s of seats) {
     const existing = byPos.get(s.position);
@@ -1328,6 +1352,18 @@ async function overlayExistingSeats(
       patch.entry = null;
     }
 
+    const byeToTbd = overlaySeatPatch(existing, {
+      kind: s.kind,
+      tbd_label: s.tbd_label,
+      last_name: s.last_name,
+      entry: s.entry,
+      seed: s.seed,
+    });
+    if (byeToTbd) {
+      Object.assign(patch, byeToTbd);
+      byeToTbdPositions.push(s.position);
+    }
+
     if (s.kind === "tbd" && opts.allowReplacement && existing.kind === "player") {
       // Rare: named → TBD; keep as tbd only if product allows — skip by default.
     }
@@ -1338,14 +1374,110 @@ async function overlayExistingSeats(
       .update(patch)
       .eq("tournament_id", tournamentId)
       .eq("position", s.position);
-    if (upSeatErr) return { error: upSeatErr.message, mapped, filled };
+    if (upSeatErr) {
+      return { error: upSeatErr.message, mapped, filled, byeToTbdPositions };
+    }
     mapped += 1;
   }
 
   log.push(
-    `kept official draw; overlaid ${mapped} seats; filled ${filled} TBD`
+    `kept official draw; overlaid ${mapped} seats; filled ${filled} TBD` +
+      (byeToTbdPositions.length
+        ? `; bye_to_tbd ${byeToTbdPositions.length}`
+        : "")
   );
-  return { error: null, mapped, filled };
+  return { error: null, mapped, filled, byeToTbdPositions };
+}
+
+/**
+ * After bye → tbd, drop the invented R0 bye-advance. Uses
+ * unwind_settlement_parent so a played/settled parent is left alone.
+ */
+async function unwindFakeByeAdvances(
+  admin: SupabaseClient,
+  tournamentId: string,
+  positions: number[],
+  log: string[]
+) {
+  let unwound = 0;
+  let parentsCleared = 0;
+  const seen = new Set<number>();
+  for (const position of positions) {
+    const { indexInRound, childSide } = r0IndexFromSeatPosition(position);
+    if (seen.has(indexInRound)) continue;
+    seen.add(indexInRound);
+
+    const { data: child } = await admin
+      .from("matches")
+      .select(
+        "id, side_a_player_id, side_b_player_id, winner_player_id, settled_at, voided"
+      )
+      .eq("tournament_id", tournamentId)
+      .eq("round", 0)
+      .eq("index_in_round", indexInRound)
+      .maybeSingle();
+    if (!child) continue;
+
+    const remaining =
+      childSide === "a" ? child.side_b_player_id : child.side_a_player_id;
+    const vacated =
+      childSide === "a" ? child.side_a_player_id : child.side_b_player_id;
+    const parent = advanceWinnerToParent(
+      0,
+      indexInRound,
+      remaining || child.winner_player_id || "x"
+    );
+    if (!parent) continue;
+
+    const { data: parentRow } = await admin
+      .from("matches")
+      .select(
+        "id, side_a_player_id, side_b_player_id, winner_player_id, settled_at"
+      )
+      .eq("tournament_id", tournamentId)
+      .eq("round", parent.round)
+      .eq("index_in_round", parent.indexInRound)
+      .maybeSingle();
+
+    const parentOccupant =
+      parent.side === "a"
+        ? parentRow?.side_a_player_id
+        : parentRow?.side_b_player_id;
+    const plan = planFakeByeUnwind({
+      childWinnerId: child.winner_player_id,
+      remainingPlayerId: remaining,
+      vacatedPlayerId: vacated,
+      parentWinnerId: parentRow?.winner_player_id ?? null,
+      parentSettledAt: parentRow?.settled_at ?? null,
+      parentOccupantId: parentOccupant ?? null,
+    });
+    if (!plan.clearChildSettlement) continue;
+
+    if (plan.clearParentSide) {
+      // RPC refuses when the parent already has a winner.
+      await admin.rpc("unwind_settlement_parent", { p_match: child.id });
+      parentsCleared += 1;
+    }
+
+    await admin
+      .from("matches")
+      .update({
+        winner_player_id: null,
+        settled_at: null,
+        voided: false,
+      })
+      .eq("id", child.id);
+    await admin.from("settlement_claims").delete().eq("match_id", child.id);
+    unwound += 1;
+  }
+  if (unwound) {
+    log.push(
+      `unwound ${unwound} fake R0 bye settles` +
+        (parentsCleared
+          ? ` (cleared ${parentsCleared} unplayed parent sides)`
+          : "")
+    );
+  }
 }
 
 async function invalidateMappingsForReplacements(

@@ -1867,6 +1867,10 @@ a.league-card:hover {
   white-space: nowrap;
 }
 
+.bye-tag.name-win {
+  color: var(--mr-data);
+}
+
 .slot[data-unpicked="true"] {
   border-style: none;
 }
@@ -2084,8 +2088,53 @@ label.name:hover {
   color: var(--mr-text-muted);
 }
 
+.match-cell[data-settled="true"] .slot {
+  background: var(--mr-data-tint);
+  border-color: color-mix(in srgb, var(--mr-data) 35%, var(--mr-line));
+}
+
+.match-state {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.match-cell[data-resolution="official"] .match-state {
+  color: var(--mr-data);
+}
+
+.match-cell[data-resolution="scheduled"] .match-state {
+  color: var(--mr-text-muted);
+  font-weight: 500;
+}
+
+.match-cell[data-resolution="scheduled"] .slot {
+  background: var(--mr-raised);
+}
+
+.match-score {
+  margin: 2px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--mr-data);
+}
+
+.match-fact {
+  margin: 4px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--mr-text-muted);
+}
+
 .match-when {
-  margin: 8px 0 0;
+  margin: 2px 0 0;
   font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;

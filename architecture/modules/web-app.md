@@ -11,7 +11,7 @@
 | `@supabase/ssr` with **anon** key | Hold `SUPABASE_SERVICE_ROLE_KEY` |
 | RPCs for product writes | Direct client DML into product tables |
 
-Clients: `lib/supabase/server.ts`, `client.ts`; session refresh in `middleware.ts`. Env surface: `lib/env.ts` (public URL/anon/site origin only).
+Clients: `lib/supabase/server.ts`, `client.ts`; session refresh in `middleware.ts`. Env surface: `lib/env.ts` (public URL/anon/site origin only). Errors: `lib/report-error.ts` always writes `ops_events` and calls `@sentry/nextjs` only when `SENTRY_DSN` or `NEXT_PUBLIC_SENTRY_DSN` is set. Next 14 loads `instrumentation.ts` plus `sentry.server.config.ts`, `sentry.edge.config.ts`, and `sentry.client.config.ts`. `next.config.js` wraps the build with `withSentryConfig` from `@sentry/nextjs/config`. No DSN is required to run. Source map upload runs only when `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and `SENTRY_PROJECT` are all set.
 
 ## Architecture
 
@@ -28,6 +28,17 @@ app/ (routes + RSC)
 
 components/
   bracket/  league/  tournaments/  shell/  auth/  founder/
+
+`BracketGrid` match cells show `officialScore` and mark the seat whose ref
+equals `winnerRef` on a non-void settled result. A pick does not mark a winner.
+Each non-bye cell is `official` when that result has `winnerRef` or `voided`,
+and `scheduled` otherwise. `officialScore` and start time do not choose the state.
+
+Match, lock, and announced-pair clocks use `lib/tournaments/format.ts`.
+`profiles` has no `time_zone`. `useViewerTimeZone` reads the browser IANA zone
+after mount and stays null on the server, so a clock is omitted until that zone
+is known. A caption that must render uses the venue zone, then UTC.
+Tournament `starts_on` / `ends_on` stay calendar dates in `dates.ts`.
 
 `AppShell` mounts `LiveRefresh` (~45s `router.refresh()`) on every routed page so
 homepage, calendar, tournament, and league views reflect new facts after sync-facts
@@ -46,7 +57,7 @@ without a manual reload. Ingest remains batch (~5m cron); this only re-reads Pos
 | `/leagues/[slug]/t/[ref]/result` | Results / breakdown |
 | `/join/[token]` | Invite accept |
 | `/sign-in`, `/welcome` | Auth + display name |
-| `/founder/*` | Ops / integrity surfaces |
+| `/founder/*` | Ops / integrity surfaces. Integrity alerts include `ingestion_gap` and `unexplained_absence`, shown with public ref, slug, tour, and provider tournament id |
 
 ## Write path
 
