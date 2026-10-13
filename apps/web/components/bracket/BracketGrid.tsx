@@ -231,21 +231,28 @@ export function BracketGrid({
                       data-index={match.indexInRound}
                       data-has-winner="true"
                     >
-                      <div
-                        className="slot slot--bye"
-                        role="group"
-                        aria-label={`${advancer.lastName} advances (bye)`}
-                      >
-                        <PlayerChip
-                          occupant={advancer}
-                          grade="official"
-                          seat={0}
-                        />
-                        <span className="bye-tag">Bye · advances</span>
+                      <div className="match-cell-slot">
+                        <div
+                          className="slot slot--bye"
+                          role="group"
+                          aria-label={`${advancer.lastName} advances (bye)`}
+                        >
+                          <PlayerChip
+                            occupant={advancer}
+                            grade="official"
+                            seat={0}
+                          />
+                          <span className="bye-tag">Bye · advances</span>
+                        </div>
                       </div>
-                      {when ? (
-                        <p className="match-when numeral">{when}</p>
-                      ) : null}
+                      <div
+                        className="match-sheet-foot"
+                        aria-hidden={when ? undefined : true}
+                      >
+                        {when ? (
+                          <p className="match-when numeral">{when}</p>
+                        ) : null}
+                      </div>
                     </div>
                   );
                 }
@@ -272,108 +279,112 @@ export function BracketGrid({
                     data-fact-kind={result?.factKind || undefined}
                     data-has-winner={officialWinner ? "true" : undefined}
                   >
-                    <div
-                      className="slot"
-                      role="radiogroup"
-                      aria-label={`${round.label.match} match ${match.indexInRound + 1}, ${stateLabel}${unpicked ? ", unpicked" : ""}${
-                        officialWinner
-                          ? `, won by ${seatName(seats, officialWinner)}`
-                          : ""
-                      }`}
-                      data-unpicked={unpicked ? "true" : undefined}
-                      data-confidence={showConfidence ? "true" : undefined}
-                      data-graded={resultTone}
-                    >
-                      {pickable ? (
-                        <>
-                          <PlayerChip
-                            as="button"
-                            occupant={a}
-                            chosen={chosen === refOf(a)}
-                            name={groupName}
-                            value={refOf(a) ?? ""}
-                            checked={chosen === refOf(a)}
-                            seat={0}
-                            officialWinner={settledWinner(refOf(a))}
-                            onClick={() =>
-                              a.kind === "player" &&
-                              onPick?.(match.key, a.ref)
-                            }
-                          />
-                          <PlayerChip
-                            as="button"
-                            occupant={b}
-                            chosen={chosen === refOf(b)}
-                            name={groupName}
-                            value={refOf(b) ?? ""}
-                            checked={chosen === refOf(b)}
-                            seat={1}
-                            officialWinner={settledWinner(refOf(b))}
-                            onClick={() =>
-                              b.kind === "player" &&
-                              onPick?.(match.key, b.ref)
-                            }
-                          />
-                        </>
-                      ) : (
-                        <>
-                          <PlayerChip
-                            occupant={a}
-                            chosen={a.kind === "player" && chosen === a.ref}
-                            grade={gradeA}
-                            seat={0}
-                            officialWinner={settledWinner(refOf(a))}
-                          />
-                          <PlayerChip
-                            occupant={b}
-                            chosen={b.kind === "player" && chosen === b.ref}
-                            grade={gradeB}
-                            seat={1}
-                            officialWinner={settledWinner(refOf(b))}
-                          />
-                        </>
-                      )}
-                    </div>
-                    {showConfidence ? (
+                    <div className="match-cell-slot">
                       <div
-                        className="confidence-row"
-                        role="group"
-                        aria-label={`Confidence for ${round.label.match} match ${match.indexInRound + 1}`}
+                        className="slot"
+                        role="radiogroup"
+                        aria-label={`${round.label.match} match ${match.indexInRound + 1}, ${stateLabel}${unpicked ? ", unpicked" : ""}${
+                          officialWinner
+                            ? `, won by ${seatName(seats, officialWinner)}`
+                            : ""
+                        }`}
+                        data-unpicked={unpicked ? "true" : undefined}
+                        data-confidence={showConfidence ? "true" : undefined}
+                        data-graded={resultTone}
                       >
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <button
-                            key={n}
-                            type="button"
-                            className="confidence-btn"
-                            data-active={level === n ? "true" : undefined}
-                            disabled={locked}
-                            aria-pressed={level === n}
-                            aria-label={`Confidence ${n} of 5`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onConfidence?.(match.key, n);
-                            }}
-                          >
-                            {n}
-                          </button>
-                        ))}
+                        {pickable ? (
+                          <>
+                            <PlayerChip
+                              as="button"
+                              occupant={a}
+                              chosen={chosen === refOf(a)}
+                              name={groupName}
+                              value={refOf(a) ?? ""}
+                              checked={chosen === refOf(a)}
+                              seat={0}
+                              officialWinner={settledWinner(refOf(a))}
+                              onClick={() =>
+                                a.kind === "player" &&
+                                onPick?.(match.key, a.ref)
+                              }
+                            />
+                            <PlayerChip
+                              as="button"
+                              occupant={b}
+                              chosen={chosen === refOf(b)}
+                              name={groupName}
+                              value={refOf(b) ?? ""}
+                              checked={chosen === refOf(b)}
+                              seat={1}
+                              officialWinner={settledWinner(refOf(b))}
+                              onClick={() =>
+                                b.kind === "player" &&
+                                onPick?.(match.key, b.ref)
+                              }
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <PlayerChip
+                              occupant={a}
+                              chosen={a.kind === "player" && chosen === a.ref}
+                              grade={gradeA}
+                              seat={0}
+                              officialWinner={settledWinner(refOf(a))}
+                            />
+                            <PlayerChip
+                              occupant={b}
+                              chosen={b.kind === "player" && chosen === b.ref}
+                              grade={gradeB}
+                              seat={1}
+                              officialWinner={settledWinner(refOf(b))}
+                            />
+                          </>
+                        )}
                       </div>
-                    ) : null}
-                    {gradeLabel ? (
-                      <div className="grade-row" aria-hidden="true">
-                        {gradeLabel}
-                      </div>
-                    ) : null}
-                    <p className="match-state numeral">{stateLabel}</p>
-                    {scoreText ? (
-                      <p className="match-score numeral">{scoreText}</p>
-                    ) : null}
-                    {withdrawal ? (
-                      <p className="match-fact">{t("match.withdrawal")}</p>
-                    ) : null}
-                    {when ? (
-                      <p className="match-when numeral">{when}</p>
-                    ) : null}
+                    </div>
+                    <div className="match-sheet-foot">
+                      {showConfidence ? (
+                        <div
+                          className="confidence-row"
+                          role="group"
+                          aria-label={`Confidence for ${round.label.match} match ${match.indexInRound + 1}`}
+                        >
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <button
+                              key={n}
+                              type="button"
+                              className="confidence-btn"
+                              data-active={level === n ? "true" : undefined}
+                              disabled={locked}
+                              aria-pressed={level === n}
+                              aria-label={`Confidence ${n} of 5`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onConfidence?.(match.key, n);
+                              }}
+                            >
+                              {n}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      {gradeLabel ? (
+                        <div className="grade-row" aria-hidden="true">
+                          {gradeLabel}
+                        </div>
+                      ) : null}
+                      <p className="match-state numeral">{stateLabel}</p>
+                      {scoreText ? (
+                        <p className="match-score numeral">{scoreText}</p>
+                      ) : null}
+                      {withdrawal ? (
+                        <p className="match-fact">{t("match.withdrawal")}</p>
+                      ) : null}
+                      {when ? (
+                        <p className="match-when numeral">{when}</p>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}

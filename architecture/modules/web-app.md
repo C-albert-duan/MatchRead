@@ -33,6 +33,9 @@ components/
 equals `winnerRef` on a non-void settled result. A pick does not mark a winner.
 Each non-bye cell is `official` when that result has `winnerRef` or `voided`,
 and `scheduled` otherwise. `officialScore` and start time do not choose the state.
+Round-0 cells reserve a fixed metadata foot (`--match-foot-max`, contract in
+`lib/brackets/layout-metrics.ts`) below the two-player card so status, score,
+and local time never paint into the inter-match connector gap.
 
 Match, lock, and announced-pair clocks use `lib/tournaments/format.ts`.
 `profiles` has no `time_zone`. `useViewerTimeZone` reads the browser IANA zone

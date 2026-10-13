@@ -1612,10 +1612,13 @@ a.league-card:hover {
   --pair-out: 48px;
   --draw-gap: clamp(52px, 5vw, 80px);
   --slot-h: calc(var(--seat-h) * 2 + var(--pair-in) + 8px);
+  /* Keep aligned with lib/brackets/layout-metrics.ts R0_MATCH_FOOT_MAX_PX */
+  --match-foot-max: 88px;
+  --r0-cell-h: calc(var(--slot-h) + var(--match-foot-max));
   --slot-gap: var(--pair-out);
   --bracket-head-h: 40px;
   --bracket-body-h: calc(
-    var(--r0-slots) * var(--slot-h) + (var(--r0-slots) - 1) * var(--slot-gap)
+    var(--r0-slots) * var(--r0-cell-h) + (var(--r0-slots) - 1) * var(--slot-gap)
   );
   --bracket-col-min: 280px;
   position: relative;
@@ -1722,9 +1725,27 @@ a.league-card:hover {
   flex: 1 1 0;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   min-height: 0;
   overflow: visible;
+}
+
+.match-cell-slot {
+  flex: 0 0 var(--slot-h);
+  display: flex;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.bracket-col:not([data-round="0"]) .match-cell-slot {
+  flex: 1 1 0;
+  align-items: center;
+}
+
+.match-sheet-foot {
+  flex: 0 0 auto;
+  width: 100%;
+  max-width: 100%;
 }
 
 /* —— Bracket elbows (pure CSS, lightly rounded) —— */
@@ -1785,13 +1806,17 @@ a.league-card:hover {
 /* R0: fixed slot rhythm — elbows start at slot midpoints */
 .bracket-col[data-round="0"]:not(:last-child) .match-cell:nth-child(odd)::after {
   top: calc(var(--slot-h) / 2);
-  height: calc((var(--slot-h) + var(--slot-gap)) / 2);
+  height: calc(
+    (var(--slot-h) + var(--slot-gap) + var(--match-foot-max)) / 2
+  );
 }
 
 .bracket-col[data-round="0"]:not(:last-child) .match-cell:nth-child(even)::after {
   top: auto;
-  bottom: calc(var(--slot-h) / 2);
-  height: calc((var(--slot-h) + var(--slot-gap)) / 2);
+  bottom: calc(var(--match-foot-max) + var(--slot-h) / 2);
+  height: calc(
+    (var(--slot-h) + var(--slot-gap) + var(--match-foot-max)) / 2
+  );
 }
 
 /* Later rounds: equal flex cells — half-cell span meets at the pair mid */
@@ -1809,10 +1834,16 @@ a.league-card:hover {
 }
 
 .bracket-col[data-round="0"] .match-cell {
-  flex: 0 0 var(--slot-h);
-  height: var(--slot-h);
+  flex: 0 0 var(--r0-cell-h);
+  height: var(--r0-cell-h);
   margin-bottom: var(--slot-gap);
   justify-content: flex-start;
+}
+
+.bracket-col[data-round="0"] .match-sheet-foot {
+  flex: 0 0 var(--match-foot-max);
+  max-height: var(--match-foot-max);
+  overflow: hidden;
 }
 
 .bracket-col[data-round="0"] .match-cell:last-child {
@@ -1849,8 +1880,8 @@ a.league-card:hover {
   justify-content: center;
 }
 
-.bracket-col[data-round="0"] .match-cell--bye {
-  justify-content: flex-start;
+.bracket-col[data-round="0"] .match-cell--bye .match-cell-slot {
+  align-items: flex-start;
   padding-top: calc((var(--slot-h) - (var(--touch) + 4px)) / 2);
 }
 
@@ -2048,21 +2079,19 @@ label.name:hover {
   background: var(--mr-sunken);
 }
 
-.slot[data-graded="correct"] + .confidence-row + .grade-row,
-.slot[data-graded="correct"] + .grade-row,
-.match-cell:has(.slot[data-graded="correct"]) > .grade-row {
+.match-cell:has(.slot[data-graded="correct"]) .grade-row {
   color: var(--mr-data);
   background: var(--mr-data-tint);
   border-color: color-mix(in srgb, var(--mr-data) 35%, var(--mr-line));
 }
 
-.match-cell:has(.slot[data-graded="incorrect"]) > .grade-row {
+.match-cell:has(.slot[data-graded="incorrect"]) .grade-row {
   color: var(--mr-miss);
   background: color-mix(in srgb, var(--mr-miss) 8%, var(--mr-sunken));
   border-color: color-mix(in srgb, var(--mr-miss) 30%, var(--mr-line));
 }
 
-.match-cell:has(.slot[data-graded="voided"]) > .grade-row {
+.match-cell:has(.slot[data-graded="voided"]) .grade-row {
   color: var(--mr-text-muted);
 }
 
@@ -2070,22 +2099,8 @@ label.name:hover {
   border-color: transparent;
 }
 
-.slot[data-graded="correct"] .grade-row {
-  color: var(--mr-data);
-  background: var(--mr-data-tint);
-}
-
 .slot[data-graded="incorrect"] {
   border-color: transparent;
-}
-
-.slot[data-graded="incorrect"] .grade-row {
-  color: var(--mr-miss);
-  background: color-mix(in srgb, var(--mr-miss) 8%, var(--mr-sunken));
-}
-
-.slot[data-graded="voided"] .grade-row {
-  color: var(--mr-text-muted);
 }
 
 .match-cell[data-settled="true"] .slot {
@@ -2120,6 +2135,7 @@ label.name:hover {
   margin: 2px 0 0;
   font-size: 12px;
   letter-spacing: 0.04em;
+  line-height: 1.2;
   text-align: center;
   color: var(--mr-data);
 }
@@ -2128,6 +2144,7 @@ label.name:hover {
   margin: 4px 0 0;
   font-size: 11px;
   letter-spacing: 0.08em;
+  line-height: 1.2;
   text-transform: uppercase;
   text-align: center;
   color: var(--mr-text-muted);
@@ -2137,6 +2154,7 @@ label.name:hover {
   margin: 2px 0 0;
   font-size: 12px;
   letter-spacing: 0.06em;
+  line-height: 1.2;
   text-transform: uppercase;
   color: var(--mr-text-muted);
 }
@@ -2890,6 +2908,7 @@ html[data-nav-pending="true"] .shell-main {
     --bracket-col-min: 244px;
     --seat-h: 52px;
     --pair-out: 40px;
+    --match-foot-max: 88px;
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
     mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
   }
