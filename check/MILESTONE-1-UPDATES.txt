@@ -1,0 +1,192 @@
+MatchRead — Milestone 1 updates and how to check them
+=====================================================
+Last aligned to repo: main through migration 0022, bracket foot-band fix (ba581d2).
+
+This file is for humans verifying the live product. Detailed pass/fail rules:
+  check/MANUAL-CHECKLIST.md
+  check/worksheet.md
+
+Production site (example): https://www.matchreadtennis.com
+Use your staging origin if you are not on production.
+
+
+----------------------------------------------------------------------
+1. Official main draw on the public site (pure fact)
+----------------------------------------------------------------------
+WHAT UPDATED
+  - Published events show the official sheet: named players, published byes,
+    and Qualifier / Lucky Loser TBD seats in official order.
+  - No invented bracket when the draw is not published yet (draw pending).
+  - Calendar discovery uses the public_calendar view (eligible events only).
+
+HOW TO CHECK (any user)
+  1. Open /tournaments and pick an event with a published draw.
+  2. Open /tournaments/{slug}  (slug = tournaments.slug in the app).
+  3. Pass: you see the full bracket or announced first round — not fake names
+     like Player47, not an empty bracket when the tour already published the draw.
+  4. Pick an upcoming event with no published_at: Pass = countdown / awaiting
+     draw copy, not a made-up 64-draw tree.
+
+HOW TO CHECK (operator)
+  - npm run tennis:verify -- --slug {slug}
+  - npm run publish:draws   (dry-run preview; live publish POSTs sync-facts)
+
+
+----------------------------------------------------------------------
+2. Settled match: winner, scoreline, local time on the bracket
+----------------------------------------------------------------------
+WHAT UPDATED
+  - Finished matches show Official state, official scoreline when the provider
+    archive had it, and the winning player highlighted on the chip.
+  - Start time shows in your local zone when the provider published a clock;
+    date-only fixtures show the civil date only (no fake time).
+  - Round-0 layout reserves space under the card so status, score, and time
+    do not overlap the next player row.
+
+HOW TO CHECK (any user)
+  1. On /tournaments/{slug}, find a finished first-round match.
+  2. Pass:
+     - Green / official styling on the winner.
+     - Lines under the match card (inside that cell): Official, score if known,
+       date/time if known — readable, not written on the next player’s name.
+  3. Pass: loser does not still appear as the winner in the next round.
+  4. Wait up to ~5 minutes after a new result on tour sites, then refresh
+     (page also auto-refreshes about every 45 seconds).
+  5. Fail: result is final on the tour but MatchRead still shows Not played
+     after several sync cycles.
+
+HOW TO CHECK (signed-in league)
+  - /leagues/{leagueSlug}/t/{slug}/bracket — same facts + your picks graded.
+  - /leagues/{leagueSlug}/t/{slug}/result — breakdown vs official winner.
+
+Manual checklist items: H1, H2, H3, H4 in MANUAL-CHECKLIST.md
+
+
+----------------------------------------------------------------------
+3. Results ingest and reconciliation (sync-facts)
+----------------------------------------------------------------------
+WHAT UPDATED
+  - Edge function sync-facts pulls calendar, official draw, and results archive.
+  - Scorelines come from archive result text, not live socket score fields.
+  - Pair-first binding, absence checks, winner conflict audit (no silent flip).
+  - Optional NDJSON capture of raw provider HTTP bodies for replay/debug.
+
+HOW TO CHECK (operator with secrets)
+  - POST /functions/v1/sync-facts with INGEST_SECRET (ops only).
+  - npm run reconcile:results [--map …]  for a targeted reconcile dry-run/live.
+  - npm run probe:rapidapi  — provider connectivity.
+  - npm run capture:live    — append raw REST bodies (gitignored fixtures path).
+
+HOW TO CHECK (founder)
+  - /founder and /founder/integrity — ingestion_gap, unexplained_absence,
+    winner_conflict, draw integrity alerts when applicable.
+
+Manual checklist: H4, H6, I1
+
+
+----------------------------------------------------------------------
+4. League settlement and standings
+----------------------------------------------------------------------
+WHAT UPDATED
+  - After match facts are in Postgres, settle-leagues scores submitted brackets.
+  - Bye advances do not grant pick points on the auto-bye node.
+
+HOW TO CHECK (user with a submitted bracket)
+  1. Confirm H1/H2 on the public draw first.
+  2. Open /leagues/{leagueSlug} standings or …/t/{slug}/result.
+  3. Pass: points/rank update for correct/incorrect picks on that match.
+  4. Allow up to ~15 minutes after facts appear, or ask ops to run founder settle once.
+
+HOW TO CHECK (operator)
+  - Cron job settle-leagues every 15 minutes (see section 5).
+  - npm run verify:settlement  — offline math invariant (CI).
+
+Manual checklist: H5, H7
+
+
+----------------------------------------------------------------------
+5. Cron jobs: sync-facts and settle-leagues
+----------------------------------------------------------------------
+WHAT UPDATED
+  - pg_cron schedules:
+      sync-facts-5m   */5 * * * *
+      settle-leagues  */15 * * * *
+
+HOW TO CHECK (operator with DATABASE_URL to hosted or local Supabase)
+  - npm run prove:cron
+  - Or SQL:
+      select jobname, schedule, active from cron.job
+       where jobname in ('sync-facts-5m', 'settle-leagues');
+      select j.jobname, d.status, d.start_time
+        from cron.job_run_details d
+        join cron.job j on j.jobid = d.jobid
+       where j.jobname in ('sync-facts-5m', 'settle-leagues')
+       order by d.start_time desc limit 20;
+
+  Pass: jobs active; recent status succeeded on hosted (with vault secrets
+  configured so invoke actually calls Edge).
+
+Note: Local DB without project_url / ingest_secret may show succeeded cron
+SQL without a real Edge execution — see docs/provider-capture-findings.md.
+
+
+----------------------------------------------------------------------
+6. Entry lock and picking
+----------------------------------------------------------------------
+WHAT UPDATED
+  - lock_at from earliest timed main-draw first ball (has_time = true).
+  - Announced first-round pairs pickable when both sides are named players.
+
+HOW TO CHECK (user)
+  1. Before lock: Fill a bracket / pick announced matchups where offered.
+  2. After lock: editor locked; picks frozen.
+  3. Pass: lock time on site matches a real scheduled match time, not midnight fiction.
+
+Manual checklist: sections E, F, G in MANUAL-CHECKLIST.md
+
+
+----------------------------------------------------------------------
+7. Automated tests you can run locally (developers / CI)
+----------------------------------------------------------------------
+WHAT UPDATED
+  - Unit tests including bracket layout contract (metadata foot vs overlap bug).
+  - Playwright live checklists (need env + running app).
+
+COMMANDS (from repo root or apps/web as noted)
+  - cd apps/web && npm run test
+  - cd apps/web && npm run typecheck
+  - cd apps/web && npm run test:live   (Playwright; needs setup)
+  - npm run verify:settlement
+  - npm run ci:consumer-boundary
+
+Pass: all tests green; layout-metrics tests assert settled metadata fits R0 foot.
+
+
+----------------------------------------------------------------------
+8. Not in Milestone 1 (do not fail the product for these)
+----------------------------------------------------------------------
+  - In-app live point-by-point scores / Socket.IO overlay (N/A — batch ingest).
+  - prove:cron on hosted if DATABASE_URL is not set (Blocked for ops, not Fail).
+  - Sentry receipt until SENTRY_DSN is configured (Blocked).
+  - Commercial yes/no on provider MEGA plan and /ws-token before real socket deploy.
+
+See docs/provider-capture-findings.md (M1 verification evidence section).
+
+
+----------------------------------------------------------------------
+Quick surface map
+----------------------------------------------------------------------
+  /                          Landing + open / on court / upcoming
+  /tournaments               Calendar
+  /tournaments/{slug}        Official draw + results
+  /enter/{slug}              Solo entry
+  /leagues/{slug}/t/{slug}/bracket   Pick / edit bracket
+  /leagues/{slug}/t/{slug}/result    Graded breakdown
+  /sign-in                   Auth
+  /founder, /founder/integrity      Ops alerts (founder)
+
+Related files in this repo:
+  check/MANUAL-CHECKLIST.md
+  check/launch-sequence.md
+  architecture/data-flows.md
+  scripts/README.md
