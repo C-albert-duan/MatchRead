@@ -5,7 +5,6 @@ import {
   maxBracketScore,
   ordinal,
   rankRows,
-  type BracketPicks,
   type DrawSeat,
   type OfficialResults,
 } from "@matchread/core";
@@ -13,11 +12,7 @@ import { ResultPickBreakdown } from "@/components/league/ResultPickBreakdown";
 import { AppShell } from "@/components/shell/AppShell";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
-import {
-  loadBracketPicksMap,
-  loadOfficialResultsMap,
-  loadTournamentSeats,
-} from "@/lib/brackets/types";
+import { loadTournamentReadModel } from "@/lib/brackets/read-model";
 import { getLocale, t } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
 import { leagueIncludesTournament } from "@/lib/leagues/covers";
@@ -98,34 +93,20 @@ export default async function ResultArtifactPage({ params }: Props) {
 
   const tournamentRef = tournament.slug as string;
 
-  const [
-    { data: myBracket },
-    { count: fieldSize },
-    { count: resultCount },
-    seats,
-    officialMap,
-  ] = await Promise.all([
-    supabase
-      .from("brackets")
-      .select("id, submitted_at, points, rank, champion_player_id")
-      .eq("league_id", league.id)
-      .eq("tournament_id", tournament.id)
-      .eq("user_id", user.id)
-      .maybeSingle(),
+  const [{ count: fieldSize }, sheet] = await Promise.all([
     supabase
       .from("brackets")
       .select("*", { count: "exact", head: true })
       .eq("league_id", league.id)
       .eq("tournament_id", tournament.id)
       .not("points", "is", null),
-    supabase
-      .from("matches")
-      .select("*", { count: "exact", head: true })
-      .eq("tournament_id", tournament.id)
-      .or("winner_player_id.not.is.null,voided.eq.true"),
-    loadTournamentSeats(supabase, tournament.id),
-    loadOfficialResultsMap(supabase, tournament.id),
+    loadTournamentReadModel(supabase, tournament.id, {
+      leagueId: league.id,
+      userId: user.id,
+    }),
   ]);
+  const { seats, official: officialMap, picks, entry } = sheet;
+  const resultCount = Object.keys(officialMap).length;
 
   const { data: seasonRows } = await supabase
     .from("season_points")
@@ -142,10 +123,6 @@ export default async function ResultArtifactPage({ params }: Props) {
   const season = seasonRanked.find((r) => r.userId === user.id);
   const seasonPoints =
     seasonRows?.find((r) => r.user_id === user.id)?.points ?? null;
-
-  const picks: BracketPicks = myBracket?.id
-    ? await loadBracketPicksMap(supabase, myBracket.id)
-    : {};
 
   const official: OfficialResults = {};
   for (const [key, row] of Object.entries(officialMap)) {
@@ -165,12 +142,12 @@ export default async function ResultArtifactPage({ params }: Props) {
   }
 
   const snap =
-    myBracket?.points != null
+    entry?.points != null
       ? {
-          score: myBracket.points,
-          position: myBracket.rank,
+          score: entry.points,
+          position: entry.rank,
           max_score: maxScore,
-          champion_ref: myBracket.champion_player_id,
+          champion_ref: entry.championPlayerId,
           champion_alive: grade?.championAlive ?? null,
           correct: grade?.correct ?? null,
           incorrect: grade?.incorrect ?? null,
@@ -233,7 +210,7 @@ export default async function ResultArtifactPage({ params }: Props) {
           <section className="panel stack gap-md focus-band">
             <h2 className="section-title">{t("result.notAvailable")}</h2>
             <p className="t-body">
-              {!myBracket?.submitted_at
+              {!entry?.submittedAt
                 ? t("result.empty.submit")
                 : (resultCount ?? 0) === 0
                   ? t("result.empty.noOfficial")

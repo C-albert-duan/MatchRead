@@ -6,6 +6,7 @@ import {
   r0SlotFromSeatPair,
   proposeShapeBRepairs,
   planScorelineBackfill,
+  planSessionCourtBackfill,
   classifyPlayerAbsences,
   entryRowsFromInfo,
   absenceObservability,
@@ -221,16 +222,14 @@ describe("planScorelineBackfill", () => {
     assert.equal(plan.conflicts[0].incoming, "6-3 3-0 ret.");
   });
 
-  it("reports a winner conflict without putting a winner on the fill", () => {
+  it("reports a winner conflict and does not fill that answer's score", () => {
     const plan = planScorelineBackfill({
       matches: [{ ...settled, winner_player_id: "uuid-b" }],
       archiveRows: [archive],
       players,
     });
     assert.equal(plan.conflicts.some((row) => row.kind === "winner"), true);
-    assert.equal(plan.fills.length, 1);
-    assert.equal(plan.fills[0].official_score, "6-3 3-0 ret.");
-    assert.equal("winner_player_id" in plan.fills[0], false);
+    assert.equal(plan.fills.length, 0);
   });
 
   it("reports a settled match with no archive row and an unbound archive row", () => {
@@ -415,5 +414,88 @@ describe("absenceObservability", () => {
     assert.equal(withdrawal[0].name, "withdrawal");
     assert.equal(withdrawal[0].payload.severity, undefined);
     assert.match(absenceSignalLog(withdrawal[0]), /severity=info/);
+  });
+});
+
+describe("planSessionCourtBackfill", () => {
+  const surface = {
+    id: 20,
+    date: "2026-10-07T12:10:00.000Z",
+    startTime: "2026-10-07T12:10:00.000Z",
+    tournament: { court: { id: 2, name: "Clay" } },
+  };
+
+  it("writes only an explicit session or court and repeats as a no-op", () => {
+    const matches = [
+      { id: "m-b", round: 0, index_in_round: 1, provider_match_id: "20", session: null, court: null },
+      { id: "m-a", round: 0, index_in_round: 0, provider_match_id: "10", session: null, court: null },
+    ];
+    const fixtures = [
+      surface,
+      { id: 10, session: "day", courtName: "Centre Court", startTime: "2026-10-07T18:00:00.000Z" },
+    ];
+    const first = planSessionCourtBackfill({ matches, fixtures });
+    assert.equal(first.changed, 1);
+    assert.equal(first.unchanged, 1);
+    assert.equal(first.unknownSession, 1);
+    assert.equal(first.unknownCourt, 1);
+    assert.equal(first.missingProviderMapping, 0);
+    assert.deepEqual(first.writes, [
+      { match_id: "m-a", provider_match_id: "10", session: "day", court: "Centre Court" },
+    ]);
+    const applied = matches.map((match) => {
+      const write = first.writes.find((row) => row.match_id === match.id);
+      return write ? { ...match, session: write.session, court: write.court } : match;
+    });
+    const again = planSessionCourtBackfill({ matches: applied, fixtures });
+    assert.equal(again.changed, 0);
+    assert.equal(again.unchanged, 2);
+    assert.deepEqual(again.writes, []);
+  });
+
+  it("does not infer session or court, and reports a missing provider id", () => {
+    const plan = planSessionCourtBackfill({
+      matches: [
+        { id: "m-1", round: 0, index_in_round: 0, provider_match_id: null, session: null, court: null },
+        { id: "m-2", round: 0, index_in_round: 1, provider_match_id: "99", session: null, court: null },
+        { id: "m-3", round: 0, index_in_round: 2, provider_match_id: "20", session: "night", court: "Court 2" },
+      ],
+      fixtures: [surface, { id: 20, session: "evening", court: "hard" }],
+    });
+    assert.equal(plan.changed, 0);
+    assert.equal(plan.unchanged, 3);
+    assert.equal(plan.unknownSession, 2);
+    assert.equal(plan.unknownCourt, 2);
+    assert.equal(plan.missingProviderMapping, 2);
+    assert.deepEqual(plan.writes, []);
+    assert.deepEqual(plan.conflicts, []);
+  });
+
+  it("keeps a stored label when the fixture disagrees", () => {
+    const plan = planSessionCourtBackfill({
+      matches: [
+        { id: "m-1", provider_match_id: "10", session: "day", court: "Centre Court" },
+      ],
+      fixtures: [{ id: 10, session: "night", courtName: "Court 3" }],
+    });
+    assert.equal(plan.changed, 0);
+    assert.equal(plan.unchanged, 1);
+    assert.equal(plan.unknownSession, 0);
+    assert.equal(plan.unknownCourt, 0);
+    assert.equal(plan.conflicts.length, 2);
+  });
+
+  it("picks the same fixture label when duplicate ids arrive in either order", () => {
+    const labeled = { id: 10, session: "night", courtName: "Court 3" };
+    const blank = { id: 10, startTime: "2026-10-07T12:10:00.000Z", court: { name: "Hard" } };
+    const matches = [
+      { id: "m-1", provider_match_id: "10", session: null, court: null },
+    ];
+    const forward = planSessionCourtBackfill({ matches, fixtures: [blank, labeled] });
+    const reverse = planSessionCourtBackfill({ matches, fixtures: [labeled, blank] });
+    assert.deepEqual(forward.writes, reverse.writes);
+    assert.deepEqual(forward.writes, [
+      { match_id: "m-1", provider_match_id: "10", session: "night", court: "Court 3" },
+    ]);
   });
 });

@@ -17,6 +17,8 @@ type Props = {
   email?: string | null;
   /** Full arena atmosphere (landing). Default app routes still get a light wash. */
   arena?: boolean;
+  /** History control. The landing route is the root, so it has no back target. */
+  showBack?: boolean;
 };
 
 export function AppShell({
@@ -24,6 +26,7 @@ export function AppShell({
   signedIn,
   email,
   arena = false,
+  showBack = true,
 }: Props) {
   const locale = getLocale();
 
@@ -36,7 +39,7 @@ export function AppShell({
         {signedIn ? <DisplayNameBootstrap /> : null}
         <ShellHeader>
           <div className="shell-header-inner">
-            <BackButton label={t("nav.back")} />
+            {showBack ? <BackButton label={t("nav.back")} /> : null}
             <Link href="/" className="wordmark">
               <Mark className="wordmark-mark" />
               MatchRead

@@ -405,6 +405,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
                               {" · "}
                               <EntryLockWhen
                                 lockAt={lockAt}
+                                venueTz={(t as { venue_tz?: string | null }).venue_tz}
                                 locale={locale}
                                 labels={labels}
                               />

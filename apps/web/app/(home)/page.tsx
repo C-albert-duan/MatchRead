@@ -127,6 +127,7 @@ function TournamentRows({
               lockAt={
                 shouldShowEntryLock(event) ? event.lock_at : null
               }
+              venueTz={event.venue_tz}
               locale={locale}
               status={t(calendarStatusMessageKey(status))}
               statusPending={status === "drawPending"}
@@ -171,7 +172,7 @@ export default async function HomePage() {
     : null;
 
   return (
-    <AppShell signedIn={signedIn} email={user?.email} arena>
+    <AppShell signedIn={signedIn} email={user?.email} arena showBack={false}>
       <div className="page page--landing">
         <header className="landing-hero">
           <HeroCourt />

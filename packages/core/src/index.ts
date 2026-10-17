@@ -8,6 +8,8 @@ export {
   applyByeAdvances,
   buildRoundStructure,
   countPicksMade,
+  feederMatchKeys,
+  feedsMatchKey,
   isBracketComplete,
   isFictionalSeatName,
   isFictionalSeatRef,
@@ -20,6 +22,13 @@ export {
   seatKind,
   totalMatches,
 } from "./bracket";
+export { buildSyntheticBracket16 } from "./synthetic-bracket";
+export type {
+  SyntheticBracket,
+  SyntheticMatch,
+  SyntheticPlayer,
+  SyntheticSession,
+} from "./synthetic-bracket";
 export type {
   BracketPicks,
   DrawSeat,

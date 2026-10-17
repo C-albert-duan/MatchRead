@@ -23,7 +23,7 @@ Pipeline:
    On fail when already published: keep the live sheet; ops `refresh_blocked_keep_published`; never clear `published_at`.
    **Published sheet guard:** once `published_at` + seat count match `draw_size`, announced fixture upserts only sync schedule/`provider_match_id` onto seat-aligned R0 slots — they never rewrite sides or append `index >= draw_size/2` rows. Each apply also prunes those extras and refreshes R0 sides from seats. Official TBD vs stored bye is `bye_to_tbd`: overlay writes `kind=tbd` / `player_id=null`, then unwinds the invented R0 bye-advance (`unwind_settlement_parent`) unless the parent is already played/settled.
 5. Reconcile archive results → `apply-results`. A finished live frame is counted and is not an official settlement.
-6. Durable `matches` update first, then `claim_settlement`, then parent advance; audit repair/ops.
+6. Durable `matches` update first, then `claim_settlement`, then parent advance; audit repair/ops. A change to `winner_player_id` clears that player from an unsettled parent side before the row is saved. Draw-path results use `mergeSettledFact` and do not replace a settled winner.
 7. `refresh_lock_at` when timed R0 exists.
 
 Triggered by pg_cron (~5m), optional GitHub workflow, and ops scripts.

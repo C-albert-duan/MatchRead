@@ -4,20 +4,18 @@ import {
   isOfficialPublicDraw,
   maxBracketScore,
   rankRows,
-  type BracketPicks,
   type DailyCheck,
   type DrawSeat,
   type OfficialResults,
   type StandingPulseRow,
 } from "@matchread/core";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { loadTournamentReadModel } from "@/lib/brackets/read-model";
 import {
   isTournamentLocked,
   effectiveDrawSize,
   loadBracketPicksMap,
   loadLeagueDrawLock,
-  loadOfficialResultsMap,
-  loadTournamentSeats,
 } from "@/lib/brackets/types";
 import {
   buildLeagueEngagement,
@@ -152,14 +150,7 @@ export async function loadDailyCheck(input: {
     published_at: tournamentRow.published_at as string | null,
   };
 
-  const [
-    bracketsRes,
-    scoredRes,
-    myBracketRes,
-    leagueLockedAt,
-    seats,
-    officialMap,
-  ] = await Promise.all([
+  const [bracketsRes, scoredRes, leagueLockedAt, sheet] = await Promise.all([
     supabase
       .from("brackets")
       .select("id, user_id, submitted_at, points, rank, champion_player_id")
@@ -174,29 +165,20 @@ export async function loadDailyCheck(input: {
       .eq("tournament_id", tournament.id)
       .not("points", "is", null)
       .order("rank", { ascending: true }),
-    supabase
-      .from("brackets")
-      .select("id, submitted_at")
-      .eq("league_id", league.id)
-      .eq("tournament_id", tournament.id)
-      .eq("user_id", userId)
-      .maybeSingle(),
     loadLeagueDrawLock(supabase, league.id, tournament.id),
-    loadTournamentSeats(supabase, tournament.id),
-    loadOfficialResultsMap(supabase, tournament.id),
+    loadTournamentReadModel(supabase, tournament.id, {
+      leagueId: league.id,
+      userId,
+    }),
   ]);
+
+  const { seats, official: officialMap, picks, entry } = sheet;
 
   const brackets = bracketsRes.data ?? [];
   const scored = scoredRes.data ?? [];
-  const myBracket = myBracketRes.data;
-
-  let picks: BracketPicks = {};
-  if (myBracket?.id) {
-    picks = await loadBracketPicksMap(supabase, myBracket.id);
-  }
 
   const submittedCount = brackets.filter((b) => b.submitted_at).length;
-  const youSubmitted = Boolean(myBracket?.submitted_at);
+  const youSubmitted = Boolean(entry?.submittedAt);
 
   const hasDraw =
     Boolean(tournamentRow.published_at) &&

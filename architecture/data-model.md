@@ -1,6 +1,6 @@
 # Data model
 
-Entity relationship for MatchRead Postgres. Schema lives in `supabase/migrations/0001`–`0022`.
+Entity relationship for MatchRead Postgres. Schema lives in `supabase/migrations/0001`–`0023`.
 
 Two domains share one database:
 
@@ -61,7 +61,7 @@ erDiagram
 | `tournaments` | Calendar event + publish/lock | `slug`, `(tour, provider_id)`, `starts_on`, `main_draw_starts_on`, `draw_size`, `published_at`, `lock_at`, `tier`, `bracket_eligible`, `product_override` (`force_off` only) |
 | `players` | Real people | `provider_id`, `last_name` (anti-fiction CHECKs) |
 | `seats` | Official main-draw sheet | PK `(tournament_id, position)`; `kind` ∈ `player` \| `bye` \| `tbd` |
-| `matches` | Topology + schedule + result | Unique `(tournament_id, round, index_in_round)`; `has_time`, `scheduled_at`, `winner_player_id`, `voided`, `settled_at`, `official_score` (the scoreline), `fact_kind` (`played` \| `withdrawal` \| `void`) |
+| `matches` | Topology + schedule + result | Unique `(tournament_id, round, index_in_round)` and unique `external_ref`; `has_time`, `scheduled_at`, `session` (`day` \| `night` \| null), `court`, `winner_player_id`, `voided`, `settled_at`, `official_score` (the scoreline), `fact_kind` (`played` \| `withdrawal` \| `void`) |
 | `settlement_claims` | Idempotent settle boundary | PK `match_id`; `outcome` winner\|void; conflict unwinds parent advance |
 | `draw_integrity_reports` | Publish proof | Must be `safe_to_publish` before official write (0017) |
 | `draw_revisions` / `draw_replacements` | Draw hash history | Official field changes (`change_kind` includes `bye_to_tbd` / `tbd_to_bye`) |
@@ -85,6 +85,7 @@ erDiagram
 | Object | Role |
 |--------|------|
 | `public_calendar` | Eligible tournaments only — **public discovery surface** |
+| `tournament_match_sheet` | One anon read of match facts for a draw or `/matches/[ref]`. No match uuid |
 | `season_points` | Sum of bracket points for season leagues |
 | `draw_is_official(id)` | `published_at` set + seat count = `draw_size` |
 | `refresh_lock_at(id)` | `lock_at` = min timed R0 `scheduled_at` |
@@ -167,19 +168,19 @@ The live comparison is `mergeSettledFact` in `packages/provider-rapidapi/src/nor
 | Yes, same winner | missing score or `fact_kind` | Fill those columns only (`action` `fill`) |
 | Yes, same winner | same score after trim | Leave the stored score (`action` `noop`) |
 | Yes, same winner | different score or `fact_kind` | `ops_events` `score_conflict` / `fact_kind_conflict` when the sync run has an id; those columns stay. The skip reason is `score conflict` or `fact kind conflict` even when the run id is missing |
-| Yes | different winner or void | Winner and void stay. `ops_events` `winner_conflict` when the sync run has an id. `claim_settlement` is not called |
+| Yes | different winner or void | Winner, void, score, and fact class stay. The conflict patch is empty. `ops_events` `winner_conflict` when the sync run has an id. `claim_settlement` is not called |
 
 `applyMatchResults` returns success on that last row (`skipped` reason `winner conflict`). It does not raise. With no repair-run id, nothing is written to `ops_events` either, so the old winner is kept with no conflict row.
 
-A winner conflict can still fill a null `official_score` or `fact_kind`. `mergeSettledFact` puts those fills on the patch before it returns `action: "conflict"`, and `applyMatchResults` writes any non-empty patch before it skips the winner.
+`applyMatchFacts` uses the same `mergeSettledFact` decision. A draw overlay cannot replace a settled winner or void.
 
-`claim_settlement` (`supabase/migrations/0015_settlement_claims.sql`) is not that latch. The same outcome returns `noop`. A different outcome calls `unwind_settlement_parent` and updates the claim (`replaced`). `applyMatchResults` calls it only on the first write (`action` `write`). A later different winner never reaches `replaced`.
+`unwind_settlement_parent` (`supabase/migrations/0026_unwind_advanced_winner.sql`) removes the advanced player from the parent side. It reads `settlement_claims.winner_player_id` first, then the match column. A parent that already has `winner_player_id` keeps its side. `matches_unwind_advanced_winner` runs that function before any update that changes `winner_player_id`, so every writer clears the old side. `claim_settlement` still calls it when a claim is replaced, which covers a match column that was cleared first.
 
-`writeWinnerIntoParent` writes an empty parent side. The same player is a no-op. A different player is written when the parent match has no `winner_player_id`, and left in place once that parent match has a winner.
+`writeWinnerIntoParent` writes an empty parent side. The same player is a no-op. A different player is written when the parent match has no `winner_player_id`, and left in place once that parent match has a winner. `refreshRoundZeroSides` drops the settlement claim when it replaces a mismatched round-0 winner. The trigger clears the parent side.
 
 ### M3 provisional winner — deferred
 
-`provisional_winner` and `live_match_state` are not on this branch. No migration, column, or type defines them. M1 does not add either.
+`provisional_winner` and `live_match_state` are not on this branch. No migration, column, or type defines them. The public bracket cell is addressable by `matches.external_ref` (`data-public-ref`). A later live score, serve mark, or provisional final patches that cell. Those patches are not implemented.
 
 When M3 stores a provisional winner, clear it only after an official settle has been written:
 
@@ -219,5 +220,8 @@ A later Ceiling pass that reads only `matches.winner_player_id` will use the fir
 | 0020 | Clear one misclassified draw |
 | 0021 | `bye_to_tbd` replacement kind |
 | 0022 | `matches.official_score` + `fact_kind` |
+| 0023 | `external_ref`, `session`, `court`; `tournament_match_sheet` |
+| 0024 | `matches.session` is `day`, `night`, or null |
+| 0025 | UTC midnight is not `has_time`. There is no `starts_at` |
 
 Archive SQL under `supabase/migrations/archive/` is historical, not the live chain. There is no `apply_bracket_state` function in the live chain or the archive.

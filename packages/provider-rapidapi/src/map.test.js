@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   buildDrawFromFirstRound,
+  namedFirstRoundPairs,
   firstMainDrawBall,
   mapLiveFinishedToIngest,
   mapResultsToIngest,
@@ -120,6 +121,37 @@ describe("firstMainDrawBall", () => {
     );
   });
 
+  it("uses startTime when the date has no clock", () => {
+    const parsed = parseFixtureInstant({
+      date: "2026-10-07",
+      startTime: "2026-10-07T12:10:00.000Z",
+      startTimestamp: 1750000000,
+      session: "night",
+    });
+    assert.equal(parsed?.has_time, true);
+    assert.equal(parsed?.scheduled_at, "2026-10-07T12:10:00.000Z");
+  });
+
+  it("does not turn a date-only row or a live timestamp into a kickoff", () => {
+    assert.equal(
+      parseFixtureInstant({
+        date: null,
+        startTime: null,
+        startTimestamp: 1750000000,
+        dateOnly: "2026-10-07",
+        session: "day",
+      }),
+      null
+    );
+    const midnight = parseFixtureInstant({
+      date: "2026-10-07T00:00:00.000Z",
+      startTime: "",
+      session: "night",
+    });
+    assert.equal(midnight?.has_time, false);
+    assert.equal(midnight?.scheduled_at, "2026-10-07T12:00:00.000Z");
+  });
+
   it("does not use a later round as first ball", () => {
     assert.equal(
       firstMainDrawBall([
@@ -223,6 +255,44 @@ describe("buildDrawFromFirstRound", () => {
     if (built.ok) throw new Error("expected fail");
     assert.match(built.reason, /official slots or 64 named slam pairs/);
   });
+
+  it("copies a published court and leaves the surface off the other match", () => {
+    const surface = { court: { id: 1, name: "I.hard" } };
+    const fixtures = [
+      {
+        id: 20,
+        round: { name: "First" },
+        player1Id: 11,
+        player2Id: 12,
+        player1: { id: 11, name: "Ann Alpha" },
+        player2: { id: 12, name: "Bo Beta" },
+        tournament: surface,
+      },
+      {
+        id: 10,
+        round: { name: "First" },
+        courtName: "Centre Court",
+        player1Id: 21,
+        player2Id: 22,
+        player1: { id: 21, name: "Cy Gamma" },
+        player2: { id: 22, name: "Di Delta" },
+        tournament: surface,
+      },
+    ];
+    const pairs = namedFirstRoundPairs(fixtures);
+    assert.deepEqual(
+      pairs.map((pair) => pair.court),
+      ["Centre Court", null]
+    );
+    const built = buildDrawFromFirstRound(fixtures, { prefix: "atp", drawSize: 4 });
+    assert.equal(built.ok, true);
+    if (!built.ok) throw new Error(built.reason);
+    const labelled = built.schedule.find((row) => row.match_key === "r0-m0");
+    const plain = built.schedule.find((row) => row.match_key === "r0-m1");
+    assert.equal(labelled?.court, "Centre Court");
+    assert.equal(labelled?.scheduled_at, undefined);
+    assert.equal(plain?.court, undefined);
+  });
 });
 
 describe("overlayOfficialDraw", () => {
@@ -251,6 +321,30 @@ describe("overlayOfficialDraw", () => {
       built.schedule[0].scheduled_at,
       parseFixtureInstant({ date: "2026-09-01" })?.scheduled_at
     );
+  });
+
+  it("stores a published court and ignores the event surface", () => {
+    const seats = [
+      seat(0, { last_name: "Alpha", given_name: "Ann", player_ref: "p-a" }),
+      seat(1, { last_name: "Beta", given_name: "Bo", player_ref: "p-b" }),
+    ];
+    const fixtures = [
+      {
+        id: 1,
+        player1Id: 1,
+        player2Id: 2,
+        player1: { id: 1, name: "Ann Alpha" },
+        player2: { id: 2, name: "Bo Beta" },
+        courtName: "Court 3",
+        tournament: { court: { id: 2, name: "Clay" } },
+      },
+    ];
+    const built = overlayOfficialDraw(seats, fixtures, { prefix: "atp" });
+    assert.equal(built.ok, true);
+    if (!built.ok) throw new Error(built.reason);
+    assert.equal(built.schedule.length, 1);
+    assert.equal(built.schedule[0].court, "Court 3");
+    assert.equal(built.schedule[0].scheduled_at, undefined);
   });
 
   it("maps provider ids onto official slots without reordering", () => {

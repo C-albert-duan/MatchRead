@@ -1,6 +1,6 @@
 "use client";
 
-import { formatLockWhen } from "@/lib/tournaments/format";
+import { captionTimeZone, formatLockWhen } from "@/lib/tournaments/format";
 import {
   formatWhenCaption,
   type TournamentTimeLabels,
@@ -15,20 +15,23 @@ type EntryLockWhenProps = {
   locale: string;
   labels: Pick<TournamentTimeLabels, "today" | "tomorrow" | "entryLocks">;
   className?: string;
+  /** Venue zone for the first HTML. The viewer zone replaces it after mount. */
+  venueTz?: string | null;
   /** When false, render nothing (e.g. already locked / no draw). */
   show?: boolean;
 };
 
-/** “entry locks Today 10:00 AM” in the viewer’s local timezone. */
+/** “entry locks Today 10:00 AM”. Server HTML uses the venue zone, then UTC. */
 export function EntryLockWhen({
   lockAt,
   locale,
   labels,
   className,
+  venueTz,
   show = true,
 }: EntryLockWhenProps) {
-  const zone = useViewerTimeZone();
-  if (!show || !zone) return null;
+  const zone = captionTimeZone(useViewerTimeZone(), venueTz);
+  if (!show) return null;
   const when = formatLockWhen(lockAt, zone, locale, {
     today: labels.today,
     tomorrow: labels.tomorrow,
@@ -53,10 +56,6 @@ export function WhenCaption({
   className,
 }: WhenCaptionProps) {
   const zone = useViewerTimeZone();
-  if (!zone) {
-    const start = formatWhenCaption({ ...row, lock_at: null }, locale, labels);
-    return <span className={className}>{start}</span>;
-  }
   return (
     <span className={className}>
       {formatWhenCaption(row, locale, labels, new Date(), zone)}

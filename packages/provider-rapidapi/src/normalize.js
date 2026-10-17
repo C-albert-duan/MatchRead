@@ -490,7 +490,7 @@ export function mergeSettledFact(existing, incoming) {
   }
 
   if (conflicts.includes("winner")) {
-    return { action: "conflict", patch, conflicts };
+    return { action: "conflict", patch: {}, conflicts };
   }
   if (Object.keys(patch).length) {
     return { action: "fill", patch, conflicts };

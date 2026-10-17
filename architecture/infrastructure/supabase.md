@@ -29,9 +29,14 @@ Hosted Supabase is the system of record. Local Docker runs the **web app only**;
 | 0019 | Publish trigger uses `is_bracket_product()` (generated column null in trigger) |
 | 0020 | Clear misclassified qualifying seats (`t-wta-16743`) for main rediscovery |
 | 0021 | `draw_replacements.change_kind` allows `bye_to_tbd` / `tbd_to_bye` |
-| 0022 | `matches.official_score` and `fact_kind` |
+| 0022 | `matches.official_score` + `fact_kind` |
+| 0023 | Public `matches.external_ref`, `session`, `court`; view `tournament_match_sheet` |
+| 0024 | `matches.session` is `day`, `night`, or null. No slate-date index |
+| 0025 | UTC midnight on `matches.scheduled_at` is not a kickoff. No `starts_at` |
 
 `migrations/archive/` is superseded history — do not treat as live.
+
+`supabase/fixtures/synthetic-bracket-16.sql` is a 16-player replay fixture. pgTAP includes the same script from `supabase/tests/fixtures/` inside `31_match_structure.test.sql`, which rolls the insert back. It is `force_off`, so it is not part of the migration chain and not on `public_calendar`.
 
 ## RLS mental model
 
@@ -53,7 +58,7 @@ Product (examples from 0006 / 0008 / 0011):
 Facts / settle:
 
 - `draw_is_official`, `refresh_lock_at`
-- `claim_settlement`, `unwind_settlement_parent`
+- `claim_settlement`, `unwind_settlement_parent`, `matches_before_winner_change`
 - `is_bracket_product`
 
 ## Cron
@@ -67,11 +72,9 @@ Migrations schedule two jobs. That is the definition in SQL, not proof that a ho
 
 `0009` unschedules `sync-tennis-5m` / `sync-tennis-30m` and does not reschedule `settle-leagues`. Archive files that name `settle-leagues-5m` or `sync-tennis-30m` are not the live chain.
 
-### Hosted run history — BLOCKED
+### Hosted run history — BLOCKED without `DATABASE_URL`
 
-`npm run prove:cron` on 2026-10-07 exited 2: `DATABASE_URL` is not set and `SUPABASE_DB_URL` is not set. Hosted `cron.job` / `cron.job_run_details` were not read.
-
-The local database, queried the same day, has both jobs `active` with those schedules. Latest local rows were `succeeded` at `2026-10-07T18:00:00Z` with `return_message` `1 row`. Local Vault has no `project_url` or `ingest_secret`, so those rows are the SQL function returning without `net.http_post`. They are not Edge executions. Detail is in [docs/provider-capture-findings.md](../../docs/provider-capture-findings.md).
+`npm run prove:cron` exits **2** when `DATABASE_URL` / `SUPABASE_DB_URL` is unset. It exits **1** when the database is reachable but Vault `project_url` and `ingest_secret` are not both set — including local Supabase where `cron.job_run_details` can still show **succeeded** with `return_message` `1 row` while `invoke_*` skipped `net.http_post`. Exit **0** means jobs are active, latest runs succeeded, and Vault is configured. Rules live in `scripts/lib/cron-proof.mjs`. Detail is in [docs/provider-capture-findings.md](../../docs/provider-capture-findings.md).
 
 ```sql
 select *
@@ -88,7 +91,7 @@ See also [edge-functions.md](./edge-functions.md).
 ## Tests
 
 - `npm run test:db` → `npx supabase test db`, then the absence-classification integration test against this local database
-- SQL tests under `supabase/tests/` (eligibility, reconciliation, scoreline fill, event dates, lock write, …)
+- SQL tests under `supabase/tests/` (eligibility, reconciliation, scoreline fill, event dates, lock write, match session, …)
 - `packages/provider-rapidapi/src/absence-gap.integration.test.js` reads `seats` from local Postgres, classifies with `classifyPlayerAbsences`, writes `ops_events`, and calls `claim_settlement` only when the absence does not block
 
 ## Related

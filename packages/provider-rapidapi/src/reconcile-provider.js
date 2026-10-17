@@ -1,3 +1,4 @@
+import { parseMatchCourt, parseMatchSession } from "./match-facts.js";
 import { mergeSettledFact, officialFactKind, officialScoreText } from "./normalize.js";
 import { bindResultsByPlayerPair } from "./settle-advance.js";
 
@@ -565,4 +566,138 @@ export function absenceSignalLog(row) {
     `entries_loaded=${payload.entries_loaded}`,
     `provider_player_ids=${players}`,
   ].join(" ");
+}
+
+/**
+ * @param {unknown} value
+ * @returns {"day"|"night"|null}
+ */
+function storedSession(value) {
+  return value === "day" || value === "night" ? value : null;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {string|null}
+ */
+function storedCourt(value) {
+  const text = String(value ?? "").trim();
+  return text || null;
+}
+
+/**
+ * @param {Record<string, unknown>} row
+ */
+function fixtureFactRank(row) {
+  const session = parseMatchSession(row) || "";
+  const court = parseMatchCourt(row) || "";
+  return `${session ? 1 : 0}${court ? 1 : 0}|${session}|${court}`;
+}
+
+/**
+ * Plan session and court fills from fixture rows.
+ * A clock, a session word other than day or night, and an event surface
+ * are not writes. Match order is not a court. Existing labels are kept.
+ *
+ * @param {{
+ *   matches: Array<{
+ *     id: string,
+ *     round?: number,
+ *     index_in_round?: number,
+ *     provider_match_id?: string|null,
+ *     session?: string|null,
+ *     court?: string|null,
+ *   }>,
+ *   fixtures?: Array<Record<string, unknown>>,
+ * }} input
+ */
+export function planSessionCourtBackfill(input) {
+  const matches = [...(Array.isArray(input?.matches) ? input.matches : [])].sort(
+    (a, b) =>
+      Number(a.round) - Number(b.round) ||
+      Number(a.index_in_round) - Number(b.index_in_round) ||
+      String(a.id).localeCompare(String(b.id))
+  );
+  const fixtures = [...(Array.isArray(input?.fixtures) ? input.fixtures : [])]
+    .filter((row) => row && typeof row === "object")
+    .sort((a, b) => {
+      const id = String(a.id ?? "").localeCompare(String(b.id ?? ""), "en", {
+        numeric: true,
+      });
+      if (id !== 0) return id;
+      return fixtureFactRank(b).localeCompare(fixtureFactRank(a));
+    });
+  /** @type {Map<string, Record<string, unknown>>} */
+  const byId = new Map();
+  for (const row of fixtures) {
+    const id = String(row.id ?? "").trim();
+    if (!id || byId.has(id)) continue;
+    byId.set(id, row);
+  }
+
+  /** @type {Array<{ match_id: string, provider_match_id: string, session?: "day"|"night", court?: string }>} */
+  const writes = [];
+  /** @type {Array<{ match_id: string, field: "session"|"court", existing: string, incoming: string }>} */
+  const conflicts = [];
+  let changed = 0;
+  let unchanged = 0;
+  let unknownSession = 0;
+  let unknownCourt = 0;
+  let missingProviderMapping = 0;
+
+  for (const match of matches) {
+    const providerId = String(match.provider_match_id ?? "").trim();
+    const row = providerId ? byId.get(providerId) : undefined;
+    if (!row) missingProviderMapping += 1;
+    const incomingSession = row ? parseMatchSession(row) : null;
+    const incomingCourt = row ? parseMatchCourt(row) : null;
+    const haveSession = storedSession(match.session);
+    const haveCourt = storedCourt(match.court);
+    /** @type {{ match_id: string, provider_match_id: string, session?: "day"|"night", court?: string }} */
+    const write = { match_id: String(match.id), provider_match_id: providerId };
+
+    if (incomingSession && !haveSession) write.session = incomingSession;
+    else if (incomingSession && haveSession && incomingSession !== haveSession) {
+      conflicts.push({
+        match_id: String(match.id),
+        field: "session",
+        existing: haveSession,
+        incoming: incomingSession,
+      });
+    }
+    if (incomingCourt && !haveCourt) write.court = incomingCourt;
+    else if (incomingCourt && haveCourt && incomingCourt !== haveCourt) {
+      conflicts.push({
+        match_id: String(match.id),
+        field: "court",
+        existing: haveCourt,
+        incoming: incomingCourt,
+      });
+    }
+
+    const nextSession = haveSession || write.session || null;
+    const nextCourt = haveCourt || write.court || null;
+    if (!nextSession) unknownSession += 1;
+    if (!nextCourt) unknownCourt += 1;
+    if (write.session || write.court) {
+      changed += 1;
+      writes.push(write);
+    } else {
+      unchanged += 1;
+    }
+  }
+
+  writes.sort((a, b) => a.match_id.localeCompare(b.match_id));
+  conflicts.sort(
+    (a, b) => a.match_id.localeCompare(b.match_id) || a.field.localeCompare(b.field)
+  );
+  return {
+    changed,
+    unchanged,
+    unknownSession,
+    unknownCourt,
+    missingProviderMapping,
+    writes,
+    conflicts,
+  };
 }

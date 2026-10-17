@@ -661,6 +661,7 @@ function matchupsFromPairs(
     player2_seed: p.p2.seed,
     scheduled_at: p.instant?.scheduled_at ?? null,
     has_time: Boolean(p.instant?.has_time),
+    court: p.court,
   }));
 }
 

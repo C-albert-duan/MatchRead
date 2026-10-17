@@ -1,34 +1,27 @@
-import { isOfficialPublicDraw, type DrawSeat } from "@matchread/core";
+import { buildRoundStructure, isOfficialPublicDraw, type DrawSeat } from "@matchread/core";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { publicPageMetadata } from "@/lib/seo";
-import type {
-  BracketConfidence,
-  BracketPicks,
-  OfficialResults,
-} from "@matchread/core";
+import type { OfficialResults } from "@matchread/core";
 import { AppShell } from "@/components/shell/AppShell";
 import { AnnouncedFirstRound } from "@/components/bracket/AnnouncedFirstRound";
+import { BracketScroller } from "@/components/bracket/BracketScroller";
 import { BracketEditor } from "@/components/bracket/BracketEditor";
 import { getSessionUser } from "@/lib/auth";
+import { loadTournamentReadModel } from "@/lib/brackets/read-model";
 import {
   effectiveDrawSize,
   isPlatformLocked,
   isTournamentLocked,
-  loadAnnouncedMatchups,
-  loadBracketConfidenceMap,
-  loadBracketPicksMap,
   loadLeagueDrawLock,
-  loadMatchScheduleMap,
-  loadOfficialResultsMap,
-  loadTournamentSeats,
 } from "@/lib/brackets/types";
 import { getLocale, t, tf } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
 import { leagueIncludesTournament } from "@/lib/leagues/covers";
 import { createClient } from "@/lib/supabase/server";
 import type { MatchScheduleRow } from "@/lib/tournaments/calendar";
+import { relevantRoundIndex } from "@/lib/brackets/layout";
 import { WhenCaption } from "@/components/tournaments/EntryLockWhen";
 import { timeLabels } from "@/lib/tournaments/when";
 
@@ -108,26 +101,22 @@ export default async function BracketPage({ params }: Props) {
 
   const tournamentRef = tournament.slug as string;
 
-  const [seats, announced, myBracketRes, leagueLockedAt] = await Promise.all([
-    loadTournamentSeats(supabase, tournament.id),
-    loadAnnouncedMatchups(supabase, tournament.id, {
-      allRounds: true,
-      bothSidesOnly: false,
+  const [sheet, leagueLockedAt] = await Promise.all([
+    loadTournamentReadModel(supabase, tournament.id, {
+      leagueId: league.id,
+      userId: user.id,
     }),
-    supabase
-      .from("brackets")
-      .select("id, submitted_at")
-      .eq("league_id", league.id)
-      .eq("tournament_id", tournament.id)
-      .eq("user_id", user.id)
-      .maybeSingle(),
     loadLeagueDrawLock(supabase, league.id, tournament.id),
   ]);
-
-  const myBracket = myBracketRes.data;
-  const announcedPicks: BracketPicks = myBracket?.id
-    ? await loadBracketPicksMap(supabase, myBracket.id)
-    : {};
+  const {
+    seats,
+    announced,
+    official: officialMap,
+    schedule: scheduleMap,
+    picks,
+    confidence,
+    entry,
+  } = sheet;
 
   const drawSize = effectiveDrawSize(
     seats.length,
@@ -183,7 +172,7 @@ export default async function BracketPage({ params }: Props) {
           <AnnouncedFirstRound
             matchups={announced}
             expectedFirst={Math.max(Math.floor(drawSize / 2) || 16, 16)}
-            picks={announcedPicks}
+            picks={picks}
             locked={locked}
             leagueId={league.id}
             leagueSlug={league.slug}
@@ -199,17 +188,6 @@ export default async function BracketPage({ params }: Props) {
     );
   }
 
-  const [picks, confidence, officialMap, scheduleMap] = await Promise.all([
-    myBracket?.id
-      ? loadBracketPicksMap(supabase, myBracket.id)
-      : Promise.resolve({} as BracketPicks),
-    myBracket?.id
-      ? loadBracketConfidenceMap(supabase, myBracket.id)
-      : Promise.resolve({} as BracketConfidence),
-    loadOfficialResultsMap(supabase, tournament.id),
-    loadMatchScheduleMap(supabase, tournament.id),
-  ]);
-
   const platformLocked = isPlatformLocked({
     lock_at: tournament.lock_at,
     admin_locked_at: null,
@@ -221,6 +199,17 @@ export default async function BracketPage({ params }: Props) {
     officialResults[key] = row;
   }
   const hasOfficial = Object.keys(officialResults).length > 0;
+  const relevantRound = relevantRoundIndex(
+    buildRoundStructure(drawSize).flatMap((round) =>
+      round.matches.map((match) => {
+        const result = officialResults[match.key];
+        return {
+          round: match.round,
+          official: Boolean(result?.voided || result?.winnerRef),
+        };
+      })
+    )
+  );
   const schedule: Record<string, MatchScheduleRow> = scheduleMap;
 
   const surface = String(tournament.surface ?? "hard").toLowerCase();
@@ -270,7 +259,7 @@ export default async function BracketPage({ params }: Props) {
           </div>
         </header>
 
-        <div className="bracket-stage">
+        <BracketScroller relevantRound={relevantRound}>
           <BracketEditor
             leagueId={league.id}
             leagueSlug={league.slug}
@@ -280,7 +269,7 @@ export default async function BracketPage({ params }: Props) {
             seats={seats as DrawSeat[]}
             initialPicks={picks}
             initialConfidence={confidence}
-            submittedAt={myBracket?.submitted_at ?? null}
+            submittedAt={entry?.submittedAt ?? null}
             locked={locked}
             platformLocked={platformLocked}
             isCommissioner={membership.role === "commissioner"}
@@ -291,7 +280,7 @@ export default async function BracketPage({ params }: Props) {
             }
             showSoloInvite={solo && membership.role === "commissioner"}
           />
-        </div>
+        </BracketScroller>
       </div>
     </AppShell>
   );

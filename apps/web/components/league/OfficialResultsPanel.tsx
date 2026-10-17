@@ -84,6 +84,7 @@ export function OfficialResultsPanel({
   const tf = useTf();
   const locale = useLocale();
   const tbc = t("calendar.dateTbc");
+  const tba = t("match.timeTba");
   const viewerZone = useViewerTimeZone();
 
   async function saveWinner(
@@ -308,7 +309,8 @@ export function OfficialResultsPanel({
                             schedule[match.key],
                             whenZone,
                             locale,
-                            tbc
+                            tbc,
+                            tba
                           )
                         : tbc}
                     </span>

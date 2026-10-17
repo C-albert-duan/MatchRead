@@ -1,15 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { saveBracketPicks } from "@/app/actions/brackets";
 import { useT, useTf } from "@/components/shell/LocaleProvider";
 import { isTimedMatchStarted } from "@/lib/brackets/types";
 import { track } from "@/lib/telemetry";
-import {
-  formatMatchWhen,
-  matchWhenTimeZone,
-} from "@/lib/tournaments/format";
+import { captionTimeZone, matchScheduleCaption } from "@/lib/tournaments/format";
+import { matchHref } from "@/lib/tournaments/href";
 import { useViewerTimeZone } from "@/lib/tournaments/viewer-zone";
 import type { BracketPicks } from "@matchread/core";
 
@@ -23,6 +22,9 @@ export type AnnouncedMatchup = {
   player2_seed: number | null;
   scheduled_at: string | null;
   has_time: boolean;
+  session?: "day" | "night" | null;
+  court?: string | null;
+  external_ref?: string | null;
 };
 
 type Props = {
@@ -54,12 +56,14 @@ export function AnnouncedFirstRound({
   leagueSlug,
   tournamentId,
   tournamentRef,
+  venueTz,
   locale = "en",
   enterHref,
 }: Props) {
   const t = useT();
   const tf = useTf();
   const viewerZone = useViewerTimeZone();
+  const clockZone = captionTimeZone(viewerZone, venueTz);
   const router = useRouter();
   const editable = Boolean(leagueId && leagueSlug && tournamentId && tournamentRef) && !locked;
   const gateToEnter = Boolean(enterHref) && !editable && !locked;
@@ -126,31 +130,41 @@ export function AnnouncedFirstRound({
         {matchups.map((m) => {
           const winner = picks[m.match_key];
           const started = isTimedMatchStarted(m);
-          const whenZone = matchWhenTimeZone(
-            m.scheduled_at
-              ? { scheduled_at: m.scheduled_at, has_time: Boolean(m.has_time) }
-              : null,
-            viewerZone
+          const caption = matchScheduleCaption(
+            {
+              scheduled_at: m.scheduled_at,
+              has_time: Boolean(m.has_time),
+              session: m.session,
+              court: m.court,
+            },
+            clockZone,
+            locale,
+            {
+              tba: t("match.timeTba"),
+              tbc: t("calendar.dateTbc"),
+              day: t("match.session.day"),
+              night: t("match.session.night"),
+            }
           );
-          const when = whenZone
-            ? formatMatchWhen(
-                {
-                  scheduled_at: m.scheduled_at || "",
-                  has_time: Boolean(m.has_time),
-                },
-                whenZone,
-                locale,
-                t("calendar.dateTbc")
-              )
-            : null;
+          const publicHref = matchHref(m.external_ref);
           const sideDisabled = (!editable && !gateToEnter) || started;
           return (
             <li key={m.match_key} className="league-card">
               <div className="row wrap gap-md between">
                 <div className="stack gap-sm">
-                  {when ? (
+                  {caption.when || caption.place ? (
                     <p className="t-caption numeral">
-                      {when}
+                      {publicHref ? (
+                        <Link href={publicHref}>
+                          {caption.when ? <span className="match-when-line">{caption.when}</span> : null}
+                          {caption.place ? <span className="match-when-line">{caption.place}</span> : null}
+                        </Link>
+                      ) : (
+                        <>
+                          {caption.when ? <span className="match-when-line">{caption.when}</span> : null}
+                          {caption.place ? <span className="match-when-line">{caption.place}</span> : null}
+                        </>
+                      )}
                       {started ? ` · ${t("tournament.announced.matchStarted")}` : ""}
                     </p>
                   ) : null}

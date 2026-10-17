@@ -66,7 +66,7 @@ Legacy URLs ending in `/ingest-events` or `/rebuild-draw` are rewritten by ops s
 | `E2E_SUPABASE_SERVICE_ROLE_KEY` | Auth helper for live-checklist-auth |
 | `SUPABASE_PROJECT_REF` | Management API in `e2e-live-run-auth.mjs` |
 
-See `apps/web/e2e/live-checklist.spec.ts` and [ops-scripts.md](./ops-scripts.md).
+See `apps/web/e2e/live-checklist.spec.ts` and [ops-scripts.md](./ops-scripts.md). `apps/web/e2e/raw-html.spec.ts` fetches `/` and `/tournaments` with `request.get` and reads that response body. It does not open the page after hydration. The body must include the landing line or tournament rows, and must not include the `page-skeleton` shell. The landing document also has no back control.
 
 ## Templates
 

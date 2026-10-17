@@ -10,15 +10,11 @@ import { PublicOfficialDraw } from "@/components/bracket/PublicOfficialDraw";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { isFounderEmail } from "@/lib/auth/founder";
+import { loadTournamentReadModel } from "@/lib/brackets/read-model";
 import {
   effectiveDrawSize,
   isTournamentLocked,
-  loadAnnouncedMatchups,
-  loadBracketPicksMap,
   loadLeagueDrawLock,
-  loadMatchScheduleMap,
-  loadOfficialResultsMap,
-  loadTournamentSeats,
 } from "@/lib/brackets/types";
 import { getLocale, t } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
@@ -120,22 +116,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
   const showManualResults =
     isCommissioner && !(tournament as { provider_id?: string | null }).provider_id;
 
-  const [
-    bracketRes,
-    scoredRes,
-    seats,
-    officialMap,
-    scheduleMap,
-    leagueLockedAt,
-    announced,
-  ] = await Promise.all([
-    supabase
-      .from("brackets")
-      .select("id, submitted_at, updated_at")
-      .eq("league_id", league.id)
-      .eq("tournament_id", tournament.id)
-      .eq("user_id", user.id)
-      .maybeSingle(),
+  const [scoredRes, sheet, leagueLockedAt] = await Promise.all([
     supabase
       .from("brackets")
       .select(
@@ -145,20 +126,15 @@ export default async function TournamentInLeaguePage({ params }: Props) {
       .eq("tournament_id", tournament.id)
       .not("points", "is", null)
       .order("rank", { ascending: true }),
-    loadTournamentSeats(supabase, tournament.id),
-    loadOfficialResultsMap(supabase, tournament.id),
-    loadMatchScheduleMap(supabase, tournament.id),
-    loadLeagueDrawLock(supabase, league.id, tournament.id),
-    loadAnnouncedMatchups(supabase, tournament.id, {
-      allRounds: true,
-      bothSidesOnly: false,
+    loadTournamentReadModel(supabase, tournament.id, {
+      leagueId: league.id,
+      userId: user.id,
     }),
+    loadLeagueDrawLock(supabase, league.id, tournament.id),
   ]);
 
-  const bracket = bracketRes.data;
-  const picks = bracket?.id
-    ? await loadBracketPicksMap(supabase, bracket.id)
-    : {};
+  const { seats, official: officialMap, schedule: scheduleMap, announced, picks, entry } =
+    sheet;
 
   const drawSize = effectiveDrawSize(
     seats.length,
@@ -194,7 +170,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
 
   let bracketLabel = t("tournament.openBracket");
   if (locked) bracketLabel = t("tournament.viewBracket");
-  else if (bracket?.submitted_at || bracket?.updated_at)
+  else if (entry?.submittedAt || entry?.updatedAt)
     bracketLabel = t("tournament.reviewBracket");
 
   const standingNames = await loadDisplayNames(
@@ -277,7 +253,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
             <p className="t-body">
               {locked
                 ? t("tournament.entry.locked")
-                : bracket?.submitted_at
+                : entry?.submittedAt
                   ? t("tournament.entry.submitted")
                   : t("tournament.entry.draft")}
             </p>
@@ -319,11 +295,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
               seats={seats}
               official={officialResults}
               schedule={schedule}
-              venueTz={
-                (tournament as { venue_tz?: string | null }).venue_tz || "UTC"
-              }
               locale={getLocale()}
-              entryOpen={false}
             />
           </section>
         ) : null}

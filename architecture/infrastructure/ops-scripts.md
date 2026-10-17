@@ -13,13 +13,14 @@ Quick index: [scripts/README.md](../../scripts/README.md).
 | `probe-rapidapi.mjs` | `npm run probe:rapidapi` | Provider connectivity |
 | `probe-event-dates.mjs` | `npm run probe:event-dates` | Read-only date/fixture diagnosis |
 | `capture-live-ndjson.mjs` | `npm run capture:live` | Append raw REST live and WTA companion bodies to `fixtures/live-capture-oct-2026/frames.ndjson` |
-| `prove-cron.mjs` | `npm run prove:cron` | Read `cron.job` history for `sync-facts-5m` and `settle-leagues` |
+| `prove-cron.mjs` | `npm run prove:cron` | Read `cron.job` + latest `cron.job_run_details` and Vault `project_url` / `ingest_secret`. Exit **0** only when both jobs are active, latest runs **succeeded**, and Vault is set so `invoke_*` can `net.http_post`. Exit **1** when Vault is empty (local “succeeded” rows are not Edge proof). Exit **2** when `DATABASE_URL` is unset or `psql` fails. Rules: `scripts/lib/cron-proof.mjs`; tests: `scripts/cron-proof.test.mjs` |
 | `tennis-verify.mjs` | `npm run tennis:verify` | `evaluateDrawIntegrity` vs DB (+ optional live) |
 | `preflight-trust-boundary.mjs` | `npm run preflight:trust` | Repo (+ optional live) trust checks |
 | `ci-consumer-boundary.mjs` | `npm run ci:consumer-boundary` | CI: public consumers must use `public_calendar` |
 | `verify-settlement-math.mjs` | `npm run verify:settlement` | Offline scoring invariant (128 → max 512) |
 | `backfill-settle-advance.mjs` | one-shot | Re-bind results + parent advance |
 | `backfill-scorelines.mjs` | `npm run backfill:scorelines` | Dry-run by default. One results-archive request per tournament. `--write` fills a null `official_score` only and does not change `winner_player_id` |
+| `backfill-session-court.mjs` | `npm run backfill:session-court` | Dry-run by default. One fixture request per tournament. `--write` fills a null `session` or `court` from an explicit fixture label. A remote database also needs `--confirm-remote` |
 | `docker-migrate.mjs` | migrate profile | Apply migrations via `DATABASE_URL` |
 | `apply-sql-migration.mjs` | manual | Apply one SQL via Management API |
 | `e2e-live-*.mjs` + `.sql` | live E2E | Fixture setup/cleanup |

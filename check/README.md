@@ -68,7 +68,6 @@ Public discovery must come from **`public_calendar`**, never raw `tournaments`.
 | [MANUAL-CHECKLIST.md](./MANUAL-CHECKLIST.md) | Numbered human checks |
 | [launch-sequence.md](./launch-sequence.md) | Time-ordered window (T−72h → Day 1) |
 | [worksheet.md](./worksheet.md) | Pass / fail log |
-| [MILESTONE-1-UPDATES.txt](./MILESTONE-1-UPDATES.txt) | M1 what shipped + how users and ops verify it |
 
 ## Do not
 

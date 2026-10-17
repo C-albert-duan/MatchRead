@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   enterHref,
   leagueNewHref,
+  matchHref,
   signInNextHref,
   tournamentHref,
 } from "./href.ts";
@@ -31,6 +32,19 @@ test("calendar href is never a sign-in URL", () => {
   assert.equal(tournamentHref("evt-1"), "/tournaments/evt-1");
   assert.ok(!tournamentHref("evt-1").includes("sign-in"));
   assert.ok(!tournamentHref("evt-slam").includes("sign-in"));
+});
+
+test("matchHref uses the public ref and refuses a uuid", () => {
+  assert.equal(matchHref("syn16-r0-m0"), "/matches/syn16-r0-m0");
+  assert.equal(matchHref("fx-9001"), "/matches/fx-9001");
+  assert.equal(
+    matchHref("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+    null
+  );
+  assert.equal(matchHref("  "), null);
+  assert.equal(matchHref(null), null);
+  assert.equal(matchHref("12345"), null);
+  assert.equal(matchHref(" 9001 "), null);
 });
 
 test("filling a bracket still gates anon through sign-in, not a saved pick", () => {

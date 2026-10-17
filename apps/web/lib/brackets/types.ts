@@ -332,6 +332,9 @@ export type AnnouncedMatchupRow = {
   player2_seed: number | null;
   scheduled_at: string | null;
   has_time: boolean;
+  session?: "day" | "night" | null;
+  court?: string | null;
+  external_ref?: string | null;
 };
 
 /**

@@ -3,20 +3,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isOfficialPublicDraw, type OfficialResults } from "@matchread/core";
 import { AppShell } from "@/components/shell/AppShell";
-import { AnnouncedFirstRound } from "@/components/bracket/AnnouncedFirstRound";
+import { AnnouncedSheet } from "@/components/bracket/AnnouncedSheet";
 import { PublicOfficialDraw } from "@/components/bracket/PublicOfficialDraw";
 import { TrackOnMount } from "@/components/shell/Telemetry";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
 import { getLocale, t, tf } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
-import {
-  effectiveDrawSize,
-  loadAnnouncedMatchups,
-  loadMatchScheduleMap,
-  loadOfficialResultsMap,
-  loadTournamentSeats,
-} from "@/lib/brackets/types";
+import { effectiveDrawSize } from "@/lib/brackets/types";
+import { loadTournamentReadModel } from "@/lib/brackets/read-model";
 import { publicPageMetadata } from "@/lib/seo";
 import {
   calendarStatus,
@@ -85,16 +80,13 @@ export default async function PublicTournamentPage({ params }: Props) {
   const official: OfficialResults = {};
   const schedule: Record<string, MatchScheduleRow> = {};
 
-  // Sheet visibility follows seats / match facts only — never open vs live/locked.
-  const [announced, seats, officialMap, scheduleMap] = await Promise.all([
-    loadAnnouncedMatchups(supabase, event.id, {
-      allRounds: true,
-      bothSidesOnly: false,
-    }),
-    loadTournamentSeats(supabase, event.id),
-    loadOfficialResultsMap(supabase, event.id),
-    loadMatchScheduleMap(supabase, event.id),
-  ]);
+  // One sheet read. Visibility follows seats / match facts only.
+  const {
+    announced,
+    seats,
+    official: officialMap,
+    schedule: scheduleMap,
+  } = await loadTournamentReadModel(supabase, event.id);
 
   for (const [key, row] of Object.entries(officialMap)) {
     official[key] = row;
@@ -134,6 +126,7 @@ export default async function PublicTournamentPage({ params }: Props) {
                   {" · "}
                   <EntryLockWhen
                     lockAt={event.lock_at}
+                    venueTz={event.venue_tz}
                     locale={locale}
                     labels={labels}
                     className="numeral"
@@ -223,7 +216,7 @@ export default async function PublicTournamentPage({ params }: Props) {
         </section>
 
         {showMatchups ? (
-          <AnnouncedFirstRound
+          <AnnouncedSheet
             matchups={announced}
             expectedFirst={Math.max(Math.floor(drawSize / 2), 16)}
             locked={!entryOpen}
@@ -238,18 +231,13 @@ export default async function PublicTournamentPage({ params }: Props) {
             <h2 id="official-draw" className="section-title">
               {t("publicTournament.officialDraw")}
             </h2>
-            <div className="bracket-stage">
-              <PublicOfficialDraw
-                drawSize={drawSize}
-                seats={seats}
-                official={official}
-                schedule={schedule}
-                venueTz={event.venue_tz}
-                locale={locale}
-                enterHref={pickHref}
-                entryOpen={Boolean(pickHref)}
-              />
-            </div>
+            <PublicOfficialDraw
+              drawSize={drawSize}
+              seats={seats}
+              official={official}
+              schedule={schedule}
+              locale={locale}
+            />
           </section>
         ) : null}
       </div>

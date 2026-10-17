@@ -482,6 +482,26 @@ describe("official score and fact class", () => {
     assert.ok(conflict.conflicts.includes("winner"));
     assert.ok(conflict.conflicts.includes("score"));
     assert.equal(settledFactSkipReason(conflict), "winner conflict");
+
+    const donated = mergeSettledFact(
+      {
+        settled_at: "2026-08-12T00:00:00.000Z",
+        winner_player_id: "a",
+        voided: false,
+        official_score: null,
+        fact_kind: null,
+      },
+      {
+        winner_player_id: "b",
+        voided: false,
+        official_score: "6-0 6-0",
+        fact_kind: "withdrawal",
+      }
+    );
+    assert.equal(donated.action, "conflict");
+    assert.deepEqual(donated.patch, {});
+    assert.ok(donated.conflicts.includes("winner"));
+    assert.equal(donated.conflicts.includes("score"), false);
   });
 
   it("keeps an already-correct scoreline and names a different one", () => {

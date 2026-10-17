@@ -17,8 +17,10 @@ import {
   unboundProviderFixtures,
 } from "./reconcile-provider.js";
 import { parseFixtureInstant } from "./fixture-instant.js";
+import { parseMatchCourt, parseMatchSession } from "./match-facts.js";
 
 export { parseFixtureInstant };
+export { parseMatchCourt, parseMatchSession };
 
 /**
  * @typedef {object} RapidApiClientOptions
@@ -392,6 +394,8 @@ export function namedFirstRoundPairs(fixtures) {
       p1,
       p2,
       instant: parseFixtureInstant(raw),
+      session: parseMatchSession(raw),
+      court: parseMatchCourt(raw),
     });
   }
   out.sort((a, b) => a.id - b.id || a.p1.id.localeCompare(b.p1.id));
@@ -480,7 +484,7 @@ export function buildDrawFromFirstRound(fixtures, opts) {
   const players = {};
   /** @type {Record<string,string>} */
   const matches = {};
-  /** @type {Array<{match_key:string,scheduled_at:string,has_time:boolean}>} */
+  /** @type {Array<{match_key:string,scheduled_at?:string,has_time?:boolean,session?:"day"|"night",court?:string}>} */
   const schedule = [];
 
   for (let i = 0; i < pairs.length; i++) {
@@ -504,8 +508,13 @@ export function buildDrawFromFirstRound(fixtures, opts) {
     place(i * 2, pair.p1);
     place(i * 2 + 1, pair.p2);
     if (pair.id) matches[String(pair.id)] = key;
-    if (pair.instant) {
-      schedule.push({ match_key: key, ...pair.instant });
+    if (pair.instant || pair.court || pair.session) {
+      const item = pair.instant
+        ? { match_key: key, ...pair.instant }
+        : { match_key: key };
+      if (pair.session) item.session = pair.session;
+      if (pair.court) item.court = pair.court;
+      schedule.push(item);
     }
   }
 
@@ -792,6 +801,7 @@ export {
   r0SlotFromSeatPair,
   proposeShapeBRepairs,
   planScorelineBackfill,
+  planSessionCourtBackfill,
   absenceObservability,
   absenceSignalLog,
   classifyPlayerAbsences,

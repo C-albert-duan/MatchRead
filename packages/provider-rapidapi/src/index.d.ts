@@ -124,6 +124,8 @@ export type NamedFirstRoundPair = {
   p1: FirstRoundPlayer;
   p2: FirstRoundPlayer;
   instant: { scheduled_at: string; has_time: boolean } | null;
+  session: "day" | "night" | null;
+  court: string | null;
 };
 
 export declare function namedFirstRoundPairs(
@@ -156,8 +158,10 @@ export type BuiltDraw = {
   matches: Record<string, string>;
   schedule: Array<{
     match_key: string;
-    scheduled_at: string;
-    has_time: boolean;
+    scheduled_at?: string;
+    has_time?: boolean;
+    session?: "day" | "night";
+    court?: string;
   }>;
   results: Array<{
     match_key: string;
@@ -576,6 +580,36 @@ export declare function planScorelineBackfill(input: {
   }>;
 };
 
+export declare function planSessionCourtBackfill(input: {
+  matches: Array<{
+    id: string;
+    round?: number;
+    index_in_round?: number;
+    provider_match_id?: string | null;
+    session?: string | null;
+    court?: string | null;
+  }>;
+  fixtures?: Array<Record<string, unknown>>;
+}): {
+  changed: number;
+  unchanged: number;
+  unknownSession: number;
+  unknownCourt: number;
+  missingProviderMapping: number;
+  writes: Array<{
+    match_id: string;
+    provider_match_id: string;
+    session?: "day" | "night";
+    court?: string;
+  }>;
+  conflicts: Array<{
+    match_id: string;
+    field: "session" | "court";
+    existing: string;
+    incoming: string;
+  }>;
+};
+
 export declare function selectArchiveRows<T extends { id?: string | number | null }>(
   rows: T[],
   allowIds?: Array<string | number> | null
@@ -958,6 +992,12 @@ export declare function captureReport(
 export declare function wtaTournamentIdFromLiveText(
   text: string | null | undefined
 ): string | null;
+
+export declare function parseMatchSession(
+  row: unknown
+): "day" | "night" | null;
+
+export declare function parseMatchCourt(row: unknown): string | null;
 
 export declare function runLiveCapture(session: {
   recorder: FrameRecorder;

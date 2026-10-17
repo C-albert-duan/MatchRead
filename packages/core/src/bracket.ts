@@ -35,6 +35,28 @@ export function matchKey(round: number, indexInRound: number): string {
   return `r${round}-m${indexInRound}`;
 }
 
+/** Topology only. Does not write a winner into the parent. */
+export function feederMatchKeys(
+  round: number,
+  indexInRound: number
+): [string, string] | null {
+  if (round <= 0) return null;
+  return [
+    matchKey(round - 1, indexInRound * 2),
+    matchKey(round - 1, indexInRound * 2 + 1),
+  ];
+}
+
+/** Next-round slot this match feeds. Null for the final. */
+export function feedsMatchKey(
+  round: number,
+  indexInRound: number,
+  roundCount: number
+): string | null {
+  if (round < 0 || round >= roundCount - 1) return null;
+  return matchKey(round + 1, Math.floor(indexInRound / 2));
+}
+
 export function buildRoundStructure(drawSize: number): RoundStructure[] {
   if (drawSize < 2 || (drawSize & (drawSize - 1)) !== 0) {
     throw new Error("drawSize must be a power of 2 >= 2");

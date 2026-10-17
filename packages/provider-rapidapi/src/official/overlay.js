@@ -5,6 +5,7 @@
  */
 
 import { parseFixtureInstant } from "../fixture-instant.js";
+import { parseMatchCourt, parseMatchSession } from "../match-facts.js";
 
 function fold(value) {
   return String(value || "")
@@ -175,7 +176,7 @@ function mapOfficialTree(seats, rows) {
   const byPair = indexRowsByPair(rows);
   /** @type {Record<string, string>} */
   const matches = {};
-  /** @type {Array<{match_key:string,scheduled_at:string,has_time:boolean}>} */
+  /** @type {Array<{match_key:string,scheduled_at?:string,has_time?:boolean,session?:"day"|"night",court?:string}>} */
   const schedule = [];
   /** @type {Array<{match_key:string,winner_ref:string|null,voided:boolean}>} */
   const results = [];
@@ -210,7 +211,16 @@ function mapOfficialTree(seats, rows) {
           const fxId = String(row.id ?? "").trim();
           if (fxId) matches[fxId] = key;
           const instant = parseFixtureInstant(row);
-          if (instant) schedule.push({ match_key: key, ...instant });
+          const session = parseMatchSession(row);
+          const court = parseMatchCourt(row);
+          if (instant || court || session) {
+            const item = instant
+              ? { match_key: key, ...instant }
+              : { match_key: key };
+            if (session) item.session = session;
+            if (court) item.court = court;
+            schedule.push(item);
+          }
           if (voidedRow(row) && !winnerIdFromRow(row)) {
             results.push({ match_key: key, winner_ref: null, voided: true });
             advanced.push(null);

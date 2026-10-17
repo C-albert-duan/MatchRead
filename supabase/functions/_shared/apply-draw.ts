@@ -6,6 +6,7 @@ import { relocateProviderMatchId } from "./apply-results.ts";
 import { buildRoundStructure, parseMatchKey } from "./core.js";
 import {
   advanceWinnerToParent,
+  mergeSettledFact,
   overlaySeatPatch,
   planFakeByeUnwind,
   r0IndexFromSeatPosition,
@@ -41,8 +42,10 @@ type ResultIn = {
 
 type ScheduleIn = {
   match_key: string;
-  scheduled_at: string;
+  scheduled_at?: string | null;
   has_time?: boolean;
+  session?: "day" | "night" | null;
+  court?: string | null;
 };
 
 type MatchupIn = {
@@ -60,7 +63,22 @@ type MatchupIn = {
   player2_provider_id?: string;
   scheduled_at?: string | null;
   has_time?: boolean;
+  session?: "day" | "night" | null;
+  court?: string | null;
 };
+
+function matchFactPatch(input: {
+  session?: string | null;
+  court?: string | null;
+}): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  if (input.session === "day" || input.session === "night") {
+    patch.session = input.session;
+  }
+  const court = input.court?.trim();
+  if (court) patch.court = court;
+  return patch;
+}
 
 export type ApplyDrawBody = {
   tournament_id?: string;
@@ -942,6 +960,7 @@ async function upsertAnnouncedMatches(
       side_b_player_id: sideB,
       scheduled_at: m.scheduled_at || null,
       has_time: Boolean(m.has_time && m.scheduled_at),
+      ...matchFactPatch(m),
     };
     const { data: existing } = await admin
       .from("matches")
@@ -958,6 +977,7 @@ async function upsertAnnouncedMatches(
           side_b_player_id: row.side_b_player_id,
           scheduled_at: row.scheduled_at,
           has_time: row.has_time,
+          ...matchFactPatch(m),
         })
         .eq("id", existing.id);
       if (error) return `matchups: ${error.message}`;
@@ -1016,7 +1036,9 @@ async function syncAnnouncedScheduleOntoOfficial(
     if (!slot) continue;
     if (slot.index_in_round < 0 || slot.index_in_round >= drawSize / 2) continue;
 
-    const patch: Record<string, unknown> = {};
+    const patch: Record<string, unknown> = {
+      ...matchFactPatch(m),
+    };
     if (m.scheduled_at) {
       patch.scheduled_at = m.scheduled_at;
       patch.has_time = Boolean(m.has_time);
@@ -1248,7 +1270,15 @@ async function refreshRoundZeroSides(
     ) {
       byeWinner = winnerAfter;
     }
+    const droppedWinner = Boolean(
+      m.winner_player_id &&
+        Object.prototype.hasOwnProperty.call(patch, "winner_player_id") &&
+        patch.winner_player_id !== m.winner_player_id
+    );
     await admin.from("matches").update(patch).eq("id", m.id);
+    if (droppedWinner) {
+      await admin.from("settlement_claims").delete().eq("match_id", m.id);
+    }
     if (byeWinner) {
       // M3 hook: this bye winner is official. Clear provisional_winner
       // here only after M3 adds that field.
@@ -1763,18 +1793,19 @@ async function applyMatchFacts(
     log.push(`mapped ${Object.keys(matchesMap).length} provider match ids`);
   }
 
-  const scheduleRows = (schedule ?? []).filter(
-    (s) => s.match_key && s.scheduled_at
-  );
+  const scheduleRows = (schedule ?? []).filter((s) => s.match_key);
   for (const s of scheduleRows) {
     const parsed = parseMatchKey(s.match_key);
     if (!parsed) continue;
+    const patch: Record<string, unknown> = { ...matchFactPatch(s) };
+    if (s.scheduled_at) {
+      patch.scheduled_at = s.scheduled_at;
+      patch.has_time = Boolean(s.has_time);
+    }
+    if (Object.keys(patch).length === 0) continue;
     const { error } = await admin
       .from("matches")
-      .update({
-        scheduled_at: s.scheduled_at,
-        has_time: Boolean(s.has_time),
-      })
+      .update(patch)
       .eq("tournament_id", tournamentId)
       .eq("round", parsed.round)
       .eq("index_in_round", parsed.indexInRound);
@@ -1822,7 +1853,9 @@ async function applyMatchFacts(
     // Load sides so CHECK (winner ∈ sides) can pass; set missing side if needed.
     const { data: matchRow, error: mErr } = await admin
       .from("matches")
-      .select("id, side_a_player_id, side_b_player_id")
+      .select(
+        "id, side_a_player_id, side_b_player_id, winner_player_id, voided, settled_at, official_score, fact_kind"
+      )
       .eq("tournament_id", tournamentId)
       .eq("round", parsed.round)
       .eq("index_in_round", parsed.indexInRound)
@@ -1836,6 +1869,39 @@ async function applyMatchFacts(
       };
     }
     if (!matchRow) continue;
+
+    const decision = mergeSettledFact(
+      {
+        settled_at: matchRow.settled_at,
+        winner_player_id: matchRow.winner_player_id,
+        voided: matchRow.voided,
+        official_score: matchRow.official_score,
+        fact_kind: matchRow.fact_kind,
+      },
+      {
+        winner_player_id: winnerId,
+        voided: Boolean(r.voided),
+        official_score: null,
+        fact_kind: null,
+      }
+    );
+    if (decision.action === "conflict" || decision.action === "noop") continue;
+
+    if (decision.action === "fill") {
+      const { error } = await admin
+        .from("matches")
+        .update(decision.patch)
+        .eq("id", matchRow.id);
+      if (error) {
+        return {
+          error: `results: ${error.message}`,
+          results: 0,
+          schedule: scheduleRows.length,
+          lockAt: null,
+        };
+      }
+      continue;
+    }
 
     const patch: Record<string, unknown> = {
       voided: Boolean(r.voided),
@@ -1867,6 +1933,34 @@ async function applyMatchFacts(
         schedule: scheduleRows.length,
         lockAt: null,
       };
+    }
+
+    const { error: claimErr } = await admin.rpc("claim_settlement", {
+      p_match: matchRow.id,
+      p_outcome: r.voided ? "void" : "winner",
+      p_winner: r.voided ? null : winnerId,
+      p_run: null,
+    });
+    if (
+      claimErr &&
+      !/claim_settlement|function .* does not exist/i.test(claimErr.message)
+    ) {
+      return {
+        error: `results: ${claimErr.message}`,
+        results: 0,
+        schedule: scheduleRows.length,
+        lockAt: null,
+      };
+    }
+
+    if (!r.voided && winnerId) {
+      await advanceWinnerIntoParentMatch(
+        admin,
+        tournamentId,
+        parsed.round,
+        parsed.indexInRound,
+        winnerId
+      );
     }
   }
   if (resultRows.length) log.push(`applied ${resultRows.length} results`);

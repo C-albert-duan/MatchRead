@@ -1,12 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildRoundStructure } from "../../../../packages/core/src/bracket.ts";
-import { matchSheetPresentation } from "./resolution.ts";
+import {
+  matchSheetPresentation,
+  matchSheetState,
+  officialWinnerRef,
+  pickHighlight,
+  presentNodeSchedule,
+} from "./resolution.ts";
 
 /**
  * Quarter-final column: one settled result, one still to be played.
- * No named historical fixture is in the repo, so the pair is the
- * quarter-final round of a 16-draw. Names are not inputs.
+ * The pair is the quarter-final round of a 16-draw. Names are not inputs.
  */
 test("quarter-final played and upcoming sheet states stay distinct", () => {
   const quarter = buildRoundStructure(16).find(
@@ -44,6 +49,30 @@ test("quarter-final played and upcoming sheet states stay distinct", () => {
   assert.equal(upcoming.showScore, null);
   assert.notEqual(played.state, upcoming.state);
   assert.notEqual(played.labelKey, upcoming.labelKey);
+  assert.equal(
+    officialWinnerRef(
+      { winnerRef: "side-a", voided: false },
+      ["side-a", "side-b"]
+    ),
+    "side-a"
+  );
+  assert.equal(
+    officialWinnerRef(
+      { winnerRef: null, voided: false },
+      ["side-c", "side-d"]
+    ),
+    null
+  );
+});
+
+test("the sheet state stays the two implemented values", () => {
+  const samples = [
+    matchSheetState(null),
+    matchSheetState({ winnerRef: null, voided: false }),
+    matchSheetState({ winnerRef: "p-0", voided: false }),
+    matchSheetState({ voided: true }),
+  ];
+  assert.deepEqual(new Set(samples), new Set(["official", "scheduled"]));
 });
 
 test("score text and start time do not choose the sheet state", () => {
@@ -70,4 +99,44 @@ test("score text and start time do not choose the sheet state", () => {
   });
   assert.equal(voided.state, "official");
   assert.equal(voided.showScore, null);
+});
+
+test("a scheduled node keeps stored time, session, and court, and TBA when none exist", () => {
+  const open = presentNodeSchedule(null);
+  assert.equal(open.timeTba, true);
+  assert.equal(open.scheduledAt, null);
+  assert.equal(open.hasTime, false);
+  assert.equal(open.session, null);
+  assert.equal(open.court, null);
+
+  const timed = presentNodeSchedule({
+    scheduled_at: "2026-08-10T14:00:00.000Z",
+    has_time: true,
+    session: "day",
+    court: " Court 1 ",
+  });
+  assert.equal(timed.timeTba, false);
+  assert.equal(timed.scheduledAt, "2026-08-10T14:00:00.000Z");
+  assert.equal(timed.hasTime, true);
+  assert.equal(timed.session, "day");
+  assert.equal(timed.court, "Court 1");
+
+  const unnamed = presentNodeSchedule({
+    scheduled_at: "2026-08-10T02:00:00.000Z",
+    has_time: true,
+    session: "evening",
+    court: "   ",
+  });
+  assert.equal(unnamed.session, null);
+  assert.equal(unnamed.court, null);
+});
+
+test("the winner mark is a stored side, and a pick highlight follows the official result", () => {
+  assert.equal(officialWinnerRef({ winnerRef: "p-0", voided: false }, ["p-0", "p-1"]), "p-0");
+  assert.equal(officialWinnerRef({ winnerRef: "p-9", voided: false }, ["p-0", "p-1"]), null);
+  assert.equal(officialWinnerRef({ winnerRef: "p-0", voided: true }, ["p-0", "p-1"]), null);
+
+  assert.equal(pickHighlight(false, false), null);
+  assert.equal(pickHighlight(true, false), "open");
+  assert.equal(pickHighlight(true, true), "settled");
 });

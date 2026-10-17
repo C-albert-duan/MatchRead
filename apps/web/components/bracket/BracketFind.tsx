@@ -2,17 +2,17 @@
 
 import { useMemo, useState } from "react";
 import {
-  applyByeAdvances,
   buildRoundStructure,
   resolveMatchEntrants,
   type BracketPicks,
   type DrawSeat,
   type OfficialResults,
+  type SlotOccupant,
 } from "@matchread/core";
 import { useT } from "@/components/shell/LocaleProvider";
 import {
-  formatMatchWhen,
-  matchWhenTimeZone,
+  matchScheduleCaption,
+  type MatchPlayerSide,
   type MatchScheduleRow,
 } from "@/lib/tournaments/format";
 import { useViewerTimeZone } from "@/lib/tournaments/viewer-zone";
@@ -33,11 +33,24 @@ function occupantLabel(occupant: { kind: string; lastName?: string }) {
   return "";
 }
 
+function storedSide(
+  side: MatchPlayerSide | null | undefined,
+  fallback: SlotOccupant
+): SlotOccupant {
+  if (!side?.ref) return fallback;
+  return {
+    kind: "player",
+    ref: side.ref,
+    lastName: side.lastName,
+    seed: side.seed,
+    countryCode: side.countryCode,
+  };
+}
+
 export function BracketFind({
   drawSize,
   seats,
   picks,
-  official,
   schedule,
   locale,
 }: Props) {
@@ -46,42 +59,46 @@ export function BracketFind({
   const tbc = t("calendar.dateTbc");
   const viewerZone = useViewerTimeZone();
 
-  const displayPicks = useMemo(() => {
-    const merged: BracketPicks = { ...picks };
-    for (const [key, result] of Object.entries(official)) {
-      if (result?.winnerRef && !result.voided) merged[key] = result.winnerRef;
-    }
-    return applyByeAdvances(seats, merged, drawSize);
-  }, [picks, official, seats, drawSize]);
-
   const rows = useMemo(() => {
     return buildRoundStructure(drawSize).flatMap((round) =>
       round.matches.map((match) => {
-        const [a, b] = resolveMatchEntrants(
+        const predicted = resolveMatchEntrants(
           seats,
-          displayPicks,
+          match.round === 0 ? {} : picks,
           match.round,
           match.indexInRound
         );
+        const stored = schedule[match.key];
+        const [a, b] =
+          match.round === 0
+            ? predicted
+            : [
+                storedSide(stored?.side_a, predicted[0]),
+                storedSide(stored?.side_b, predicted[1]),
+              ];
         const left = occupantLabel(a);
         const right = occupantLabel(b);
         const title =
           left && right
             ? `${left} · ${right}`
             : left || right || t("bracket.notPlayed");
-        const whenZone = matchWhenTimeZone(schedule[match.key], viewerZone);
+        const caption = matchScheduleCaption(stored, viewerZone, locale, {
+          tba: t("match.timeTba"),
+          tbc,
+          day: t("match.session.day"),
+          night: t("match.session.night"),
+        });
         return {
           key: match.key,
           round: round.label.column,
           title,
           haystack: `${left} ${right} ${round.label.column}`.toLowerCase(),
-          when: whenZone
-            ? formatMatchWhen(schedule[match.key], whenZone, locale, tbc)
-            : "",
+          when: caption.when,
+          place: caption.place,
         };
       })
     );
-  }, [drawSize, seats, displayPicks, schedule, viewerZone, locale, t, tbc]);
+  }, [drawSize, seats, picks, schedule, viewerZone, locale, t, tbc]);
 
   const needle = query.trim().toLowerCase();
   const ready = needle.length >= 2;
@@ -123,7 +140,10 @@ export function BracketFind({
               >
                 <span className="bracket-find-round numeral">{row.round}</span>
                 <span className="bracket-find-names">{row.title}</span>
-                <span className="bracket-find-when numeral">{row.when}</span>
+                <span className="bracket-find-when numeral">
+                  {row.when ? <span className="match-when-line">{row.when}</span> : null}
+                  {row.place ? <span className="match-when-line">{row.place}</span> : null}
+                </span>
               </button>
             </li>
           ))}
