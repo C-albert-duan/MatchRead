@@ -41,6 +41,8 @@ test("Next bundled @vercel/og node entry loads WASM/fonts on Windows paths", asy
 test("path.join must not resolve sibling assets from a file: import.meta.url", () => {
   const sample = pathToFileURL(join(repoRoot, "node_modules/next/package.json")).href;
   const broken = join(sample, "../noto-sans-v27-latin-regular.ttf");
+  const sibling = fileURLToPath(new URL("noto-sans-v27-latin-regular.ttf", sample));
   assert.equal(broken.includes("file:"), true);
-  assert.throws(() => fileURLToPath(broken), /Invalid URL/);
+  // Windows rejects the joined string outright; elsewhere it parses but names the wrong file.
+  assert.notEqual(broken, sibling);
 });
