@@ -68,6 +68,12 @@ const WINDOW_PAST_DAYS = 21;
 const WINDOW_FUTURE_DAYS = 60;
 /** Cron/full runs: cap draw+results work so Edge does not idle-timeout (504). */
 const MAX_EVENTS_PER_RUN = 10;
+/**
+ * Slots per run for published events outside the window that still have
+ * settled matches with no official score (settled before 0022). The results
+ * archive fills them; a filled match leaves the set, so this drains itself.
+ */
+const MAX_SCORE_BACKFILL_PER_RUN = 2;
 
 /**
  * Known main-draw first days when provider calendar `date` is the week banner.
@@ -615,7 +621,7 @@ async function listSyncedEvents(
   if (error) throw new Error(error.message);
 
   const now = Date.now();
-  let events = (data ?? [])
+  const all = (data ?? [])
     .filter((row) => row?.slug && row.provider_id)
     .filter((row) => row.ingestion_enabled !== false)
     .map((row) => ({
@@ -637,12 +643,12 @@ async function listSyncedEvents(
       ingestion_enabled: row.ingestion_enabled !== false,
       ref: row.slug as string,
       api_name: row.name as string,
-    }))
-    .filter(
-      (e) =>
-        inWindow(e.main_draw_starts_on || e.starts_on, now) ||
-        onlySlug === e.slug
-    );
+    }));
+  let events = all.filter(
+    (e) =>
+      inWindow(e.main_draw_starts_on || e.starts_on, now) ||
+      onlySlug === e.slug
+  );
 
   if (onlySlug) events = events.filter((e) => e.slug === onlySlug);
   else {
@@ -702,10 +708,45 @@ async function listSyncedEvents(
       }
     }
 
-    const room = Math.max(0, MAX_EVENTS_PER_RUN - selectedInPlay.length);
-    events = [...selectedInPlay, ...rest.slice(0, room)];
+    const windowIds = new Set(events.map((e) => e.id));
+    const debtIds = await loadScoreDebtTournamentIds(admin);
+    const backfill = rotateList(
+      all.filter(
+        (e) => e.published_at && debtIds.has(e.id) && !windowIds.has(e.id)
+      ),
+      tick
+    ).slice(
+      0,
+      Math.min(
+        MAX_SCORE_BACKFILL_PER_RUN,
+        Math.max(0, MAX_EVENTS_PER_RUN - selectedInPlay.length)
+      )
+    );
+
+    const room = Math.max(
+      0,
+      MAX_EVENTS_PER_RUN - selectedInPlay.length - backfill.length
+    );
+    events = [...selectedInPlay, ...backfill, ...rest.slice(0, room)];
   }
   return events;
+}
+
+/** Tournaments with a settled, non-void match that has neither score nor fact kind. */
+async function loadScoreDebtTournamentIds(
+  admin: ReturnType<typeof createClient>
+): Promise<Set<string>> {
+  const { data, error } = await admin
+    .from("matches")
+    .select("tournament_id")
+    .not("settled_at", "is", null)
+    .eq("voided", false)
+    .is("official_score", null)
+    .is("fact_kind", null)
+    .limit(5000);
+  // Backfill is opportunistic: a failed read skips it this run, not the sync.
+  if (error) return new Set();
+  return new Set((data ?? []).map((row) => String(row.tournament_id)));
 }
 
 function rotateList<T>(arr: T[], offset: number): T[] {
