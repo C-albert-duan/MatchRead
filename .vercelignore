@@ -14,4 +14,11 @@ supabase/.temp
 supabase/.branches
 agent-transcripts
 coverage
+# Raw provider captures may contain tokens; never upload them
+captures
+fixtures/live-capture-oct-2026
+discussion
+tmp-*
+apps/web/.next-e2e
+apps/web/test-results
 **/*.tsbuildinfo
