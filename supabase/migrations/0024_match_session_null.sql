@@ -3,15 +3,16 @@
 -- Indexes already cover (tournament_id, round) and
 -- (tournament_id, provider_match_id). No session index is added.
 
-update public.matches
-   set session = null
- where session = 'unknown';
-
+-- Relax the column before clearing 'unknown': 0023 made it not null.
 alter table public.matches
   alter column session drop not null;
 
 alter table public.matches
   alter column session drop default;
+
+update public.matches
+   set session = null
+ where session = 'unknown';
 
 alter table public.matches
   drop constraint if exists matches_session_check;
