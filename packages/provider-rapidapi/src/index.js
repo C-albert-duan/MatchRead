@@ -1,19 +1,28 @@
 import {
   auxiliaryLastName,
   canonicalizeDisplayName,
+  officialFactKind,
+  officialScoreText,
+  outcomeDisposition,
+  splitResultAbsences,
 } from "./normalize.js";
 import {
   bindResultsByPlayerPair,
   selectArchiveRows,
 } from "./settle-advance.js";
 import {
+  classifyPlayerAbsences,
   diffProviderAuthoritative,
+  entryRowsFromInfo,
   proposeShapeBRepairs,
   unboundProviderFixtures,
 } from "./reconcile-provider.js";
 import { parseFixtureInstant } from "./fixture-instant.js";
+import { getLiveEvents, getWsToken, isTokenExpired, tokenExpiry } from "./live.js";
+import { parseMatchCourt, parseMatchSession } from "./match-facts.js";
 
 export { parseFixtureInstant };
+export { parseMatchCourt, parseMatchSession };
 
 /**
  * @typedef {object} RapidApiClientOptions
@@ -47,6 +56,8 @@ export { parseFixtureInstant };
  * @property {string} match_key
  * @property {string|null} winner_ref
  * @property {boolean} voided
+ * @property {string|null} [official_score]
+ * @property {'played'|'withdrawal'|'void'|null} [fact_kind]
  */
 
 /**
@@ -55,6 +66,8 @@ export { parseFixtureInstant };
 export function createClient(opts) {
   const key = opts.key?.trim();
   const host = (opts.host || "tennis-api-atp-wta-itf.p.rapidapi.com").trim();
+  const onRawBody = typeof opts.onRawBody === "function" ? opts.onRawBody : null;
+  const signal = opts.signal instanceof AbortSignal ? opts.signal : null;
   if (!key) throw new Error("RAPIDAPI_KEY required");
 
   /**
@@ -62,8 +75,10 @@ export function createClient(opts) {
    * @param {number} [attempt]
    */
   async function get(path, attempt = 0) {
+    throwIfAborted(signal);
     const url = `https://${host}${path}`;
     const res = await fetch(url, {
+      signal: signal ?? undefined,
       headers: {
         "X-RapidAPI-Key": key,
         "X-RapidAPI-Host": host,
@@ -73,11 +88,18 @@ export function createClient(opts) {
 
     if ((res.status === 429 || res.status >= 500) && attempt < 4) {
       const ms = backoffMs(attempt);
-      await sleep(ms);
+      await sleep(ms, signal);
       return get(path, attempt + 1);
     }
 
     const text = await res.text();
+    if (onRawBody) {
+      try {
+        onRawBody({ path, status: res.status, bodyText: text });
+      } catch {
+        /* Capture must not fail the provider read. */
+      }
+    }
     let body = null;
     try {
       body = text ? JSON.parse(text) : null;
@@ -97,6 +119,103 @@ export function createClient(opts) {
   }
 
   return { host, get };
+}
+
+/**
+ * @param {{ info?: (message: string) => void } | undefined} log
+ * @param {string} message
+ */
+function info(log, message) {
+  if (typeof log?.info === "function") log.info(message);
+  else console.info(message);
+}
+
+/**
+ * REST live client. The key and host come from the environment.
+ * Auth is the captured ws-token call. This does not open a socket.
+ * An expired `exp` logs `{ level: "info", name: "token_expired" }`, then the token is cleared and fetched again.
+ * There is no proactive timer. `proactiveRefreshEnabled` stays false.
+ * @param {NodeJS.ProcessEnv} [env]
+ * @param {{ host?: string, get: (path: string) => Promise<any> }} [client]
+ * @param {{ info?: (message: string) => void }} [log]
+ */
+export async function connectLive(env = process.env, client, log, options = {}) {
+  const key = String(env?.RAPIDAPI_KEY ?? "").trim();
+  if (!key || key.startsWith("<")) {
+    const error = new Error("RAPIDAPI_KEY required");
+    error.code = "PROVIDER_KEY";
+    throw error;
+  }
+  const host = String(env?.RAPIDAPI_HOST ?? "").trim();
+  const controller = new AbortController();
+  const external = options?.signal instanceof AbortSignal ? options.signal : null;
+  if (external?.aborted) controller.abort();
+  else external?.addEventListener("abort", () => controller.abort(), { once: true });
+  const http = client ?? createClient({ key, ...(host ? { host } : {}), signal: controller.signal });
+  const auth = await getWsToken(http);
+  if (!auth.token) {
+    const error = new Error("ws-token body is not the captured shape");
+    error.code = "WS_TOKEN_SHAPE";
+    throw error;
+  }
+  let token = auth.token;
+  let closed = false;
+
+  function close() {
+    if (closed) return;
+    closed = true;
+    token = null;
+    controller.abort();
+  }
+
+  async function reconnect(now = Date.now()) {
+    if (closed || controller.signal.aborted) {
+      throw closedError();
+    }
+    if (token && !isTokenExpired(token, now)) return false;
+    if (token) info(log, JSON.stringify({ level: "info", name: "token_expired" }));
+    token = null;
+    const next = await getWsToken(http);
+    if (!next.token) {
+      const error = new Error("ws-token body is not the captured shape");
+      error.code = "WS_TOKEN_SHAPE";
+      throw error;
+    }
+    token = next.token;
+    return true;
+  }
+
+  function tokenAgeSec(now = Date.now()) {
+    const claims = token ? tokenExpiry(token) : null;
+    if (!claims || claims.iat == null) return null;
+    return Math.max(0, Math.floor(now / 1000) - claims.iat);
+  }
+
+  return {
+    transport: "rest",
+    host: http.host ?? (host || null),
+    reconnect,
+    tokenAgeSec,
+    close,
+    getLiveEvents: async (now) => {
+      if (closed || controller.signal.aborted) throw closedError();
+      await reconnect(now);
+      return getLiveEvents(http);
+    },
+  };
+}
+
+function closedError() {
+  const error = new Error("provider connection closed");
+  error.name = "LISTENER_CLOSED";
+  return error;
+}
+
+/**
+ * @param {AbortSignal | null} signal
+ */
+function throwIfAborted(signal) {
+  if (signal?.aborted) throw closedError();
 }
 
 /**
@@ -264,12 +383,6 @@ export async function getTournamentFixtures(
   return { tour: t, fixtures: rows, raw: body };
 }
 
-/**
- * Parse a provider fixture/result into a stored instant.
- * Date-only values do not invent a kickoff clock (`has_time: false`).
- * @param {Record<string, unknown>|null|undefined} row
- * @returns {{ scheduled_at: string, has_time: boolean } | null}
- */
 /** @param {Record<string, unknown>|null|undefined} row */
 export function fixtureRoundLabel(row) {
   if (!row || typeof row !== "object") return "";
@@ -383,6 +496,8 @@ export function namedFirstRoundPairs(fixtures) {
       p1,
       p2,
       instant: parseFixtureInstant(raw),
+      session: parseMatchSession(raw),
+      court: parseMatchCourt(raw),
     });
   }
   out.sort((a, b) => a.id - b.id || a.p1.id.localeCompare(b.p1.id));
@@ -471,7 +586,7 @@ export function buildDrawFromFirstRound(fixtures, opts) {
   const players = {};
   /** @type {Record<string,string>} */
   const matches = {};
-  /** @type {Array<{match_key:string,scheduled_at:string,has_time:boolean}>} */
+  /** @type {Array<{match_key:string,scheduled_at?:string,has_time?:boolean,session?:"day"|"night",court?:string}>} */
   const schedule = [];
 
   for (let i = 0; i < pairs.length; i++) {
@@ -495,8 +610,13 @@ export function buildDrawFromFirstRound(fixtures, opts) {
     place(i * 2, pair.p1);
     place(i * 2 + 1, pair.p2);
     if (pair.id) matches[String(pair.id)] = key;
-    if (pair.instant) {
-      schedule.push({ match_key: key, ...pair.instant });
+    if (pair.instant || pair.court || pair.session) {
+      const item = pair.instant
+        ? { match_key: key, ...pair.instant }
+        : { match_key: key };
+      if (pair.session) item.session = pair.session;
+      if (pair.court) item.court = pair.court;
+      schedule.push(item);
     }
   }
 
@@ -517,39 +637,6 @@ export function buildDrawFromFirstRound(fixtures, opts) {
       verifiedPlayers: seats.length,
       byes: 0,
     },
-  };
-}
-
-/**
- * Find National Bank Open week events: Montreal (ATP) + Toronto (WTA).
- * @param {{ atp: { tournaments: any[] }, wta: { tournaments: any[] } }} dual
- */
-export function resolveNationalBankOpenWeek(dual) {
-  const montreal = (dual.atp?.tournaments ?? []).find((row) => {
-    const name = String(row?.name ?? "").toLowerCase();
-    return name.includes("national bank") && name.includes("montreal");
-  });
-  const toronto = (dual.wta?.tournaments ?? []).find((row) => {
-    const name = String(row?.name ?? "").toLowerCase();
-    return name.includes("national bank") && name.includes("toronto");
-  });
-  return {
-    montreal: montreal
-      ? {
-          tour: "atp",
-          provider_tournament_id: String(montreal.id),
-          name: montreal.name,
-          starts_on: (montreal.date || montreal.start || "").slice?.(0, 10) || null,
-        }
-      : null,
-    toronto: toronto
-      ? {
-          tour: "wta",
-          provider_tournament_id: String(toronto.id),
-          name: toronto.name,
-          starts_on: (toronto.date || toronto.start || "").slice?.(0, 10) || null,
-        }
-      : null,
   };
 }
 
@@ -586,17 +673,20 @@ export function mapResultsToIngest(matches, mapping) {
         ? String(m.match_winner)
         : null;
 
-    const resultType = (m.result_type || "").toLowerCase();
-    const voidLike =
-      resultType === "walkover" ||
-      resultType === "default" ||
-      resultType === "cancelled" ||
-      resultType === "canceled";
+    if (outcomeDisposition(m.result_type).kind === "unknown") {
+      skipped.push({ id, reason: "unknown outcome" });
+      continue;
+    }
 
-    // Retirement still has a winner in this API — ingest the winner, do not void.
     if (!winnerId) {
-      if (voidLike || !m.result) {
-        results.push({ match_key: matchKey, winner_ref: null, voided: true });
+      if (!m.result) {
+        results.push({
+          match_key: matchKey,
+          winner_ref: null,
+          voided: true,
+          official_score: officialScoreText(m),
+          fact_kind: officialFactKind(m),
+        });
       } else {
         skipped.push({ id, reason: "finished but no match_winner" });
       }
@@ -616,6 +706,8 @@ export function mapResultsToIngest(matches, mapping) {
       match_key: matchKey,
       winner_ref: winnerRef,
       voided: false,
+      official_score: officialScoreText(m),
+      fact_kind: officialFactKind(m),
     });
   }
 
@@ -637,6 +729,9 @@ export function mapResultsToIngest(matches, mapping) {
  *   seats?: Array<{ position: number, provider_player_id?: string|null }>,
  *   knownProviderMatchIds?: Set<string>|string[],
  *   storedMatches?: Array<{ id?: string, provider_match_id?: string|null, match_key?: string }>,
+ *   fixtures?: unknown[]|null,
+ *   entries?: unknown[]|null,
+ *   info?: unknown,
  * }} input
  */
 export function planArchiveResults(input) {
@@ -695,6 +790,8 @@ export function planArchiveResults(input) {
       winner_ref: r.winner_ref,
       winner_provider_id: r.winner_ref,
       voided: r.voided,
+      official_score: r.official_score ?? null,
+      fact_kind: r.fact_kind ?? null,
     });
   }
   for (const r of bound.results) {
@@ -704,6 +801,8 @@ export function planArchiveResults(input) {
       winner_provider_id: r.winner_provider_id,
       voided: r.voided,
       provider_match_id: r.provider_match_id,
+      official_score: r.official_score ?? null,
+      fact_kind: r.fact_kind ?? null,
     });
   }
 
@@ -716,9 +815,17 @@ export function planArchiveResults(input) {
     authDiff,
     providerIdUpdates: bound.bindings,
     applyResults: [...byKey.values()],
+    absences: classifyPlayerAbsences({
+      seats: input.seats || [],
+      archiveRows,
+      fixtures: input.fixtures === undefined ? null : input.fixtures,
+      entries:
+        input.entries !== undefined
+          ? input.entries
+          : entryRowsFromInfo(input.info),
+    }),
   };
 }
-
 
 /** @param {number} attempt */
 export function backoffMs(attempt) {
@@ -727,9 +834,26 @@ export function backoffMs(attempt) {
   return base + jitter;
 }
 
-/** @param {number} ms */
-function sleep(ms) {
-  return new Promise((r) => setTimeout(r, ms));
+/**
+ * @param {number} ms
+ * @param {AbortSignal | null} [signal]
+ */
+function sleep(ms, signal = null) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(closedError());
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(closedError());
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 export {
@@ -753,18 +877,29 @@ export {
 } from "./official/draw-hash.js";
 export { diffDrawSeats, pairKey } from "./official/draw-diff.js";
 export {
+  overlaySeatPatch,
+  isFakeByeSettlement,
+  planFakeByeUnwind,
+  r0IndexFromSeatPosition,
+} from "./official/seat-overlay.js";
+export {
   drawPollIntervalMs,
   shouldPollDraw,
 } from "./official/draw-poll.js";
 export {
   getLiveEvents,
   getWsToken,
+  isTokenExpired,
+  proactiveRefreshEnabled,
+  tokenExpiry,
+  WS_TOKEN_PATH,
   isFinishedLiveStatus,
   liveEventList,
   liveEventsForTournament,
   liveWinnerId,
   mapLiveFinishedToIngest,
   parseMatchId,
+  capturedTournamentId,
 } from "./live.js";
 export {
   resolveLiveEvent,
@@ -786,7 +921,28 @@ export {
   unboundProviderFixtures,
   r0SlotFromSeatPair,
   proposeShapeBRepairs,
+  planScorelineBackfill,
+  planSessionCourtBackfill,
+  absenceObservability,
+  absenceSignalLog,
+  classifyPlayerAbsences,
+  entryRowsFromInfo,
 } from "./reconcile-provider.js";
+export {
+  RECONNECT_BACKOFF_MS,
+  STALE_AFTER_MS,
+  isProviderStale,
+  nextReconnectAttempt,
+  reconnectDelayMs,
+} from "./reconnect.js";
+export {
+  HEARTBEAT_MS,
+  LISTENER_HEALTH_ID,
+  heartbeatDue,
+  listenerHealthRow,
+  nextWakeMs,
+} from "./listener-heartbeat.js";
+export { liveIngestRequest } from "./live-ingest-mode.js";
 export {
   createLiveSessionState,
   onSocketDisconnect,
@@ -796,6 +952,30 @@ export {
   isSilentSubscription,
   LiveConnectionState,
 } from "./live-session.js";
+export {
+  canonicalLiveFrame,
+  deriveLiveFlags,
+  explicitServingId,
+  LIVE_STALE_MS,
+  livePhase,
+  liveRowsFromNdjson,
+  liveRestDisagreement,
+  restLiveDifference,
+  liveStateRow,
+  normalizeLivePayload,
+  mapFrameToMatch,
+  openProviderSocket,
+  projectLiveFrame,
+  providerSide,
+  providerSocketEnabled,
+  resolvePlayerSides,
+  replayLiveFrames,
+  unknownLiveRecord,
+} from "./live-frame.js";
+export { normalizeCapturedFrame } from "./live-normalize.js";
+export { findMatchByProviderEvent, liveUpsertArgs, officialMatchPatch } from "./live-repository.js";
+export { planProviderEventMap } from "./provider-event-map.js";
+export { persistUnknownLive } from "./live-ingest.js";
 export {
   PUBLIC_TIERS,
   ALL_TIERS,
@@ -812,11 +992,27 @@ export {
   ADVANCING_OUTCOMES,
   canAdvanceWinner,
   outcomeDisposition,
+  officialScoreText,
+  officialFactKind,
+  splitResultAbsences,
+  matchLookupFromQuery,
+  mergeSettledFact,
+  settledFactSkipReason,
+  clearsProvisionalLive,
 } from "./normalize.js";
 export {
   assertDrawBelongsToTournament,
   evaluateDrawIntegrity,
+  maxOfficialByes,
 } from "./assert.js";
+export {
+  bindProcessSignals,
+  captureReport,
+  createFrameRecorder,
+  encodeCaptureLine,
+  runLiveCapture,
+  wtaTournamentIdFromLiveText,
+} from "./capture-ndjson.js";
 
 /**
  * Official seats from Tennis API draws. Never invent slot order from match ids.

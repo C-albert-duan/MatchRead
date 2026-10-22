@@ -10,7 +10,7 @@ supabase/migrations/0001_profiles.sql … 0020_clear_misclassified_uso_wta_draw.
 
 ## Why these exist
 
-- Historical reference (Montreal/USO slug confusion, old `sync-tennis` cron, seed data experiments)
+- Historical reference (slug confusion, old `sync-tennis` cron, seed data experiments)
 - Some filenames overlap live numbers (e.g. archive `0011_*`) but content differs — **always use the non-archive path**
 
 ## Rule

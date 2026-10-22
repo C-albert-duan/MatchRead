@@ -14,8 +14,9 @@ type Props = {
   surface: "hard" | "clay" | "grass" | "indoor" | "carpet" | "unknown";
   surfaceLabel: string;
   when: string;
-  /** ISO lock instant — formatted in the viewer’s local timezone. */
+  /** ISO lock instant. First HTML uses the venue zone, then UTC. */
   lockAt?: string | null;
+  venueTz?: string | null;
   status: string;
   statusPending?: boolean;
   soon?: boolean;
@@ -31,6 +32,7 @@ export function TournamentCard({
   surfaceLabel,
   when,
   lockAt = null,
+  venueTz = null,
   status,
   statusPending = false,
   soon = false,
@@ -65,6 +67,7 @@ export function TournamentCard({
               <i className="trow-sep" aria-hidden />
               <EntryLockWhen
                 lockAt={lockAt}
+                venueTz={venueTz}
                 locale={locale}
                 labels={labels}
                 className="trow-date numeral"

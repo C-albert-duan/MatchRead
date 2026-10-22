@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, type CSSProperties } from "react";
+import Link from "next/link";
 import {
-  applyByeAdvances,
   buildRoundStructure,
+  feederMatchKeys,
+  feedsMatchKey,
   resolveMatchEntrants,
   type BracketConfidence,
   type BracketPicks,
@@ -12,13 +14,15 @@ import {
   type SlotOccupant,
 } from "@matchread/core";
 import { PlayerChip } from "@/components/bracket/PlayerChip";
-import { matchSheetPresentation } from "@/lib/brackets/resolution";
+import { connectorPair, matchSlotVars } from "@/lib/brackets/layout";
+import { matchSheetPresentation, pickHighlight } from "@/lib/brackets/resolution";
 import { useT } from "@/components/shell/LocaleProvider";
 import {
-  formatMatchWhen,
-  matchWhenTimeZone,
+  matchScheduleCaption,
+  type MatchPlayerSide,
   type MatchScheduleRow,
 } from "@/lib/tournaments/format";
+import { matchHref } from "@/lib/tournaments/href";
 import { useViewerTimeZone } from "@/lib/tournaments/viewer-zone";
 
 type Props = {
@@ -55,6 +59,46 @@ function seatName(seats: DrawSeat[], ref: string | null): string {
 
 function hasBye(a: SlotOccupant, b: SlotOccupant): boolean {
   return a.kind === "bye" || b.kind === "bye";
+}
+
+function storedSide(
+  side: MatchPlayerSide | null | undefined,
+  fallback: SlotOccupant
+): SlotOccupant {
+  if (!side?.ref) return fallback;
+  return {
+    kind: "player",
+    ref: side.ref,
+    lastName: side.lastName,
+    seed: side.seed,
+    countryCode: side.countryCode,
+  };
+}
+
+function MatchMeta({
+  when,
+  place,
+  href,
+}: {
+  when: string | null;
+  place: string | null;
+  href: string | null;
+}) {
+  if (!when && !place) return null;
+  const body = (
+    <>
+      {when ? <span className="match-when-line">{when}</span> : null}
+      {place ? <span className="match-when-line">{place}</span> : null}
+    </>
+  );
+  if (href) {
+    return (
+      <Link href={href} className="match-when match-meta numeral">
+        {body}
+      </Link>
+    );
+  }
+  return <p className="match-when numeral">{body}</p>;
 }
 
 type ChipGrade = "correct" | "incorrect" | "voided" | "official" | null;
@@ -102,18 +146,6 @@ export function BracketGrid({
     ["--round-count"]: String(rounds.length),
   } as CSSProperties;
 
-  // Later rounds must show official winners (and bye advances), not only
-  // the member's picks — otherwise decided matches look empty.
-  const displayPicks = useMemo(() => {
-    const merged: BracketPicks = { ...picks };
-    for (const [key, result] of Object.entries(official)) {
-      if (result?.winnerRef && !result.voided) {
-        merged[key] = result.winnerRef;
-      }
-    }
-    return applyByeAdvances(seats, merged, drawSize);
-  }, [picks, official, seats, drawSize]);
-
   return (
     <div
       className="bracket-region"
@@ -127,7 +159,7 @@ export function BracketGrid({
         <span className="bracket-court-service" />
         <span className="bracket-court-net" />
       </div>
-      <div className="bracket-grid">
+      <div className="bracket-grid bracket-tree">
         {rounds.map((round) => (
           <div
             key={round.index}
@@ -139,11 +171,25 @@ export function BracketGrid({
             </h3>
             <div className="bracket-col-body">
               {round.matches.map((match) => {
-                const [a, b] = resolveMatchEntrants(
+                const predicted = resolveMatchEntrants(
                   seats,
-                  displayPicks,
+                  match.round === 0 ? {} : picks,
                   match.round,
                   match.indexInRound
+                );
+                const stored = schedule[match.key];
+                const [a, b] =
+                  match.round === 0
+                    ? predicted
+                    : [
+                        storedSide(stored?.side_a, predicted[0]),
+                        storedSide(stored?.side_b, predicted[1]),
+                      ];
+                const feeders = feederMatchKeys(match.round, match.indexInRound);
+                const feeds = feedsMatchKey(
+                  match.round,
+                  match.indexInRound,
+                  rounds.length
                 );
                 const chosen = picks[match.key] ?? null;
                 const result = official[match.key];
@@ -181,6 +227,8 @@ export function BracketGrid({
                   gradeLabel = "Void";
                 }
 
+                const ruleFor = (playerRef: string | null) =>
+                  pickHighlight(Boolean(playerRef && chosen === playerRef), graded);
                 const gradeA = chipGrade({
                   playerRef: refOf(a),
                   pickRef: chosen,
@@ -196,18 +244,27 @@ export function BracketGrid({
                   graded,
                 });
 
-                const whenZone = matchWhenTimeZone(
-                  schedule[match.key],
-                  viewerZone
-                );
-                const when = whenZone
-                  ? formatMatchWhen(
-                      schedule[match.key],
-                      whenZone,
-                      locale,
-                      tbc
-                    )
-                  : null;
+                const caption = matchScheduleCaption(stored, viewerZone, locale, {
+                  tba: t("match.timeTba"),
+                  tbc,
+                  day: t("match.session.day"),
+                  night: t("match.session.night"),
+                });
+                const publicHref = matchHref(stored?.external_ref);
+                const prior = match.round > 0 ? rounds[match.round - 1] : null;
+                const feederAria = prior
+                  ? `, fed by ${prior.label.match} match ${match.indexInRound * 2 + 1} and ${prior.label.match} match ${match.indexInRound * 2 + 2}`
+                  : "";
+                const treeAttrs = {
+                  "data-feeds": feeds ?? undefined,
+                  "data-feeder-a": feeders?.[0],
+                  "data-feeder-b": feeders?.[1],
+                  "data-session":
+                    stored?.session === "day" || stored?.session === "night"
+                      ? stored.session
+                      : undefined,
+                  "data-court": stored?.court ?? undefined,
+                };
                 const scoreText = sheet.showScore;
                 const stateLabel = t(sheet.labelKey);
                 const settledWinner = (playerRef: string | null) =>
@@ -229,12 +286,15 @@ export function BracketGrid({
                       data-match-key={match.key}
                       data-round={match.round}
                       data-index={match.indexInRound}
+                      data-pair={connectorPair(match.indexInRound)}
                       data-has-winner="true"
+                      style={matchSlotVars(match.round, match.indexInRound)}
+                      {...treeAttrs}
                     >
                       <div
                         className="slot slot--bye"
                         role="group"
-                        aria-label={`${advancer.lastName} advances (bye)`}
+                        aria-label={`${advancer.lastName} advances (bye)${feederAria}`}
                       >
                         <PlayerChip
                           occupant={advancer}
@@ -243,9 +303,7 @@ export function BracketGrid({
                         />
                         <span className="bye-tag">Bye · advances</span>
                       </div>
-                      {when ? (
-                        <p className="match-when numeral">{when}</p>
-                      ) : null}
+                      <MatchMeta when={caption.when} place={caption.place} href={publicHref} />
                     </div>
                   );
                 }
@@ -267,15 +325,18 @@ export function BracketGrid({
                     data-match-key={match.key}
                     data-round={match.round}
                     data-index={match.indexInRound}
+                    data-pair={connectorPair(match.indexInRound)}
                     data-resolution={sheet.state}
                     data-settled={graded ? "true" : undefined}
                     data-fact-kind={result?.factKind || undefined}
                     data-has-winner={officialWinner ? "true" : undefined}
+                    style={matchSlotVars(match.round, match.indexInRound)}
+                    {...treeAttrs}
                   >
                     <div
                       className="slot"
                       role="radiogroup"
-                      aria-label={`${round.label.match} match ${match.indexInRound + 1}, ${stateLabel}${unpicked ? ", unpicked" : ""}${
+                      aria-label={`${round.label.match} match ${match.indexInRound + 1}, ${stateLabel}${feederAria}${unpicked ? ", unpicked" : ""}${
                         officialWinner
                           ? `, won by ${seatName(seats, officialWinner)}`
                           : ""
@@ -294,6 +355,7 @@ export function BracketGrid({
                             value={refOf(a) ?? ""}
                             checked={chosen === refOf(a)}
                             seat={0}
+                            pickRule={ruleFor(refOf(a))}
                             officialWinner={settledWinner(refOf(a))}
                             onClick={() =>
                               a.kind === "player" &&
@@ -308,6 +370,7 @@ export function BracketGrid({
                             value={refOf(b) ?? ""}
                             checked={chosen === refOf(b)}
                             seat={1}
+                            pickRule={ruleFor(refOf(b))}
                             officialWinner={settledWinner(refOf(b))}
                             onClick={() =>
                               b.kind === "player" &&
@@ -322,6 +385,7 @@ export function BracketGrid({
                             chosen={a.kind === "player" && chosen === a.ref}
                             grade={gradeA}
                             seat={0}
+                            pickRule={ruleFor(refOf(a))}
                             officialWinner={settledWinner(refOf(a))}
                           />
                           <PlayerChip
@@ -329,6 +393,7 @@ export function BracketGrid({
                             chosen={b.kind === "player" && chosen === b.ref}
                             grade={gradeB}
                             seat={1}
+                            pickRule={ruleFor(refOf(b))}
                             officialWinner={settledWinner(refOf(b))}
                           />
                         </>
@@ -371,9 +436,7 @@ export function BracketGrid({
                     {withdrawal ? (
                       <p className="match-fact">{t("match.withdrawal")}</p>
                     ) : null}
-                    {when ? (
-                      <p className="match-when numeral">{when}</p>
-                    ) : null}
+                    <MatchMeta when={caption.when} place={caption.place} href={publicHref} />
                   </div>
                 );
               })}

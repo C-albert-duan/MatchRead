@@ -93,6 +93,7 @@ export default async function TournamentsPage({
                         t("calendar.dateTbc")
                       }
                       lockAt={shouldShowEntryLock(row) ? row.lock_at : null}
+                      venueTz={row.venue_tz}
                       locale={locale}
                       status={t(calendarStatusMessageKey(status))}
                       statusPending={status === "drawPending"}

@@ -68,9 +68,9 @@ test("a date-only midnight UTC instant keeps that civil date in every viewer zon
   };
   for (const zone of ["UTC", "America/New_York", "Europe/London", "Asia/Tokyo"]) {
     for (const row of [midnight, noon]) {
-      const label = formatMatchWhen(row, zone, "en", "TBC");
-      assert.equal(label, "01 SEP");
-      assert.equal(label.includes("·"), false);
+      const label = formatMatchWhen(row, zone, "en", "TBC", "Time to be announced");
+      assert.equal(label, "01 SEP · Time to be announced");
+      assert.equal(/\d{2}:\d{2}/.test(label), false);
     }
   }
   assert.equal(matchWhenTimeZone(midnight, null), "UTC");

@@ -17,6 +17,7 @@ import {
   planProviderMatchRelocation,
   overlayOfficialDraw,
   planArchiveResults,
+  officialScoreText,
   reconcileThenResume,
   shouldReconcileDraw,
   resolveLiveEvent,
@@ -803,7 +804,7 @@ describe("reconcile withhold-then-heal", () => {
     assert.equal(twice.results[0].match_key, twice.results[1].match_key);
   });
 
-  it("walkover without score still binds a winner", () => {
+  it("does not bind a winner from an unobserved result type", () => {
     const matchSides = [
       {
         match_key: "r0-m0",
@@ -826,8 +827,8 @@ describe("reconcile withhold-then-heal", () => {
       matchSides,
       { a: "a", b: "b" }
     );
-    assert.equal(out.results[0].winner_provider_id, "b");
-    assert.equal(out.results[0].voided, false);
+    assert.equal(out.results.length, 0);
+    assert.equal(out.skipped[0].reason, "unknown outcome");
   });
 });
 
@@ -1067,6 +1068,31 @@ describe("archive allow-list", () => {
     assert.equal(planned.applyResults[0].winner_provider_id, "1");
     assert.equal(planned.applyResults.some((row) => row.provider_match_id === "2002"), false);
     assert.equal(planned.providerIdUpdates.some((row) => row.provider_match_id === "2002"), false);
+  });
+
+  it("copies the archive scoreline onto the pair-bound match", () => {
+    const planned = planArchiveResults({
+      rows: [
+        {
+          id: "124",
+          player1Id: "1",
+          player2Id: "2",
+          match_winner: "1",
+          result: "6-3 3-0 ret.",
+          result_type: "retired",
+          score: "6-4,6-3",
+        },
+      ],
+      matchSides: [side("r1-m0", 1, 0, "1", "2")],
+      players: { "1": "p-a", "2": "p-b" },
+    });
+    assert.equal(planned.applyResults.length, 1);
+    assert.equal(planned.applyResults[0].match_key, "r1-m0");
+    assert.equal(planned.applyResults[0].winner_provider_id, "1");
+    assert.equal(planned.applyResults[0].official_score, "6-3 3-0 ret.");
+    assert.equal(planned.applyResults[0].fact_kind, "played");
+    assert.equal(officialScoreText({ result: "6-3 3-0 ret.", score: "6-4,6-3" }), "6-3 3-0 ret.");
+    assert.equal(officialScoreText({ score: "6-4,6-3" }), null);
   });
 
   it("keeps full-pair binding when the allow-list includes that row", () => {

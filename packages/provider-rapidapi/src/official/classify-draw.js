@@ -83,7 +83,7 @@ export function classifyDraw(evidence = {}, tournament = {}) {
     return { kind: "rejected", reason: "qualifying" };
   }
 
-  // Zero seeds in a large field is the concrete US Open qualifying signature.
+  // Zero seeds in a large field is the slam-qualifying signature.
   // A published main draw of 64+ always carries seeds.
   if (size >= 64 && seeds === 0) {
     return { kind: "rejected", reason: "no_seeds" };

@@ -17,7 +17,7 @@ test("eligible tournament without zone fails", () => {
   );
 });
 
-test("lock after first timed ball fails (Monday-anchored US Open)", () => {
+test("lock after first timed ball fails (Monday-anchored slam week)", () => {
   assert.throws(
     () =>
       assertLockIsSound(

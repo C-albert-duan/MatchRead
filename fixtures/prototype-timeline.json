@@ -1,0 +1,81 @@
+[
+  {
+    "source": "replay",
+    "seq": 1,
+    "id": "evt-live-1",
+    "matchId": "101-202-9001-1",
+    "status": "InPlay",
+    "score": "1-0",
+    "points": "15-0",
+    "indicator": "0,1",
+    "receivedAt": "2026-10-09T15:00:00.000Z"
+  },
+  {
+    "source": "replay",
+    "seq": 2,
+    "id": "evt-live-1",
+    "matchId": "101-202-9001-1",
+    "status": "InPlay",
+    "score": "1-0",
+    "points": "30-0",
+    "indicator": "0,1",
+    "receivedAt": "2026-10-09T15:00:10.000Z"
+  },
+  {
+    "source": "replay",
+    "seq": 1,
+    "id": "evt-live-1",
+    "matchId": "101-202-9001-1",
+    "status": "InPlay",
+    "score": "0-0",
+    "points": "0-0",
+    "indicator": "1,0",
+    "receivedAt": "2026-10-09T15:00:11.000Z"
+  },
+  {
+    "source": "replay",
+    "seq": 2,
+    "id": "evt-live-1",
+    "matchId": "101-202-9001-1",
+    "status": "InPlay",
+    "score": "1-0",
+    "points": "30-0",
+    "indicator": "0,1",
+    "receivedAt": "2026-10-09T15:00:12.000Z"
+  },
+  {
+    "source": "replay",
+    "seq": 4,
+    "id": "evt-live-1",
+    "matchId": "101-202-9001-1",
+    "status": "InPlay",
+    "score": "6-4,1-1",
+    "points": "0-15",
+    "indicator": "1,0",
+    "receivedAt": "2026-10-09T15:01:00.000Z"
+  },
+  {
+    "source": "replay",
+    "seq": 3,
+    "id": "evt-live-1",
+    "matchId": "101-202-9001-1",
+    "status": "InPlay",
+    "score": "6-4,0-0",
+    "points": "0-0",
+    "indicator": "0,1",
+    "receivedAt": "2026-10-09T15:01:05.000Z"
+  },
+  {
+    "source": "replay",
+    "seq": 5,
+    "replayPhase": "terminal",
+    "replayWinnerId": "101",
+    "id": "evt-live-1",
+    "matchId": "101-202-9001-1",
+    "status": "InPlay",
+    "score": "6-4,6-2",
+    "points": null,
+    "indicator": "0,0",
+    "receivedAt": "2026-10-09T15:40:00.000Z"
+  }
+]

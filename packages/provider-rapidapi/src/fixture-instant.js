@@ -58,40 +58,59 @@ function instantFromDateTime(raw) {
 }
 
 /**
- * Parse a provider fixture or result into a stored instant.
- * Date-only values do not invent a kickoff clock (`has_time: false`).
+ * A clock joined to a civil date. Midnight stays a date.
+ * @param {string} day
+ * @param {string} rawTime
+ * @returns {{ scheduled_at: string, has_time: boolean } | null}
+ */
+function clockOnDay(day, rawTime) {
+  const hm = rawTime.match(CLOCK_FIELD);
+  if (!hm) return null;
+  const hh = String(hm[1]).padStart(2, "0");
+  const mm = hm[2];
+  const ss = hm[3] || "00";
+  const offset = hm[4] || "";
+  if (isMidnight(hh, mm, ss)) return civilDate(day);
+  if (offset) {
+    const d = new Date(`${day}T${hh}:${mm}:${ss}${offset}`);
+    if (Number.isNaN(d.getTime())) return null;
+    return { scheduled_at: d.toISOString(), has_time: true };
+  }
+  const scheduled_at = `${day}T${hh}:${mm}:${ss}.000Z`;
+  if (Number.isNaN(Date.parse(scheduled_at))) return null;
+  return { scheduled_at, has_time: true };
+}
+
+/**
+ * Parse a provider fixture into a stored instant.
+ * `startTime` is the scheduled clock when it contains one.
+ * A bare date, midnight, `dateOnly`, or `startTimestamp` is not a kickoff.
+ * Session is not a clock.
  * @param {Record<string, unknown>|null|undefined} row
  * @returns {{ scheduled_at: string, has_time: boolean } | null}
  */
 export function parseFixtureInstant(row) {
   if (!row || typeof row !== "object") return null;
+  const startRaw = String(row.startTime ?? "").trim();
+  const fromStart = startRaw.includes("T") ? instantFromDateTime(startRaw) : null;
+
   const rawDate = String(
     row.date ?? row.start ?? row.startDate ?? row.datetime ?? ""
   ).trim();
-  if (!rawDate) return null;
-
-  if (rawDate.includes("T")) return instantFromDateTime(rawDate);
-
-  const day = rawDate.slice(0, 10);
-  if (!DAY.test(day) || day !== rawDate) return null;
-
-  const rawTime = String(row.time ?? row.startTime ?? row.hour ?? "").trim();
-  const hm = rawTime.match(CLOCK_FIELD);
-  if (hm) {
-    const hh = String(hm[1]).padStart(2, "0");
-    const mm = hm[2];
-    const ss = hm[3] || "00";
-    const offset = hm[4] || "";
-    if (isMidnight(hh, mm, ss)) return civilDate(day);
-    if (offset) {
-      const d = new Date(`${day}T${hh}:${mm}:${ss}${offset}`);
-      if (Number.isNaN(d.getTime())) return null;
-      return { scheduled_at: d.toISOString(), has_time: true };
-    }
-    const scheduled_at = `${day}T${hh}:${mm}:${ss}.000Z`;
-    if (Number.isNaN(Date.parse(scheduled_at))) return null;
-    return { scheduled_at, has_time: true };
+  /** @type {{ scheduled_at: string, has_time: boolean } | null} */
+  let fromDate = null;
+  if (rawDate.includes("T")) {
+    fromDate = instantFromDateTime(rawDate);
+  } else if (DAY.test(rawDate)) {
+    const rawTime = (
+      String(row.time ?? "").trim() ||
+      (startRaw.includes("T") ? "" : startRaw) ||
+      String(row.hour ?? "").trim()
+    );
+    fromDate = clockOnDay(rawDate, rawTime) ?? civilDate(rawDate);
   }
 
-  return civilDate(day);
+  if (fromStart?.has_time) return fromStart;
+  if (fromDate?.has_time) return fromDate;
+  return fromStart ?? fromDate;
 }

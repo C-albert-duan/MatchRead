@@ -52,6 +52,7 @@ Docs stay live: always-applied rule `.cursor/rules/architecture-docs.mdc` requir
 | Module | Path | Owns |
 |--------|------|------|
 | [Web app](./modules/web-app.md) | `apps/web` | UI, routes, server actions, Supabase anon client |
+| [Listener](./modules/listener.md) | `apps/listener` | Provider connection and raw frame POST |
 | [Core domain](./modules/core.md) | `packages/core` | Bracket topology, grading, Daily Check, eligibility, lock soundness |
 | [Provider](./modules/provider-rapidapi.md) | `packages/provider-rapidapi` | Tennis API client, normalize, official draw, reconcile |
 | [i18n](./modules/i18n.md) | `packages/i18n` | Locale strings (`en` / `es` / `ja`) |

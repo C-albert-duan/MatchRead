@@ -8,6 +8,8 @@ export {
   applyByeAdvances,
   buildRoundStructure,
   countPicksMade,
+  feederMatchKeys,
+  feedsMatchKey,
   isBracketComplete,
   isFictionalSeatName,
   isFictionalSeatRef,
@@ -20,6 +22,13 @@ export {
   seatKind,
   totalMatches,
 } from "./bracket";
+export { buildSyntheticBracket16 } from "./synthetic-bracket";
+export type {
+  SyntheticBracket,
+  SyntheticMatch,
+  SyntheticPlayer,
+  SyntheticSession,
+} from "./synthetic-bracket";
 export type {
   BracketPicks,
   DrawSeat,
@@ -58,8 +67,31 @@ export type {
   MatchGradeDetail,
   MatchGradeOutcome,
   OfficialMatch,
+  OfficialResult,
   OfficialResults,
 } from "./grade";
+export type { Authoritative, LiveOnly } from "./live-trust";
+export {
+  canonicalGame,
+  canonicalSets,
+  isLivePhase,
+  liveFlag,
+  normalizeLiveMatchState,
+} from "./live/normalize";
+export { derivePointFlags } from "./live/point-flag";
+export type { PointFlagInput } from "./live/point-flag";
+export type {
+  CanonicalGame,
+  CanonicalSet,
+  GamePoint,
+  LiveFlag,
+  LiveMatchState,
+  LivePhase,
+  LivePointFlags,
+  LiveStateDraft,
+  ServingSide,
+  SetsToWin,
+} from "./live/state";
 
 export { computeDailyCheck, isPersonalDailyCheck, ordinal } from "./pulse";
 export type {

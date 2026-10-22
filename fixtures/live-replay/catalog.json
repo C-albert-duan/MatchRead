@@ -1,0 +1,25 @@
+{
+  "matches": [
+    {
+      "match_id": "m-1",
+      "match_key": "r0-m0",
+      "public_ref": "mx-1",
+      "tournament_id": "t-1",
+      "tournament_provider_id": "9001",
+      "provider_match_id": "4242",
+      "side_a_provider_id": "101",
+      "side_b_provider_id": "202",
+      "side_a_ref": "p-a",
+      "side_b_ref": "p-b",
+      "officially_settled": false
+    }
+  ],
+  "eventMap": [
+    {
+      "match_id": "m-1",
+      "pair_key": "101|202",
+      "socket_event_id": "evt-live-1",
+      "status": "mapped"
+    }
+  ]
+}

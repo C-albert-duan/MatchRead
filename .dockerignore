@@ -15,7 +15,7 @@
 **/*.tsbuildinfo
 .pnpm-store
 
-# Env & secrets (pass via compose / build-args)
+# Env files stay out of image layers. Pass them at runtime, not as listener build arguments.
 .env
 .env.*
 !.env.example

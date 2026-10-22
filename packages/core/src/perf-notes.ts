@@ -1,5 +1,5 @@
 /**
- * Slam / US Open window — draw topology & scoring smoke targets.
+ * Slam-week window — draw topology & scoring smoke targets.
  *
  * - Horizontal scroll on `.bracket-region` is the MVP path for 128
  * - Row virtualization is optional if low-end paint/jank shows up

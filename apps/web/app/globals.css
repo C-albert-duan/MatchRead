@@ -51,6 +51,7 @@ a {
   position: relative;
   display: flex;
   min-height: 100vh;
+  min-width: 0;
   flex-direction: column;
   background: var(--mr-canvas);
   isolation: isolate;
@@ -163,6 +164,7 @@ a {
 .shell-main {
   flex: 1;
   width: 100%;
+  min-width: 0;
   max-width: var(--max-content);
   margin: 0 auto;
   padding: var(--s-5xl) var(--page-gutter) var(--s-5xl);
@@ -251,6 +253,7 @@ a {
   flex-direction: column;
   gap: var(--s-5xl);
   width: 100%;
+  min-width: 0;
 }
 
 .page--court {
@@ -306,13 +309,16 @@ a {
 .bracket-stage {
   margin-inline: 0;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 0;
   border-radius: var(--r-xl);
   border: 1px solid var(--mr-line);
   background: var(--mr-card);
-  /* Horizontal pan only — never a second vertical scrollbar. */
+  /* Rounds scroll here. The page keeps the vertical axis. */
   overflow-x: auto;
   overflow-y: clip;
+  overscroll-behavior-x: contain;
 }
 
 .page-header {
@@ -1609,21 +1615,21 @@ a.league-card:hover {
 .bracket-region {
   --seat-h: 56px;
   --pair-in: 10px;
-  --pair-out: 48px;
+  --pair-out: 80px;
   --draw-gap: clamp(52px, 5vw, 80px);
   --slot-h: calc(var(--seat-h) * 2 + var(--pair-in) + 8px);
   --slot-gap: var(--pair-out);
   --bracket-head-h: 40px;
   --bracket-body-h: calc(
-    var(--r0-slots) * var(--slot-h) + (var(--r0-slots) - 1) * var(--slot-gap)
+    var(--r0-slots) * var(--slot-h) + (var(--r0-slots) - 1) * var(--slot-gap) +
+      72px
   );
   --bracket-col-min: 280px;
   position: relative;
   margin: 0;
   width: 100%;
-  /* Horizontal pan only; page scroll owns vertical. */
-  overflow-x: auto;
-  overflow-y: clip;
+  /* The stage owns both axes. Connectors stay inside this sheet. */
+  overflow: visible;
   overscroll-behavior-x: contain;
   padding: clamp(24px, 2.6vw, 38px);
   border-radius: var(--r-xl);
@@ -1665,7 +1671,7 @@ a.league-card:hover {
 }
 
 .bracket-connectors {
-  display: none; /* CSS elbows below are the source of truth */
+  display: none;
 }
 
 .bracket-grid {
@@ -1710,20 +1716,24 @@ a.league-card:hover {
 }
 
 .bracket-col-body {
-  display: flex;
-  flex-direction: column;
+  position: relative;
   height: var(--bracket-body-h);
   min-height: var(--bracket-body-h);
+  margin: 0;
+  padding: 0;
   overflow: visible;
+  list-style: none;
 }
 
+/* Slot top is feeder midpoint units: index * span + span/2 - 1/2. */
 .match-cell {
-  position: relative;
-  flex: 1 1 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--slot-top) * (var(--slot-h) + var(--slot-gap)));
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  min-height: 0;
+  justify-content: flex-start;
   overflow: visible;
 }
 
@@ -1753,11 +1763,11 @@ a.league-card:hover {
 }
 
 /*
- * Outbound elbows live on the match-cell so vertical span can follow
- * flex cell height. Odd = right then down; even = right then up.
+ * Decorative elbows. Pairing follows data-pair (match index), not sibling order.
+ * The cards, round headings, and feeder names remain if these lines do not paint.
+ * Pair A curves down; pair B curves up.
  */
-.bracket-col:not(:last-child) .match-cell:nth-child(odd)::after,
-.bracket-col:not(:last-child) .match-cell:nth-child(even)::after {
+.bracket-col:not(:last-child) .match-cell[data-pair]::after {
   content: "";
   position: absolute;
   left: 100%;
@@ -1770,53 +1780,29 @@ a.league-card:hover {
   z-index: 4;
 }
 
-/* Odd: curve down into the vertical join */
-.bracket-col:not(:last-child) .match-cell:nth-child(odd)::after {
+.bracket-col:not(:last-child) .match-cell[data-pair="a"]::after {
   border-width: var(--conn-w) var(--conn-w) 0 0;
   border-radius: 0 var(--conn-r) 0 0;
 }
 
-/* Even: curve up into the vertical join */
-.bracket-col:not(:last-child) .match-cell:nth-child(even)::after {
+.bracket-col:not(:last-child) .match-cell[data-pair="b"]::after {
   border-width: 0 var(--conn-w) var(--conn-w) 0;
   border-radius: 0 0 var(--conn-r) 0;
 }
 
-/* R0: fixed slot rhythm — elbows start at slot midpoints */
-.bracket-col[data-round="0"]:not(:last-child) .match-cell:nth-child(odd)::after {
+/* Elbow length follows how many first-round matches feed this slot. */
+.bracket-col:not(:last-child) .match-cell {
+  --elbow: calc(var(--round-span) * (var(--slot-h) + var(--slot-gap)) / 2);
+}
+
+.bracket-col:not(:last-child) .match-cell[data-pair="a"]::after {
   top: calc(var(--slot-h) / 2);
-  height: calc((var(--slot-h) + var(--slot-gap)) / 2);
+  height: var(--elbow);
 }
 
-.bracket-col[data-round="0"]:not(:last-child) .match-cell:nth-child(even)::after {
-  top: auto;
-  bottom: calc(var(--slot-h) / 2);
-  height: calc((var(--slot-h) + var(--slot-gap)) / 2);
-}
-
-/* Later rounds: equal flex cells — half-cell span meets at the pair mid */
-.bracket-col:not([data-round="0"]):not(:last-child)
-  .match-cell:nth-child(odd)::after {
-  top: 50%;
-  height: 50%;
-}
-
-.bracket-col:not([data-round="0"]):not(:last-child)
-  .match-cell:nth-child(even)::after {
-  top: auto;
-  bottom: 50%;
-  height: 50%;
-}
-
-.bracket-col[data-round="0"] .match-cell {
-  flex: 0 0 var(--slot-h);
-  height: var(--slot-h);
-  margin-bottom: var(--slot-gap);
-  justify-content: flex-start;
-}
-
-.bracket-col[data-round="0"] .match-cell:last-child {
-  margin-bottom: 0;
+.bracket-col:not(:last-child) .match-cell[data-pair="b"]::after {
+  top: calc(var(--slot-h) / 2 - var(--elbow));
+  height: var(--elbow);
 }
 
 .slot {
@@ -1865,6 +1851,10 @@ a.league-card:hover {
   color: var(--mr-text-muted);
   background: var(--mr-raised);
   white-space: nowrap;
+}
+
+.bye-tag.name-win {
+  color: var(--mr-data);
 }
 
 .slot[data-unpicked="true"] {
@@ -1947,7 +1937,10 @@ label.name:hover {
   color: var(--mr-text-muted);
 }
 
-.name--chosen::before {
+/* Open pick: current solid selection bar. data-pick-rule="settled" keeps the grade bar.
+   A later live value is not assigned here. */
+.name--chosen::before,
+.name[data-pick-rule="open"]::before {
   background: var(--mr-read);
 }
 
@@ -2084,12 +2077,149 @@ label.name:hover {
   color: var(--mr-text-muted);
 }
 
+.match-cell[data-settled="true"] .slot {
+  background: var(--mr-data-tint);
+  border-color: color-mix(in srgb, var(--mr-data) 35%, var(--mr-line));
+}
+
+.match-state {
+  margin: 6px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.match-cell[data-resolution="official"] .match-state {
+  color: var(--mr-data);
+}
+
+.match-cell[data-resolution="scheduled"] .match-state {
+  color: var(--mr-text-muted);
+  font-weight: 500;
+}
+
+.match-cell[data-resolution="scheduled"] .slot {
+  background: var(--mr-raised);
+}
+
+.match-score {
+  margin: 2px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--mr-data);
+}
+
+.match-live {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+  margin: 4px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.2;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.match-live[hidden] {
+  display: none;
+}
+
+.match-cell[data-resolution="live"] .match-live,
+[data-resolution="live"] > .match-live {
+  color: var(--mr-text);
+}
+
+.match-cell[data-resolution="provisional"] .match-live,
+[data-resolution="provisional"] > .match-live {
+  color: var(--mr-text-secondary);
+  font-weight: 500;
+}
+
+.match-cell[data-resolution="provisional"] .live-score,
+[data-resolution="provisional"] > .match-live .live-score {
+  color: var(--mr-text-primary);
+  font-weight: 600;
+}
+
+.live-note {
+  flex-basis: 100%;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--mr-text-muted);
+}
+
+.match-cell[data-live-stale="true"] .live-badge,
+.match-cell[data-live-stale="true"] .live-note,
+[data-live-stale="true"] .live-badge,
+[data-live-stale="true"] .live-note {
+  font-weight: 600;
+  color: var(--mr-text-muted);
+}
+
+/* Live badge pulse. A hidden tab or a cell that is no longer live does not run it. */
+html:not([data-tab-hidden]) .match-cell[data-resolution="live"]:not([data-live-stale="true"]) [data-live-badge],
+html:not([data-tab-hidden]) [data-resolution="live"]:not([data-live-stale="true"]) > .match-live [data-live-badge] {
+  animation: mr-live-badge 2.4s var(--mr-ease-decel) infinite;
+}
+
+@keyframes mr-live-badge {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+html[data-tab-hidden] .chip--live .live-dot::after,
+html[data-tab-hidden] .live-dot.pulse::after,
+html[data-tab-hidden] [data-live-badge] {
+  animation-play-state: paused;
+}
+
+.match-cell[data-live-serve="0"] [data-seat="0"] .name-text,
+.match-cell[data-live-serve="1"] [data-seat="1"] .name-text {
+  text-decoration: underline;
+}
+
+.match-fact {
+  margin: 4px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--mr-text-muted);
+}
+
 .match-when {
-  margin: 8px 0 0;
+  margin: 2px 0 0;
   font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--mr-text-muted);
+}
+
+.match-when-line {
+  display: block;
+}
+
+a.match-meta {
+  display: block;
+  text-decoration: none;
+  color: var(--mr-text-muted);
+}
+
+a.match-meta:hover {
+  color: var(--mr-text-primary);
 }
 
 .match-cell[data-find-hit="true"] .slot {
@@ -2650,6 +2780,13 @@ label.name:hover {
   font-weight: 500;
 }
 
+.status-banner--delay {
+  display: grid;
+  gap: 0.125rem;
+  justify-items: center;
+  line-height: 1.4;
+}
+
 .locale-switch {
   display: flex;
   flex-wrap: wrap;
@@ -2837,12 +2974,21 @@ html[data-nav-pending="true"] .shell-main {
     border-radius: 22px;
   }
 
+  .bracket-stage {
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 12px;
+  }
+
+  .bracket-col {
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
   .bracket-region {
-    --bracket-col-min: 244px;
-    --seat-h: 52px;
-    --pair-out: 40px;
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
-    mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent 100%);
+    --bracket-col-min: 280px;
+    --seat-h: 48px;
+    --pair-out: 80px;
+    padding: 16px 12px;
   }
 }
 
@@ -2877,8 +3023,11 @@ html[data-nav-pending="true"] .shell-main {
   .page-header,
   .focus-band,
   .wordmark-mark,
-  .live-dot {
-    animation: none;
+  .live-dot,
+  .live-dot::after,
+  .chip--live .live-dot::after,
+  [data-live-badge] {
+    animation: none !important;
   }
 
   .nav-progress[data-active="true"] .nav-progress-bar {

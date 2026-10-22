@@ -1,0 +1,1248 @@
+<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>MatchRead — Draw Automation, Reconciliation &amp; Missing-Match Repair</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Instrument+Sans:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+@page { size: A4; margin: 17mm 15mm 20mm 15mm; }
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  font-family: 'Instrument Sans', Carlito, 'Liberation Sans', 'DejaVu Sans', sans-serif;
+  font-size: 8.3pt; line-height: 1.385;
+  color: #15181B; background: #FFFFFF;
+  margin: 0 auto; padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+.sheet { max-width: 178mm; margin: 0 auto; padding: 0 0 6mm 0; }
+
+/* ---------- masthead ---------- */
+.eyebrow {
+  font-family: 'IBM Plex Mono', 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+  font-size: 7pt; font-weight: 500; letter-spacing: 1.6px;
+  text-transform: uppercase; color: #5A6167;
+}
+.masthead { padding: 0 0 9px 0; border-bottom: 2px solid #0A6B42; margin-bottom: 14px; }
+.masthead h1 {
+  font-family: Archivo, Carlito, 'Liberation Sans', sans-serif;
+  font-size: 19pt; font-weight: 800; letter-spacing: -0.7px; line-height: 1.08;
+  margin: 6px 0 7px 0; color: #15181B;
+}
+.masthead .lead { font-size: 8.6pt; color: #3C4348; margin: 0; max-width: 150mm; }
+.meta {
+  width: 100%; border-collapse: collapse; margin: 0 0 12px 0;
+  font-family: 'IBM Plex Mono', 'DejaVu Sans Mono', monospace; font-size: 7.4pt;
+}
+.meta td { padding: 0 14px 0 0; vertical-align: top; color: #15181B; }
+.meta .k { display: block; font-size: 6.6pt; letter-spacing: 1.4px;
+           text-transform: uppercase; color: #7A8189; margin-bottom: 2px; }
+
+/* ---------- headings ---------- */
+h2 {
+  font-family: Archivo, Carlito, 'Liberation Sans', sans-serif;
+  font-size: 11.6pt; font-weight: 800; letter-spacing: -0.35px;
+  margin: 10px 0 5px 0; padding-bottom: 4px;
+  border-bottom: 1px solid #E4E7E9;
+  page-break-after: avoid;
+}
+h3 {
+  font-family: Archivo, Carlito, 'Liberation Sans', sans-serif;
+  font-size: 9.4pt; font-weight: 700; letter-spacing: -0.15px;
+  margin: 9px 0 4px 0; page-break-after: avoid;
+}
+h2 + p, h3 + p, h2 + table, h3 + table { margin-top: 0; }
+
+p { margin: 0 0 5.5px 0; }
+strong { font-weight: 700; color: #15181B; }
+em { font-style: italic; color: #3C4348; }
+a { color: #0A6B42; text-decoration: none; }
+
+/* ---------- the eyebrow rule between major sections ---------- */
+.brk { height: 0; margin: 5px 0 0 0; }
+
+/* ---------- mono: every identifier and every number ---------- */
+code {
+  font-family: 'IBM Plex Mono', 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+  font-size: 7.8pt; color: #15181B;
+  background: #F4F6F7; padding: 0.4px 2px; border-radius: 2px;
+  word-break: break-word;
+}
+pre {
+  font-family: 'IBM Plex Mono', 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+  font-size: 6.9pt; line-height: 1.38;
+  background: #F7F9FA; border-left: 2px solid #0A6B42;
+  margin: 7px 0 9px 0; padding: 8px 10px;
+  white-space: pre-wrap; word-wrap: break-word;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- blockquote: the caveat ---------- */
+blockquote {
+  margin: 8px 0; padding: 7px 11px;
+  border-left: 2px solid #C9CFD3; background: #FAFBFC;
+  font-size: 8.3pt; color: #3C4348;
+}
+blockquote p { margin: 0 0 5px 0; }
+blockquote p:last-child { margin-bottom: 0; }
+
+/* ---------- tables: hairlines, no boxes, no zebra ---------- */
+table {
+  width: 100%; border-collapse: collapse;
+  margin: 6px 0 8px 0; font-size: 7.45pt; line-height: 1.36;
+}
+th {
+  font-family: 'IBM Plex Mono', 'DejaVu Sans Mono', monospace;
+  font-size: 6.8pt; font-weight: 500; letter-spacing: 1.2px;
+  text-transform: uppercase; color: #5A6167;
+  text-align: left; vertical-align: bottom;
+  padding: 0 8px 4px 0; border-bottom: 1px solid #15181B;
+}
+td {
+  padding: 3.1px 8px 3.1px 0; vertical-align: top;
+  border-bottom: 1px solid #EAEDEF;
+}
+th:last-child, td:last-child { padding-right: 0; }
+tr { page-break-inside: avoid; }
+table code { font-size: 7.1pt; background: #F4F6F7; }
+
+/* ---------- lists ---------- */
+ul, ol { margin: 5px 0 7px 0; padding-left: 16px; }
+li { margin-bottom: 2px; }
+
+/* ---------- the checklist ---------- */
+ul.task-list { list-style: none; padding-left: 0; margin-top: 9px; }
+ul.task-list li label { display: inline; }
+ul.task-list li {
+  padding: 3.6px 0 3.6px 20px; text-indent: -20px;
+  border-bottom: 1px solid #EAEDEF; margin: 0;
+}
+ul.task-list li:last-child { border-bottom: none; }
+.box {
+  display: inline-block; width: 8.5px; height: 8.5px;
+  border: 1.1px solid #15181B; border-radius: 2px;
+  margin-right: 9px; position: relative; top: 0.5px; text-indent: 0;
+}
+
+/* ---------- print discipline ---------- */
+@media print {
+  h2 { page-break-after: avoid; }
+  blockquote, tr { page-break-inside: avoid; }
+}
+
+body { padding: 34px 22px 60px; background: #FBFCFC; }
+.sheet { background: #FFFFFF; padding: 40px 44px 46px; border-radius: 4px;
+         border: 1px solid #EAEDEF; }
+@media (max-width: 720px) { .sheet { padding: 24px 18px 30px; } body { padding: 14px 8px 30px; } }
+</style></head><body><div class='sheet'>
+
+<div class="masthead">
+  <div class="eyebrow">Implementation handbook</div>
+  <h1>MatchRead — Draw Automation, Reconciliation &amp; Missing-Match Repair</h1>
+  <p class="lead"><strong>Scope:</strong> close the two remaining manual gaps in the tournament
+  pipeline — automatic discovery and publication of official draws, and repair of completed-match
+  truth — so the existing lock, settlement and projection jobs run a tournament end to end without
+  a human. Nothing else.</p>
+</div>
+<table class="meta"><tr>
+  <td><span class="k">Date</span>23 Aug 2026</td>
+  <td><span class="k">Audience</span>Launch engineer</td>
+  <td><span class="k">Sitting</span>One focused day</td>
+  <td><span class="k">Blocks</span>64-draw event &middot; slam event</td>
+  <td><span class="k">Status</span>Ready to implement</td>
+</tr></table>
+<blockquote>
+<p><strong>Verification legend, stated once.</strong> <code>main</code> is not reachable from this
+environment. Every path is marked <strong>held</strong> (file read directly),
+<strong><code>VERIFY</code></strong> (named across the corpus, source unseen), or
+<strong>new</strong>. Migrations <code>0006</code>, <code>0012</code>, <code>0013</code>,
+<code>0022</code>, <code>0025</code> and <code>0028</code>&ndash;<code>0030</code> are cited
+everywhere and present nowhere in this snapshot &mdash; confirm every column, enum label and
+function name against them before editing. <strong>Where the repository contradicts a source
+document, the repository wins</strong> and the correction is noted below.</p>
+<p><strong>Evidence base:</strong> the Draw Discovery guide and the Reconciliation brief,
+re-verified line by line against <code>0001_init.sql</code> and
+<code>0004_security_hardening.sql</code>, plus <code>SETTLEMENT-SCHEDULING.md</code>,
+<code>ENGINEERING-HANDOFF.md</code>, the Product Constitution, the Tennis API integration brief,
+and the M3.5.2&thinsp;/&thinsp;M3.5.3&thinsp;/&thinsp;M3.6 provider milestones.</p>
+</blockquote>
+
+<h3 id="corrections-against-the-two-source-documents">Corrections
+against the two source documents</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Source claim</th>
+<th>What the held files actually say</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>Reconciliation §1: <em>“<code>match_status</code> (L18) has no
+<code>default</code>”</em></td>
+<td>A <strong>type</strong> cannot carry a default;
+<code>matches.status</code> (L100) is
+<code>not null default 'scheduled'</code>. The load-bearing half is
+confirmed: the enum has <strong>no <code>suspended</code></strong> and
+no <code>default</code> value</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>Both docs imply triggers may gate a match write</td>
+<td><strong>No trigger exists on <code>matches</code>.</strong> Every
+trigger in <code>0001</code> (L261, L284) and <code>0004</code> (L108,
+L200, L260) targets <code>predictions</code>, <code>profiles</code> or
+<code>auth.users</code>. The only gates on a reconciliation write are
+the L112 check constraint and RLS — and <code>matches</code> has RLS
+enabled (L302) with a <strong>select-only</strong> policy (L316), so the
+pass must hold service-role</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>Reconciliation §5: walkover needs new “advances but does not grade”
+logic</td>
+<td>Already shipped. <code>apply_grades</code> (<code>0004</code>) has a
+<code>voided</code> branch —
+<code>if v_voided then update matches set settled_at = now(); return 0;</code>
+— so <code>voided = true</code> <strong>plus</strong> a set
+<code>winner_side</code> already produces advance-without-grading. Write
+no new grading logic</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>Draw guide §2: <code>draw_seats</code> vs
+<code>draw_entries</code>/<code>draw_slots</code> unresolved</td>
+<td>Still unresolved from held files. Evidence favours
+<strong><code>draw_seats</code></strong> (<code>SCREEN-INVENTORY</code>,
+<code>INTERACTION-SPEC</code>, <code>ENGINEER-MAPPING</code> and the
+Reconciliation brief); <code>PHASE-3-PROPOSAL</code> §1 is the lone
+dissenter. <strong><code>VERIFY</code></strong> against
+<code>0006</code> — do not carry both names forward</td>
+</tr>
+</tbody>
+</table>
+<p>Confirmed exactly as the sources claim: <code>0001</code> L112
+<code>check (status &lt;&gt; 'final' or winner_side is not null)</code>;
+L18 enum
+<code>('scheduled','live','final','walkover','retired','cancelled')</code>;
+L42 <code>players unique (external_ref, tour)</code> against L49/L94
+<strong>globally</strong> unique <code>external_ref</code>;
+<code>0004</code> L494
+<code>if v_settled is not null then return 0</code> — a latch, not a
+comparison.</p>
+<div class="brk"></div>
+<h2 id="current-failure-and-target-state">1. Current failure and target
+state</h2>
+<h3 id="the-governing-principle">The governing principle</h3>
+<blockquote>
+<p><strong>Draw import owns bracket structure. Reconciliation owns
+completed-match truth. Settlement owns advancement.</strong></p>
+</blockquote>
+<p>Three responsibilities, three writers, no overlap. Every design
+decision below follows from it, and the two most common ways to get this
+wrong — reconstructing a bracket from fixtures, and propagating winners
+into seats by hand — are each ruled out by one clause of it.</p>
+<h3 id="draw-side-failure-before-play">Draw-side failure — before
+play</h3>
+<p>Calendar ingestion is already automatic: 64-draw event, 32-draw event,
+Cleveland and both slam event events exist as <code>tournaments</code> rows
+with correct refs and dates. Draw creation is not.
+<code>/tournaments/t-atp-21348</code> renders <em>Draw pending</em>
+correctly, because no <code>draws</code> row for it has reached
+<code>published</code>.</p>
+<p>Four <code>pg_cron</code> jobs are specified in
+<code>SETTLEMENT-SCHEDULING.md</code> §3 and every one presupposes a
+draw: <code>lock-draws</code> selects
+<code>where status = 'published' and now() &gt;= locks_at</code>;
+<code>reconcile-results</code> posts results;
+<code>settle-tournament</code> grades an existing draw;
+<code>refresh-projections</code> refreshes a read model. <strong>Nothing
+moves a tournament from no-draw to <code>published</code>.</strong> The
+Product Constitution states the consequence plainly: <em>“Draws are
+inserted by hand.”</em></p>
+<h3 id="result-side-failure-after-play">Result-side failure — after
+play</h3>
+<p>Advancement is a derivation, not a stored edge: one resolver runs
+over the seat table from the set of match results, so a single missing
+winner blanks every seat downstream of it. <em>“Not played”</em> is the
+correct rendering of that state — the bracket layer has no defect.
+Masters event produced <strong>two distinct upstream shapes</strong>:</p>
+<p><strong>Shape A — match exists locally, winner never
+resolved</strong> (ATP: Fonseca–O’Connell). <code>0001</code> L112 is
+the only outcome constraint and it requires a winner <strong>only for
+<code>final</code></strong>. A row with <code>status='retired'</code>
+and <code>winner_side = null</code> is legal — nothing raises, nothing
+advances, and the <code>matches_settling</code> index re-selects it
+forever.</p>
+<p><strong>Shape B — completed match missing locally entirely</strong>
+(WTA: Wang–Svitolina). Confirmed against real captured bytes in M3.6:
+<code>/fixtures/tournament/{seasonId}</code> returns
+<code>{"data": [], "hasNextPage": false}</code> for a completed event.
+<strong>The fixtures endpoint is a queue, not a register</strong> — a
+match leaves it the moment it is played.</p>
+<p>Two consequences define the fix: iterating local rows cannot repair
+Shape B (there is no row to iterate), and iterating upcoming-fixtures
+cannot repair it either (the match is gone from that endpoint
+permanently, so the comparison sees nothing on both sides and correctly
+concludes nothing is missing). The authoritative repair source is
+therefore the completed-results archive, and only that.</p>
+<h3 id="target-lifecycle">Target lifecycle</h3>
+<pre class="text"><code>calendar ingest        tournament row exists                      [already automatic]
+  → discover-draws     Draw API polled, official structure found  [PART A — new]
+  → import + validate  one transaction, fail-closed
+  → publish            draws.status = &#39;published&#39;
+  → lock-draws         published → locked at first ball           [unchanged]
+  → play
+  → reconcile          completed-results sweep repairs matches    [PART B — new/finish]
+  → settleAll          existing resolver fills every seat         [unchanged]
+  → projections        leaderboard refresh                        [unchanged]</code></pre>
+<div class="brk"></div>
+<h2 id="existing-code-to-reuse">2. Existing code to reuse</h2>
+<p><strong>Reuse — confirmed across the corpus:</strong></p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Path</th>
+<th>State</th>
+<th>What you take from it</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>packages/core/src/canon/tennis.ts</code></td>
+<td><code>VERIFY</code></td>
+<td>Draw-shape model (4–128, byes, rounds, opening round, seed count)
+and <code>matches = size − 1</code>, M3.6’s completeness check. Also
+already holds <em>“a retirement grades and a walkover voids”</em> — make
+it callable as <code>outcomeDisposition(resultType)</code></td>
+</tr>
+<tr class="even">
+<td><code>packages/provider-rapidapi/src/client.ts</code></td>
+<td><code>VERIFY</code></td>
+<td><code>getTournamentResults(tour, seasonId)</code>. <strong>Add only
+if absent</strong> — M3.6 generated a 20-field spec from 27 real
+payloads at <code>/tournament/results/{id}</code>, so a client method
+very likely exists. Enforce lowercase tour in the path</td>
+</tr>
+<tr class="odd">
+<td><code>packages/provider-rapidapi/src/parse.ts</code></td>
+<td><code>VERIFY</code></td>
+<td>The five aliases confirmed against real bytes:
+<code>result_type</code> (<strong>not</strong> <code>status</code>),
+<code>player1Id</code>, <code>match_winner</code> (a player id, not a
+side), <code>countryAcr</code>, <code>result</code></td>
+</tr>
+<tr class="even">
+<td><code>packages/settlement</code></td>
+<td><code>VERIFY</code></td>
+<td><code>settleAll(...)</code>. Also <strong>the pattern to
+copy</strong> — logic extracted so it runs in Node and CI outside
+Supabase</td>
+</tr>
+<tr class="odd">
+<td><code>apps/mission-control/provider.mjs</code></td>
+<td><code>VERIFY</code></td>
+<td>The single provider descriptor. Host, base path, <code>{type}</code>
+tour substitution</td>
+</tr>
+<tr class="even">
+<td><code>scripts/lib/strict-provider.mjs</code></td>
+<td><code>VERIFY</code></td>
+<td>The hostile fake — 404s unknown routes, reproduces
+<code>pageSize + 1</code> and empty-fixtures-on-completed-event</td>
+</tr>
+<tr class="odd">
+<td><code>scripts/geneva-verify.mjs</code></td>
+<td><code>VERIFY</code></td>
+<td>The shape to copy for verification against real bytes</td>
+</tr>
+<tr class="even">
+<td><code>apps/web/server/repositories/founder.ts</code></td>
+<td><code>VERIFY</code></td>
+<td>Dashboard thresholds live in this one file by existing rule</td>
+</tr>
+<tr class="odd">
+<td><code>.github/workflows/</code></td>
+<td><code>VERIFY</code></td>
+<td>The only scheduler documented as <em>working</em> that resolves
+<code>workspace:*</code></td>
+</tr>
+<tr class="even">
+<td><code>0001_init.sql</code></td>
+<td><strong>held</strong></td>
+<td><code>tournaments(external_ref unique, tour, tier, starts_on, ends_on, draw_size, season_id)</code>;
+<code>matches(external_ref unique, status, winner_side, model_probability_a, voided, settled_at)</code>;
+<code>players unique (external_ref, tour)</code></td>
+</tr>
+<tr class="odd">
+<td><code>0004_security_hardening.sql</code></td>
+<td><strong>held</strong></td>
+<td><code>apply_grades</code> — the latch at L494 and the
+<code>voided</code> branch that already implements
+advance-without-grade</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Does not exist — do not go looking:</strong> any draw
+importer or <code>scripts/import-*</code>; <code>apps/listener</code>,
+<code>Dockerfile</code>, <code>railway.json</code>; error tracking or
+analytics in <code>apps/web</code>; a reconciliation audit table in
+anything held. <strong>Enums confirmed absent:</strong>
+<code>match_status</code> has no <code>default</code> and no
+<code>suspended</code>.</p>
+<div class="brk"></div>
+<h2 id="part-a-automatic-draw-discovery-and-import">3. Part A —
+automatic draw discovery and import</h2>
+<h3 id="pin-the-draw-api-blocking-30-minutes">3.1 Pin the Draw API —
+blocking, ~30 minutes</h3>
+<p>The principle <em>do not reconstruct the bracket from fixtures when
+the authoritative Draw API is available</em> is correct and is
+<strong>not yet expressed anywhere in the repository</strong>. The
+integration brief’s Phase 2 is fixtures-based and predates the finding;
+its own §3C lists draw order, slot numbers, bye positions and qualifier
+placeholders as <strong>unverified</strong>, and its Question 01 to
+provider support is literally <em>“which endpoint returns the official
+pre-tournament main draw in bracket order?”</em> Treat §3C/Phase 2 as
+superseded; M3.6 records the same gap — <em>“no endpoint has ever
+supplied a draw structure.”</em></p>
+<p>Before writing a parser, confirm and record: exact route, method,
+required provider ids, singles/main-draw filter, <strong>one real ATP
+payload and one real WTA payload</strong>.</p>
+<ol type="1">
+<li>Add the draw route to the descriptor in
+<code>apps/mission-control/provider.mjs</code>, using the same
+<code>{type}</code> substitution as the other routes. M3.5.2 is the
+cautionary tale: <code>planFor()</code> ran
+<code>step.path.replace('{type}', tour)</code> against paths containing
+no <code>{type}</code> and the no-op went unnoticed for the life of the
+project. <strong>Assert the substituted URL, not the
+template.</strong></li>
+<li>Add the matching anchored pattern to
+<code>scripts/lib/strict-provider.mjs</code>. That fake 404s anything
+unrecognised by design; until the draw route is in its table every test
+fails for the wrong reason.</li>
+<li>Capture both payloads with the existing <code>capture.mjs</code>
+(<code>--tour wta</code> also discharges the never-exercised WTA path)
+and generate their spec into <code>docs/provider-knowledge/</code>.</li>
+</ol>
+<p><strong>Do not start 3.2 until real payloads are on disk.</strong>
+The last time this project wrote a parser from documentation, it scored
+<strong>0 of 27</strong>.</p>
+<h3 id="one-shared-importer-packagesdraw-import-new">3.2 One shared
+importer — <code>packages/draw-import/</code> (new)</h3>
+<p>Mirror <code>packages/settlement</code>: pure logic, own client
+factory, executable in Node and CI.</p>
+<pre class="ts"><code>// packages/draw-import/src/index.ts
+export async function importOfficialDraw(args: {
+  tournamentRef: string;              // &#39;t-atp-21348&#39;
+  source: &#39;automatic&#39; | &#39;manual&#39;;
+  client: SupabaseClient;
+  now: Date;                          // never read a clock — settleAll&#39;s rule
+}): Promise&lt;
+  | { outcome: &#39;published&#39;;       drawId: string; slots: number }
+  | { outcome: &#39;not_yet&#39; }        // provider has no draw. Safe no-op, the common case
+  | { outcome: &#39;already_present&#39; }
+  | { outcome: &#39;rejected&#39;;        reason: string; payloadRef: string }
+&gt;;</code></pre>
+<p>Four outcomes, no exceptions for normal control flow.
+<strong>Provider identity is nearly free:</strong>
+<code>tournaments.external_ref</code> is
+<code>text not null unique</code> (<code>0001</code> L49) and production
+refs read <code>t-atp-21348</code> / <code>t-wta-16741</code> — the tour
+and provider season id are already in the string. Parse the ref; fall
+back to the calendar endpoint only on a malformed one, and log a mapping
+failure rather than guessing.</p>
+<h3 id="discovery-worker">3.3 Discovery worker</h3>
+<pre class="ts"><code>// packages/draw-import/src/discover.ts
+export async function discoverDraws({ client, now }: Ctx) {
+  for (const t of await findDrawDiscoveryCandidates(client, now)) {
+    const r = await importOfficialDraw({
+      tournamentRef: t.external_ref, source: &#39;automatic&#39;, client, now,
+    });
+    const ref = t.external_ref;
+    if (r.outcome === &#39;rejected&#39;)  log.error({ ref, reason: r.reason, payload: r.payloadRef });
+    if (r.outcome === &#39;published&#39;) log.info({ ref, drawId: r.drawId, slots: r.slots });
+    // &#39;not_yet&#39; and &#39;already_present&#39; are silent. A quiet run is the normal run.
+  }
+}</code></pre>
+<p>An alarm that fires on the normal case stops being read. This project
+has shipped that defect four times by its own count —
+<code>late_arrival</code>, duplicate-as-quarantine, the coupling
+scanner’s substring matches, and the fixtures warning. Do not make it
+five.</p>
+<p><strong>Eligibility.</strong> Held columns and enums only —
+<code>tour('ATP','WTA')</code>,
+<code>tournament_tier('grand_slam','tour_finals','masters_1000','tour_500','tour_250','other')</code>:</p>
+<pre class="sql"><code>select t.id, t.external_ref, t.tour, t.tier, t.draw_size, t.starts_on
+from tournaments t
+where t.tour in (&#39;ATP&#39;,&#39;WTA&#39;)
+  and t.tier not in (&#39;tour_finals&#39;,&#39;other&#39;)          -- round-robin: canon says isKnockout:false
+  and t.starts_on between current_date - 2 and current_date + 21
+  and not exists (
+    select 1 from draws d                            -- VERIFY status labels against 0006
+     where d.tournament_id = t.id
+       and d.status in (&#39;published&#39;,&#39;locked&#39;,&#39;complete&#39;))
+order by t.starts_on;</code></pre>
+<p>If <code>0006</code> already exposes a canonical eligibility view or
+a <code>bracket_eligible</code> field, <strong>use it and delete this
+query</strong> — tier policy must not live in two places. Two notes:
+qualifying and doubles cannot be excluded here (the calendar creates one
+row per <code>(tour, season id)</code>, so there is no doubles row to
+filter) — exclusion happens at the payload boundary via a singles-only
+request plus <code>looksLikeDoublesPair</code>, which caught that 16 of
+56 captured “players” were pairs. And <strong>replay draws must be
+excluded</strong>: mirror whatever predicate <code>settleAll</code> uses
+(<code>SETTLEMENT-SCHEDULING.md</code> §“How active draws are
+selected”); migration <code>0022</code> exists so a rehearsal cannot
+contaminate production.</p>
+<h3 id="validation-and-publication">3.4 Validation and publication</h3>
+<p>One transaction, advisory lock, fail closed.</p>
+<pre class="text"><code>begin;
+  select pg_advisory_xact_lock(hashtext(:tournament_ref));
+  archive raw payload (hash-chained, before parsing)
+  insert draw (pre-publication status VERIFY) + seats
+  validate  ── any failure ──▶ rollback: zero rows, tournament stays Draw pending
+  set status = &#39;published&#39;, structure_provenance = &lt;provider-authoritative&gt;
+commit;</code></pre>
+<p>Validate exactly these seven, and no more:</p>
+<ol type="1">
+<li><strong>Identity</strong> — payload season id equals the one parsed
+from <code>external_ref</code>; tour matches.</li>
+<li><strong>Main singles</strong> — not qualifying, not doubles; every
+name passes <code>looksLikeDoublesPair</code>.</li>
+<li><strong>No duplicate draw positions</strong> — a set check over
+slots.</li>
+<li><strong>No conflicting authoritative draw</strong> — the
+<code>not exists</code> from 3.3, re-asserted inside the transaction
+under the lock.</li>
+<li><strong>Internally parseable</strong> — the canon resolves a shape:
+<code>matches = size − 1</code>, byes placed, rounds derivable. Round
+ids are <strong>not contiguous</strong> (Geneva: 4, 5, 9, 10, 12) and
+the provider’s table holds <strong>two quarter-final ids</strong> — map
+through the canon, never by arithmetic.</li>
+<li><strong>Slot count reconciles</strong> to
+<code>tournaments.draw_size</code> (<code>not null</code> in
+<code>0001</code> L58). Note the live conflict: the calendar carries
+<code>draw_size</code> <em>“when populated”</em> while M3.6 found no
+draw-size field anywhere. If they disagree at runtime,
+<strong>reject</strong> — that disagreement is exactly the defect class
+this gate exists to catch.</li>
+<li><strong>Provenance</strong> — provider-authoritative, never
+<code>reconstructed</code>. <code>ENGINEERING-HANDOFF.md</code> is
+explicit that a reconstructed draw must never be presented as
+authoritative. <code>VERIFY</code> the enum labels in
+<code>0025</code>.</li>
+</ol>
+<p>On failure: roll back, log <code>{ ref, reason, payloadRef }</code>,
+keep the raw payload. <strong>Use the existing lifecycle</strong> —
+<code>published</code> is what <code>lock-draws</code> already looks
+for. Do not invent a status.</p>
+<p><strong>Seeds.</strong> M3.6: seed <em>count</em> is a tour rule,
+byes identify seeds 1–N <em>as a set</em>, and which one is seed 1 is
+not recoverable by arithmetic. Take seeds if the Draw API supplies them.
+If not, MatchRead may say <em>“these four were seeded 1 to 4”</em> and
+must not say <em>“this one was seed 1”</em> — the difference between a
+limitation and a fabrication.</p>
+<h3 id="manual-recovery">3.5 Manual recovery</h3>
+<pre class="bash"><code>pnpm draw:import --tournament=t-atp-21348      # source: &#39;manual&#39;</code></pre>
+<p>Same <code>importOfficialDraw</code>, same transaction, same
+validation. <code>source</code> is recorded and changes nothing about
+behaviour. <strong>One implementation, two callers</strong> — this is
+the repair tool when the workflow is red at 3am.</p>
+<div class="brk"></div>
+<h2 id="part-b-reconciliation-and-missing-match-repair">4. Part B —
+reconciliation and missing-match repair</h2>
+<h3 id="authoritative-source">4.1 Authoritative source</h3>
+<p><code>GET /tennis/v2/{tour}/tournament/results/{seasonId}</code>
+(brief §3E), singles only — the completed-results archive, where
+<code>player1</code> is <strong>always</strong> the winner and
+<code>result_type</code> carries
+<code>completed | retired | walkover | default</code>. It is the only
+endpoint that still holds a played match.</p>
+<h3 id="behaviour">4.2 Behaviour</h3>
+<pre class="text"><code>for each active supported tournament
+  → GET /{tour}/tournament/results/{seasonId}          (singles only)
+  → normalize (result_type, match_winner, player1Id/player2Id)
+  → match locally on (tour, providerMatchId)           ← identity, never names
+      ├─ no local row          → create from official result (if safe)
+      ├─ local winner null     → fill winner + status
+      ├─ local winner differs  → record conflict, write nothing
+      └─ agrees                → no-op
+  → settleAll({ drawIds: [t.drawId] })                 ← EXISTING engine
+  → one run row + one audit row per change</code></pre>
+<h3 id="code-changes">4.3 Code changes</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Path</th>
+<th>State</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td><code>packages/provider-rapidapi/src/client.ts</code></td>
+<td><code>VERIFY</code></td>
+<td><code>getTournamentResults(tour, seasonId)</code> — reuse if
+present</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td><code>packages/provider-rapidapi/src/parse.ts</code></td>
+<td><code>VERIFY</code></td>
+<td><code>normalizeResult(raw)</code>. Unknown <code>result_type</code>
+→ throw <code>UnknownOutcome</code>. <strong>Never read
+<code>result</code></strong> — free-form, 24 distinct values in 27
+payloads</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td><code>packages/core/src/canon/tennis.ts</code></td>
+<td><code>VERIFY</code></td>
+<td><code>outcomeDisposition(resultType)</code> — the §4.4 table as a
+function</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td><code>packages/settlement/src/reconcile.ts</code></td>
+<td><strong>new</strong></td>
+<td><code>reconcileTournament()</code>,
+<code>reconcileActive()</code></td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td><code>packages/settlement/src/repo.ts</code></td>
+<td><code>VERIFY</code></td>
+<td><code>findMatchByProviderIdentity({tour, providerMatchId})</code> —
+<strong>requires migration 3</strong></td>
+</tr>
+<tr class="even">
+<td>6</td>
+<td><code>packages/settlement/src/index.ts</code></td>
+<td><code>VERIFY</code></td>
+<td>export <code>reconcileTournament</code>,
+<code>reconcileActive</code></td>
+</tr>
+<tr class="odd">
+<td>7</td>
+<td><code>apps/web/server/repositories/founder.ts</code></td>
+<td><code>VERIFY</code></td>
+<td>Reconciliation tiles + thresholds</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Migrations — <code>0031_reconciliation.sql</code></strong>
+(head is <code>0030</code>). Each is justified by a held file; if
+<code>main</code> already ships one, drop it.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Change</th>
+<th>Proof</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td><code>alter type match_status add value 'default'</code>,
+<code>'suspended'</code></td>
+<td><code>0001</code> L18 has neither; provider emits
+<code>default</code>, brief §6 documents <code>SUSPENDED</code>. Cast
+raises <code>22P02</code> today. <strong>Ship in its own step</strong> —
+<code>ADD VALUE</code> cannot be used in the same transaction that
+queries the new value</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>Replace L112 with
+<code>status not in ('final','retired','default','walkover') or winner_side is not null</code></td>
+<td>L112 covers <code>final</code> only. This is the exact state ATP
+Masters event is in and it must become unstorable.
+<code>cancelled</code>/<code>suspended</code> excluded — neither has a
+winner</td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td><code>matches</code>/<code>tournaments</code>: drop global unique on
+<code>external_ref</code>, add
+<code>unique (external_ref, tour)</code></td>
+<td>L94/L49 are globally unique; L42 already scopes <code>players</code>
+by tour. Provider id spaces are per-tour, and two 128-draws run in
+parallel at the slam event. <strong>Run the collision report before
+dropping</strong></td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td><code>reconciliation_runs</code>,
+<code>reconciliation_repairs</code>,
+<code>matches.reconciled_at</code></td>
+<td>No audit table exists in anything held. Service-role RLS,
+founder-readable. <strong>If an ingest audit table exists on
+<code>main</code>, use it instead</strong></td>
+</tr>
+</tbody>
+</table>
+<p>pgTAP <code>31_reconciliation.test.sql</code> ships in the same
+commit.</p>
+<h3 id="core-implementation">4.4 Core implementation</h3>
+<pre class="ts"><code>// packages/settlement/src/reconcile.ts
+export async function reconcileTournament(t: ActiveTournament, run: RunContext) {
+  const raw     = await provider.getTournamentResults(t.tour, t.providerSeasonId);
+  const results = raw.filter(isSingles).map(normalizeResult);      // throws UnknownOutcome
+
+  for (const r of results) {
+    const local = await repo.findMatchByProviderIdentity({
+      tour: t.tour,                        // identity is (tour, providerMatchId).
+      providerMatchId: r.providerMatchId,  // never a name, never a position
+    });
+
+    const disposition = outcomeDisposition(r.resultType);          // canon, §4.5
+    if (disposition.kind === &#39;unknown&#39;) { await run.quarantine(r); continue; }
+    if (!local) { await createMissingMatchFromOfficialResult(r, t, disposition, run); continue; }
+
+    const side = await resolveWinnerSide(local, r);                // provider id → &#39;a&#39; | &#39;b&#39;
+    if (side === &#39;conflict&#39;)            { await run.conflict(local, r, &#39;roster_mismatch&#39;); continue; }
+    if (!local.winnerSide &amp;&amp; side)      await repairOfficialResult(local, r, disposition, side, run);
+    else if (local.winnerSide &amp;&amp; side &amp;&amp; local.winnerSide !== side)
+                                        await run.conflict(local, r, &#39;winner_changed&#39;);
+    // agrees → no-op.  Fill a hole: automatic. Change an answer: never.
+  }
+
+  await settleAll({ drawIds: [t.drawId] });   // EXISTING engine. Seats fill here, not above.
+  await run.finish();
+}</code></pre>
+<p><strong><code>createMissingMatchFromOfficialResult</code> fails
+closed.</strong> <code>matches</code> requires
+<code>player_a_id</code>/<code>player_b_id</code> (FK),
+<code>model_probability_a</code> (<code>not null</code>, 0–1),
+<code>starts_at</code>, <code>round</code>. If a player is unknown,
+fetch and insert the <strong>real</strong> player — never a placeholder;
+if it cannot be fetched, record <code>player_unresolved</code> and write
+nothing. For <code>model_probability_a</code> insert <code>0.5000</code>
+<strong>with <code>voided = true</code></strong>: the bracket advances
+(the resolver needs only a winner) and no rating moves on a match nobody
+could have predicted. <strong>Never write <code>0.5</code> without the
+void flag.</strong></p>
+<p><strong>The blocker to check first.</strong>
+<code>apply_grades</code> (<code>0004</code> L494) guards with
+<code>if v_settled is not null then return 0</code> — a <strong>latch,
+not a comparison</strong>, and its own comment explains why (the rating
+ledger is append-only, so a duplicate is unrecoverable). If
+<code>apply_bracket_state</code> (<code>0012</code>) shares that shape,
+a repaired winner on an already-<code>settled_at</code> match is a
+silent no-op and this entire pass reports success while changing
+nothing. <strong>Read <code>0012</code> before writing
+anything</strong>; if it latches, add the third branch — <em>settled +
+outcome differs → raise, record conflict.</em></p>
+<h3 id="exceptional-outcomes">4.5 Exceptional outcomes</h3>
+<p>Rule under the table: <strong>did tennis get played?</strong> If yes
+there is a winner and the pick grades. If no there may still be a winner
+and the pick voids. <code>winner_side</code> drives advancement;
+<code>voided</code> drives grading. They are separate questions.</p>
+<table>
+<colgroup>
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+<col style="width: 20%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>MatchStat</th>
+<th>Advances</th>
+<th>Grades</th>
+<th><code>matches.status</code> / <code>voided</code></th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>completed</code></td>
+<td><strong>Yes</strong></td>
+<td><strong>Yes</strong></td>
+<td><code>final</code> / false</td>
+<td>—</td>
+</tr>
+<tr class="even">
+<td><code>retired</code></td>
+<td><strong>Yes</strong></td>
+<td><strong>Yes</strong></td>
+<td><code>retired</code> / false</td>
+<td>Canon: a retirement grades</td>
+</tr>
+<tr class="odd">
+<td><code>default</code></td>
+<td><strong>Yes</strong></td>
+<td><strong>Yes</strong></td>
+<td><code>default</code> / false</td>
+<td>Needs migration 1. Extends the canon by one case — get a founder
+line in <code>PRODUCT_DECISIONS.md</code></td>
+</tr>
+<tr class="even">
+<td><code>walkover</code></td>
+<td><strong>Yes</strong></td>
+<td>No</td>
+<td><code>walkover</code> / <strong>true</strong></td>
+<td>A walkover <strong>still advances</strong>. Treating it as
+unresolved is how one absence blanks a quarter of the draw.
+<code>apply_grades</code>’ existing <code>voided</code> branch already
+produces this — write no new logic</td>
+</tr>
+<tr class="odd">
+<td><code>cancelled</code></td>
+<td>No</td>
+<td>No</td>
+<td><code>cancelled</code> / true</td>
+<td>Renders “Cancelled”, <strong>not</strong> “Not played”</td>
+</tr>
+<tr class="even">
+<td><code>suspended</code></td>
+<td>No</td>
+<td>No</td>
+<td><code>suspended</code> / false</td>
+<td>Not terminal. Never settle, never latch <code>settled_at</code></td>
+</tr>
+<tr class="odd">
+<td><em>anything else</em></td>
+<td>No</td>
+<td>No</td>
+<td><strong>no write</strong></td>
+<td>Quarantine, raise, alert. Never default to <code>final</code>, never
+guess</td>
+</tr>
+</tbody>
+</table>
+<p>Winner identity comes from <code>match_winner</code> (a provider
+player id), corroborated against <code>player1Id</code>.
+<strong>Disagreement is a conflict, not a tiebreak.</strong> Never parse
+the score string.</p>
+<h3 id="settlement-the-rule-that-must-not-bend">4.6 Settlement — the
+rule that must not bend</h3>
+<p><strong>Reconciliation never writes a bracket seat.</strong> It
+writes <code>matches</code> only. Once <code>winner_side</code> is
+correct, <code>settleAll</code> re-runs the existing resolver and every
+downstream seat fills. There is no propagation step to build, and
+building one would create a second source of bracket truth — the precise
+failure §1 exists to prevent.</p>
+<div class="brk"></div>
+<h2 id="shared-safety-idempotency-and-audit">5. Shared safety,
+idempotency and audit</h2>
+<p>These rules govern both parts. They are stated once here and not
+repeated.</p>
+<p><strong>Identity.</strong> Provider numeric ids, scoped by tour,
+always. Never names: 39 shared surnames among 900 ranked players
+including four sets of brothers, zero diacritics (the provider strips
+them), and country alone produced six spurious ambiguities in a
+28-player draw. Never positions, never score strings.</p>
+<p><strong>Fail closed.</strong> Ambiguity means reject, quarantine or
+conflict — never guess. A partially imported bracket must never become
+user-visible; a match with an unresolvable player must never be
+written.</p>
+<p><strong>Idempotency.</strong> Both passes must be replay-safe by
+construction, not by convention.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>Draw discovery</th>
+<th>Reconciliation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Before data exists</td>
+<td>50 runs → <strong>0 draws</strong>, 0 rows, 0 errors</td>
+<td>Nothing to repair → 0 writes</td>
+</tr>
+<tr class="even">
+<td>Data appears</td>
+<td><strong>1 draw</strong>, published, provenance correct</td>
+<td>Only missing state created or filled</td>
+</tr>
+<tr class="odd">
+<td>Repeat ×3</td>
+<td><strong>still 1 draw</strong>, 1 seat set</td>
+<td><strong>0 further writes</strong></td>
+</tr>
+<tr class="even">
+<td>Concurrent runs</td>
+<td><strong>1 draw</strong> (advisory lock)</td>
+<td>No overlap (advisory lock per <code>seasonId</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>Enforcement is structural: <code>pg_advisory_xact_lock</code> per
+tournament or <code>seasonId</code>; a unique index on
+<code>draws(tournament_id)</code> (<code>VERIFY 0006</code>, add in
+<code>0031</code> if absent); a uniquely-keyed content hash on each
+<code>reconciliation_repairs</code> row so a replay cannot double-write;
+and workflow-level <code>concurrency</code> groups.</p>
+<p><strong>Raw payload preservation.</strong> Archive provider bytes
+<strong>before</strong> parsing, hash-chained, per existing discipline.
+This has already paid for itself once: Geneva’s parser scored 0 of 27
+and only re-read cleanly after correction because the raw bytes were
+kept. Capture Masters event ATP + WTA into
+<code>fixtures/masters-2026/</code> before writing the reconciliation
+parser.</p>
+<p><strong>Audit.</strong> Every meaningful write traceable to
+tournament, provider record, run id, before state, after state, source
+and timestamp. Reuse an existing ingest audit table if <code>main</code>
+has one; otherwise migration 4 above creates the pair. Draw imports
+record <code>source: 'automatic' | 'manual'</code>.</p>
+<div class="brk"></div>
+<h2 id="scheduling-and-operational-flow">6. Scheduling and operational
+flow</h2>
+<p><strong>The decision rule, stated once, because it governs both
+parts.</strong> <code>SETTLEMENT-SCHEDULING.md</code> §STOP documents
+that the settlement Edge Functions import unpublished <code>npm:</code>
+packages — <code>@matchread/core</code> depends on
+<code>@matchread/i18n</code> through <code>workspace:*</code>, which npm
+cannot resolve — so they <strong>deploy green and 500 on first
+invocation</strong>. Both <code>discoverDraws</code> and
+<code>reconcileActive</code> depend on the canon and the settlement
+package, so both inherit that failure verbatim if hosted as Edge
+Functions.</p>
+<blockquote>
+<p><strong>So:</strong> if §STOP is already closed on <code>main</code>
+(option A published packages, or B vendored bundles), host
+reconciliation on the existing <code>reconcile-results</code> cron →
+<code>ingest-events</code> with a <code>{"mode":"reconcile"}</code>
+branch, exactly as the source brief specifies, and add one cron target
+for discovery. <strong>If §STOP is still open</strong>, run both as
+monorepo CLI entry points from GitHub Actions — the only scheduler
+documented as working that resolves <code>workspace:*</code> and holds
+secrets. <strong>Check this first; it changes two files, not the
+design.</strong> When the Railway container lands (ADR-0018 Tier 1),
+both invocations move into it and the workflows are deleted.</p>
+</blockquote>
+<p>Two commands, two schedules, two concurrency groups — <strong>not one
+all-purpose worker.</strong> Separate cadences and separate failure
+domains.</p>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Stage</th>
+<th>Cadence</th>
+<th>Action</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Calendar ingest</td>
+<td>existing</td>
+<td>tournament row exists</td>
+<td>unchanged</td>
+</tr>
+<tr class="even">
+<td><strong>Draw discovery</strong></td>
+<td><code>*/5</code></td>
+<td>poll Draw API for eligible tournaments</td>
+<td><strong>new target</strong></td>
+</tr>
+<tr class="odd">
+<td><strong>Draw import</strong></td>
+<td>on discovery</td>
+<td>validate → publish, one transaction</td>
+<td><strong>new</strong></td>
+</tr>
+<tr class="even">
+<td><code>lock-draws</code></td>
+<td><code>*/1</code></td>
+<td><code>published</code> → <code>locked</code></td>
+<td>unchanged</td>
+</tr>
+<tr class="odd">
+<td><strong>Reconciliation — on court</strong></td>
+<td><code>*/5</code></td>
+<td>results + fixtures</td>
+<td><strong>extends <code>reconcile-results</code></strong></td>
+</tr>
+<tr class="even">
+<td><strong>Reconciliation — finished &lt; 24 h</strong></td>
+<td><code>*/30</code></td>
+<td>results only — where late corrections land</td>
+<td><strong>new state</strong></td>
+</tr>
+<tr class="odd">
+<td><strong>Reconciliation — upcoming, draw published</strong></td>
+<td><code>*/60</code></td>
+<td>fixtures only</td>
+<td><strong>new state</strong></td>
+</tr>
+<tr class="even">
+<td><code>settle-tournament</code></td>
+<td><code>*/15</code></td>
+<td><code>settleAll</code> derives advancement</td>
+<td>unchanged</td>
+</tr>
+<tr class="odd">
+<td><code>refresh-projections</code></td>
+<td><code>*/1</code></td>
+<td>leaderboard refresh</td>
+<td>unchanged</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Request budget.</strong> ~2 requests per tournament per pass
+at <code>pageSize=500</code> (a 128-draw is 127 matches — one page).
+Busy fortnight, 6 events on court: ≈ <strong>158 req/hr</strong>,
+largest burst 12 against a documented <strong>100 req/min</strong>
+throttle. Per-minute headroom is fine; the monthly plan cap is not
+verified — <strong>confirm ≈114k requests/month with the
+founder.</strong> Limit globally to 60 rpm and stagger by
+<code>hash(seasonId) % 60</code>.</p>
+<p><strong>Verify the scheduler before trusting it.</strong> Every
+<code>pg_cron</code> call in the repository is documented as a comment,
+in three places. Run
+<code>select jobid, jobname, schedule, active from cron.job</code> and
+<code>select * from cron.job_run_details order by start_time desc limit 20</code>.
+If cron fires but the run table is empty, the function is 500ing — see
+§STOP above.</p>
+<div class="brk"></div>
+<h2 id="todays-implementation-sequence">7. Today’s implementation
+sequence</h2>
+<ol type="1">
+<li><strong>Verify Git assumptions (60 min).</strong> Draw table and
+status enum, seat table name (<code>draw_seats</code> vs
+<code>draw_slots</code>), provenance enum in <code>0025</code>, whether
+<code>0012</code>’s <code>apply_bracket_state</code> latches like
+<code>apply_grades</code>, <code>cron.job</code> state, provider client
+path, existing audit tables. <strong>Nothing below is safe until this is
+done.</strong></li>
+<li><strong>Pin the Draw API (30 min).</strong> ATP + WTA payloads
+captured; descriptor and strict fake updated; spec generated.</li>
+<li><strong>Build <code>importOfficialDraw</code> (2 h).</strong>
+Validation, transaction, advisory lock, four outcomes.</li>
+<li><strong>Prove manual import.</strong> <code>t-atp-21348</code> and
+<code>t-wta-16741</code>. Both render on the production tournament
+page.</li>
+<li><strong>Prove draw idempotency.</strong> Re-run ×3 and concurrently
+— draw count unchanged.</li>
+<li><strong>Wire unattended discovery.</strong> Schedule per §6; then
+prove a <em>future</em> tournament is found with nobody watching.</li>
+<li><strong>Implement reconciliation (2 h).</strong> Migration
+<code>0031</code> (<code>ADD VALUE</code> in its own step),
+<code>reconcile.ts</code>, <code>normalizeResult</code>,
+<code>outcomeDisposition</code>.</li>
+<li><strong>Prove settlement reuses repaired truth.</strong> One
+repaired R32 winner → downstream “Not played” seats resolve.</li>
+<li><strong>Prove reconciliation is a no-op on replay.</strong> Three
+further scheduled runs, zero writes.</li>
+<li><strong>Final production check.</strong> Both schedulers firing,
+audit rows visible, both manual commands available,
+<code>lock-draws</code> / <code>settle-tournament</code> /
+<code>refresh-projections</code> untouched.</li>
+</ol>
+<p>Steps 4–6 gate 64-draw event; steps 7–9 gate Masters event. If the day
+runs short, <strong>stop after step 6</strong> — a published draw with
+manual reconciliation is a working product; automatic reconciliation
+over an absent draw is not.</p>
+<div class="brk"></div>
+<h2 id="tests-and-definition-of-done">8. Tests and definition of
+done</h2>
+<p><strong>Fixtures are real bytes or they are worthless.</strong>
+Synthetic fixtures cannot reproduce either Masters event defect, and a
+permissive fake certifies bugs and issues a green tick with them — the
+M3.5.2 finding that produced <code>strict-provider.mjs</code>.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Test</th>
+<th>Assertion</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>D1</td>
+<td>Draw unavailable</td>
+<td>50 runs → 0 rows of any kind, 0 errors logged</td>
+</tr>
+<tr class="even">
+<td>D2</td>
+<td>Draw appears</td>
+<td>1 draw published, provenance provider-authoritative</td>
+</tr>
+<tr class="odd">
+<td>D3</td>
+<td>Repeat ×3 / concurrent</td>
+<td>Still 1 draw, 1 seat set, no duplicates</td>
+</tr>
+<tr class="even">
+<td>D4</td>
+<td>Malformed positions / slot-count mismatch</td>
+<td>Rejected; zero rows; reason + <code>payloadRef</code> logged</td>
+</tr>
+<tr class="odd">
+<td>D5</td>
+<td>Wrong event type</td>
+<td>Qualifying, doubles, unsupported tour, completed event → not
+imported, no error noise</td>
+</tr>
+<tr class="even">
+<td>R1</td>
+<td>Missing local match discovered</td>
+<td>Created from results; both players resolved by provider id;
+<code>action='created'</code>; downstream seat resolves after settle.
+<strong>Must fail before the fix</strong></td>
+</tr>
+<tr class="odd">
+<td>R2</td>
+<td>Null winner repaired</td>
+<td>Winner filled; <code>action='winner_filled'</code>; settles; no
+other row touched</td>
+</tr>
+<tr class="even">
+<td>R3</td>
+<td>Walkover advances</td>
+<td><code>status='walkover'</code>, <code>winner_side</code>
+<strong>set</strong>, <code>voided=true</code>, <strong>next-round seat
+occupied</strong>, no prediction graded. <em>The seat assertion is the
+test</em></td>
+</tr>
+<tr class="odd">
+<td>R4</td>
+<td>Retirement advances</td>
+<td><code>status='retired'</code>, winner from
+<code>match_winner</code>, advances, <strong>grades</strong>, not
+voided</td>
+</tr>
+<tr class="even">
+<td>R5</td>
+<td>Unknown status quarantines</td>
+<td><code>result_type:"abandoned"</code> → raises, no winner written,
+alert</td>
+</tr>
+<tr class="odd">
+<td>R6</td>
+<td>Conflict does not overwrite</td>
+<td>Different provider winner on a settled match → conflict row, S1
+alert, <code>matches</code> unchanged. <strong>Mutation check:</strong>
+delete the conflict branch and confirm R6 fails</td>
+</tr>
+<tr class="even">
+<td>R7</td>
+<td>Settlement is reused</td>
+<td>Reconciliation writes to no seat table (assert <strong>and</strong>
+grep); <code>settleAll</code> called once per affected draw</td>
+</tr>
+<tr class="odd">
+<td>R8</td>
+<td>Replay ×3 is a no-op</td>
+<td>Runs 2–3 write zero rows — assert
+<code>max(matches.updated_at)</code> unchanged, not merely “no
+error”</td>
+</tr>
+<tr class="even">
+<td>P1</td>
+<td>pgTAP</td>
+<td>ATP ref <code>N</code> and WTA ref <code>N</code> both insert
+(migration 3); <code>insert … status='retired', winner_side=null</code>
+<strong>rejected</strong> (migration 2)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>P1’s second assertion is the regression test for the whole
+incident.</strong> If it already passes on <code>main</code>, the
+constraint is stronger than <code>0001</code> and Shape A has a
+different cause — worth ten minutes before writing migration 2.</p>
+<p><strong>Production proof.</strong> Deploy, touch no row by hand, let
+the schedulers do it. Draw side: 64-draw event and 32-draw event publish and
+render, then one future tournament is discovered unattended. Result
+side: the ATP branch resolves (<code>winner_side</code> non-null, audit
+row names the action), the WTA branch resolves
+(<code>action='created'</code>, <code>external_ref</code> matches the
+provider id), downstream seats populate, and three further runs change
+nothing. <strong>Falsifiers:</strong> branches heal with an empty audit
+table → something else healed them. Healing only after manual invocation
+→ the scheduler is unproven. <strong>No manual SQL update counts as
+proof.</strong></p>
+<p>If production Masters event cannot be used safely, point reconciliation
+at a completed tournament MatchRead has never ingested — Geneva 2025
+from the existing capture, or dual-city event/colliding-slug event — on a <strong>replay
+draw</strong>. Migration <code>0022</code>’s isolation exists for
+exactly this. Do <strong>not</strong> delete a production row to
+simulate a gap.</p>
+<h3 id="definition-of-done">Definition of done</h3>
+<ul class="task-list">
+<li><label><span class="box"></span>Supported ATP/WTA tournaments are
+checked automatically for official main draws</label></li>
+<li><label><span class="box"></span>Draw API data imported using
+provider-authoritative structure — never reconstructed from
+fixtures</label></li>
+<li><label><span class="box"></span>A draw is validated before it
+becomes <code>published</code>; partial brackets never
+render</label></li>
+<li><label><span class="box"></span>Repeated or concurrent discovery
+cannot create duplicates</label></li>
+<li><label><span class="box"></span>64-draw event
+<code>t-atp-21348</code> and 32-draw event <code>t-wta-16741</code> import
+and render correctly</label></li>
+<li><label><span class="box"></span>One future tournament proves
+unattended discovery</label></li>
+<li><label><span class="box"></span>Manual
+<code>pnpm draw:import --tournament=&lt;ref&gt;</code> remains, calling
+the same <code>importOfficialDraw</code></label></li>
+<li><label><span class="box"></span>Reconciliation finds both missing
+matches (Shape B) and missing winners (Shape A)</label></li>
+<li><label><span class="box"></span>Conflicting provider results record
+instead of overwriting; unknown outcomes quarantine</label></li>
+<li><label><span class="box"></span>Exceptional outcomes behave per
+§4.5; migration <code>0031</code> applied</label></li>
+<li><label><span class="box"></span><strong>Reconciliation writes no
+bracket seat</strong>; <code>settleAll</code> derives every
+advancement</label></li>
+<li><label><span class="box"></span>Repeated reconciliation runs are
+no-ops, asserted on <code>max(matches.updated_at)</code></label></li>
+<li><label><span class="box"></span>Both schedulers proven firing in
+production, with audit rows</label></li>
+<li><label><span class="box"></span><code>lock-draws</code>,
+<code>settle-tournament</code> and <code>refresh-projections</code>
+unchanged</label></li>
+</ul>
+
+</div></body></html>

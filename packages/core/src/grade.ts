@@ -10,15 +10,31 @@ import {
   totalMatches,
   type BracketPicks,
 } from "./bracket";
+import type { Authoritative, LiveOnly } from "./live-trust";
 import { maxBracketScore, roundWeight } from "./scoring";
 
 export type OfficialMatch = {
   winnerRef: string | null;
   /** Void outranks correct/incorrect — pick neither scores nor misses. */
   voided?: boolean;
+  /** Published score text. Grading ignores it. */
+  officialScore?: string | null;
+  /** played | withdrawal | void. Grading ignores it. */
+  factKind?: "played" | "withdrawal" | "void" | null;
 };
 
-export type OfficialResults = Record<string, OfficialMatch>;
+export type OfficialResult = Authoritative<OfficialMatch>;
+
+export type OfficialResults = Record<string, OfficialResult>;
+
+type OfficialResultSet = Authoritative<OfficialResults>;
+
+type LiveResultRejected = LiveOnly<OfficialResults> extends OfficialResultSet ? never : true;
+type OfficialResultAccepted = OfficialResults extends OfficialResultSet ? true : never;
+const liveResultIsNotOfficial: LiveResultRejected = true;
+const officialResultIsAccepted: OfficialResultAccepted = true;
+void liveResultIsNotOfficial;
+void officialResultIsAccepted;
 
 export type BracketGrade = {
   score: number;
@@ -75,7 +91,7 @@ export { maxBracketScore, roundWeight };
 export function gradeBracket(input: {
   drawSize: number;
   picks: BracketPicks;
-  official: OfficialResults;
+  official: OfficialResultSet;
   throughRound?: number;
 }): BracketGrade {
   const { drawSize, picks, official } = input;
@@ -169,7 +185,7 @@ export function gradeBracket(input: {
 export function detailBracketGrade(input: {
   drawSize: number;
   picks: BracketPicks;
-  official: OfficialResults;
+  official: OfficialResultSet;
   throughRound?: number;
 }): BracketGradeDetail {
   const { drawSize, picks, official } = input;
@@ -273,7 +289,7 @@ export function detailBracketGrade(input: {
  */
 export function computeAlive(
   drawSize: number,
-  official: OfficialResults,
+  official: OfficialResultSet,
   through: number
 ): Set<string> {
   const rounds = buildRoundStructure(drawSize);

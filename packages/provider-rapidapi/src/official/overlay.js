@@ -5,6 +5,8 @@
  */
 
 import { parseFixtureInstant } from "../fixture-instant.js";
+import { parseMatchCourt, parseMatchSession } from "../match-facts.js";
+import { outcomeDisposition } from "../normalize.js";
 
 function fold(value) {
   return String(value || "")
@@ -113,11 +115,6 @@ function winnerIdFromRow(row) {
   return null;
 }
 
-function voidedRow(row) {
-  const t = String(row?.result_type || "").toLowerCase();
-  return t === "walkover" || t === "default" || t === "cancelled" || t === "canceled";
-}
-
 function fillTbdSeats(seats, rows, catalog, prefix = "atp") {
   const byId = new Map(
     seats.filter((s) => s.provider_player_id).map((s) => [String(s.provider_player_id), s])
@@ -175,7 +172,7 @@ function mapOfficialTree(seats, rows) {
   const byPair = indexRowsByPair(rows);
   /** @type {Record<string, string>} */
   const matches = {};
-  /** @type {Array<{match_key:string,scheduled_at:string,has_time:boolean}>} */
+  /** @type {Array<{match_key:string,scheduled_at?:string,has_time?:boolean,session?:"day"|"night",court?:string}>} */
   const schedule = [];
   /** @type {Array<{match_key:string,winner_ref:string|null,voided:boolean}>} */
   const results = [];
@@ -210,9 +207,17 @@ function mapOfficialTree(seats, rows) {
           const fxId = String(row.id ?? "").trim();
           if (fxId) matches[fxId] = key;
           const instant = parseFixtureInstant(row);
-          if (instant) schedule.push({ match_key: key, ...instant });
-          if (voidedRow(row) && !winnerIdFromRow(row)) {
-            results.push({ match_key: key, winner_ref: null, voided: true });
+          const session = parseMatchSession(row);
+          const court = parseMatchCourt(row);
+          if (instant || court || session) {
+            const item = instant
+              ? { match_key: key, ...instant }
+              : { match_key: key };
+            if (session) item.session = session;
+            if (court) item.court = court;
+            schedule.push(item);
+          }
+          if (outcomeDisposition(row.result_type).kind === "unknown") {
             advanced.push(null);
             continue;
           }

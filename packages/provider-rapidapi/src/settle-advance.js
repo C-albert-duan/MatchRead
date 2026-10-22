@@ -4,7 +4,11 @@
  */
 
 import { matchKey } from "./settle-keys.js";
-import { outcomeDisposition } from "./normalize.js";
+import {
+  officialFactKind,
+  officialScoreText,
+  outcomeDisposition,
+} from "./normalize.js";
 
 export function parentMatchKey(round, indexInRound) {
   return {
@@ -253,6 +257,11 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
         ? String(row.match_winner)
         : null;
 
+    const fact = {
+      official_score: officialScoreText(row),
+      fact_kind: officialFactKind(row),
+    };
+
     if (disposition.kind === "void" || (!winnerId && disposition.voided)) {
       results.push({
         match_key: target.match_key,
@@ -260,20 +269,13 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
         winner_provider_id: null,
         voided: true,
         provider_match_id: id || undefined,
+        ...fact,
       });
       continue;
     }
 
     if (!winnerId) {
-      const rt = String(row.result_type || "").toLowerCase();
-      const voidWithoutWinner =
-        disposition.kind === "void" ||
-        rt === "walkover" ||
-        rt === "wo" ||
-        rt === "default" ||
-        rt === "cancelled" ||
-        rt === "canceled" ||
-        !row.result;
+      const voidWithoutWinner = disposition.kind === "void" || !row.result;
       if (voidWithoutWinner) {
         results.push({
           match_key: target.match_key,
@@ -281,6 +283,7 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
           winner_provider_id: null,
           voided: true,
           provider_match_id: id || undefined,
+          ...fact,
         });
         continue;
       }
@@ -298,6 +301,7 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
       winner_provider_id: winnerId,
       voided: false,
       provider_match_id: id || undefined,
+      ...fact,
     });
   }
 

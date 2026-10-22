@@ -1,7 +1,7 @@
 /** Client-safe lock / when captions. No Supabase, no next/headers. */
 
 import { formatTournamentDate } from "@/lib/tournaments/dates";
-import { formatLockWhen } from "@/lib/tournaments/format";
+import { captionTimeZone, formatLockWhen } from "@/lib/tournaments/format";
 import { isEntryLocked } from "@/lib/tournaments/status";
 
 export type TournamentTimeRow = {
@@ -44,7 +44,7 @@ export function tournamentTimeFacts(
     },
     now
   );
-  const zone = timeZone || row.venue_tz || "UTC";
+  const zone = captionTimeZone(timeZone, row.venue_tz);
   const lock = row.lock_at
     ? formatLockWhen(
         row.lock_at,

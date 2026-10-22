@@ -5,7 +5,11 @@
 // Authorization: Bearer <INGEST_SECRET>
 // Body (optional):
 //   { "dryRun"?: false, "year"?: 2026, "slug"?: string, "force"?: false,
-//     "providerMatchIds"?: string[] }
+//     "providerMatchIds"?: string[],
+//     "mode"?: "live", "liveFrames"?: object[], "listenerInstanceId"?: string,
+//     "listenerHeartbeat"?: object }
+// mode "live", or a liveFrames array when mode is omitted, is the live branch.
+// There is no separate ingest-events function.
 //
 // Secrets: INGEST_SECRET, RAPIDAPI_KEY, RAPIDAPI_HOST (optional),
 //          SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (platform),
@@ -16,6 +20,11 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { applyDrawFacts } from "../_shared/apply-draw.ts";
 import { applyMatchResults, relocateProviderMatchId } from "../_shared/apply-results.ts";
+import { acceptForwardedLive, projectLiveBranch } from "../_shared/project-live.ts";
+import { listenerHealthRow } from "../../../packages/provider-rapidapi/src/listener-heartbeat.js";
+import { liveIngestRequest } from "../../../packages/provider-rapidapi/src/live-ingest-mode.js";
+import { noteListenerInstance } from "../../../packages/provider-rapidapi/src/listener-instance.js";
+import { sweepTerminalLive } from "../_shared/sweep-live.ts";
 import { captureEdgeError, flushSentry } from "../_shared/sentry.ts";
 import {
   createClient as createRapid,
@@ -111,6 +120,14 @@ Deno.serve(async (req) => {
     calendarOnly?: boolean;
     /** When set, reconcile only these archive match ids. Omitted = full archive. */
     providerMatchIds?: unknown;
+    /** "live" selects the live branch. A liveFrames array does the same when mode is omitted. */
+    mode?: unknown;
+    /** Raw provider rows from the listener. Skips calendar, draw, results, and settlement. */
+    liveFrames?: unknown;
+    /** Process id. Two recent ids are a warning. They do not skip the batch. */
+    listenerInstanceId?: unknown;
+    /** Latest tick for listener_health. No token, key, or ingest secret. */
+    listenerHeartbeat?: unknown;
   } = {};
   try {
     const text = await req.text();
@@ -152,6 +169,40 @@ Deno.serve(async (req) => {
   };
 
   try {
+    const heartbeatRow =
+      body.listenerHeartbeat == null
+        ? null
+        : listenerHealthRow(body.listenerHeartbeat, new Date().toISOString());
+    if (body.listenerHeartbeat != null && !heartbeatRow) {
+      return json({ error: "listenerHeartbeat is not a health row" }, 400);
+    }
+
+    const liveRequest = liveIngestRequest(body);
+    if (liveRequest.error) return json({ error: liveRequest.error }, 400);
+    if (liveRequest.live) {
+      const liveLog: string[] = [];
+      const instanceId =
+        typeof body.listenerInstanceId === "string" ? body.listenerInstanceId.trim() : "";
+      await noteListenerInstance(admin, instanceId, liveLog);
+      const projected = await acceptForwardedLive(
+        admin,
+        (liveRequest.frames ?? []) as Record<string, unknown>[],
+        liveLog
+      );
+      const heartbeat = heartbeatRow
+        ? await writeListenerHeartbeat(admin, heartbeatRow, liveLog)
+        : false;
+      return json({ ok: true, liveOnly: true, heartbeat, ...projected, log: liveLog });
+    }
+
+    if (heartbeatRow) {
+      const heartbeatLog: string[] = [];
+      const heartbeat = await writeListenerHeartbeat(admin, heartbeatRow, heartbeatLog);
+      return json({ ok: true, heartbeat, log: heartbeatLog });
+    }
+
+    const liveSwept = await sweepTerminalLive(admin, dryRun, log);
+
     const calendar = await syncTournamentsFromCalendar(
       admin,
       rapidClient,
@@ -166,6 +217,7 @@ Deno.serve(async (req) => {
         ok: true,
         calendarOnly: true,
         calendar,
+        liveSwept,
         log,
       });
     }
@@ -242,6 +294,7 @@ Deno.serve(async (req) => {
       calendar,
       publish,
       reconcile,
+      liveSwept,
       log,
     });
   } catch (err) {
@@ -252,6 +305,25 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: message, log }, 500);
   }
 });
+
+async function writeListenerHeartbeat(
+  admin: ReturnType<typeof createClient>,
+  row: Record<string, unknown>,
+  log: string[]
+): Promise<boolean> {
+  try {
+    const { error } = await admin.from("listener_health").upsert(row, { onConflict: "id" });
+    if (error) {
+      log.push(`listener heartbeat: ${error.message}`);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    log.push(`listener heartbeat: ${message}`);
+    return false;
+  }
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -661,6 +733,7 @@ function matchupsFromPairs(
     player2_seed: p.p2.seed,
     scheduled_at: p.instant?.scheduled_at ?? null,
     has_time: Boolean(p.instant?.has_time),
+    court: p.court,
   }));
 }
 
@@ -1357,6 +1430,7 @@ async function syncEventResults(
   await refreshEventMap(admin, rapid, event, matchSides, liveEvents, log);
 
   if (env.dryRun) {
+    await projectLiveBranch(admin, event, liveSource, log, true);
     return { ingested: results.length };
   }
 
@@ -1445,6 +1519,7 @@ async function syncEventResults(
   log.push(
     `apply-results ok updated=${result.updated} advanced=${result.advanced ?? 0} skipped=${result.skipped.length} run=${runId ?? "none"}`
   );
+  await projectLiveBranch(admin, event, liveSource, log, false);
   return { ingested: results.length };
 }
 

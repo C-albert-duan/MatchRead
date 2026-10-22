@@ -34,6 +34,9 @@ jobs:
       - name: Consumer boundary
         run: npm run ci:consumer-boundary
 
+      - name: Live trust boundary
+        run: npm run ci:live-trust
+
       - name: Settlement math dry-run
         run: npm run verify:settlement
 

@@ -18,35 +18,23 @@ set main_draw_starts_on = starts_on
 where main_draw_starts_on is null
   and starts_on is not null;
 
--- Known corrections (directive §3.1 / §3.5) — US Open main draw Sun 30 Aug 2026;
--- Winston-Salem expected Sun 23 Aug 2026 (verify against provider when available).
+-- Known corrections (directive §3.1 / §3.5) keyed by slug. Already applied.
+-- New events must set main_draw_starts_on from the provider, not a title list.
 update public.tournaments
 set main_draw_starts_on = date '2026-08-30'
 where bracket_eligible
-  and (
-    slug ilike '%us-open%'
-    or slug ilike '%uso%'
-    or name ilike '%u.s. open%'
-    or name ilike '%us open%'
-  )
-  and name not ilike '%junior%';
+  and slug in ('t-atp-21349', 't-wta-16743', 'uso-2026', 'uso-wta-2026');
 
 update public.tournaments
 set main_draw_starts_on = date '2026-08-23'
 where bracket_eligible
-  and (
-    slug ilike '%winston%'
-    or name ilike '%winston%'
-  );
+  and slug in ('t-atp-21348');
 
--- Cincinnati main draw ~13 Aug 2026 (R128), not the week banner date.
+-- 128-slot Masters main draw ~13 Aug 2026, not the week banner date.
 update public.tournaments
 set main_draw_starts_on = date '2026-08-13'
 where bracket_eligible
-  and (
-    slug ilike '%cincinnati%'
-    or name ilike '%cincinnati%'
-  );
+  and slug in ('t-atp-21347', 't-wta-16740');
 
 alter table public.tournaments drop constraint if exists tournaments_main_draw_starts_on_order;
 alter table public.tournaments
@@ -66,21 +54,17 @@ create index if not exists tournaments_public_calendar_main_draw_idx
   on public.tournaments (main_draw_starts_on)
   where bracket_eligible;
 
--- Stamp common zones where missing for known US hard-court swing.
+-- Stamp common zones where missing for the hard-court swing slugs above.
 update public.tournaments
 set venue_tz = 'America/New_York'
 where bracket_eligible
   and (venue_tz is null or btrim(venue_tz) = '')
-  and (
-    name ilike '%u.s. open%'
-    or name ilike '%us open%'
-    or name ilike '%winston%'
-    or slug ilike '%us-open%'
-    or slug ilike '%winston%'
+  and slug in (
+    't-atp-21349',
+    't-wta-16743',
+    'uso-2026',
+    'uso-wta-2026',
+    't-atp-21348',
+    't-atp-21347',
+    't-wta-16740'
   );
-
-update public.tournaments
-set venue_tz = 'America/New_York'
-where bracket_eligible
-  and (venue_tz is null or btrim(venue_tz) = '')
-  and (name ilike '%cincinnati%' or slug ilike '%cincinnati%');

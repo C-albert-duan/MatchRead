@@ -26,7 +26,7 @@ update public.leagues l
       where t2.name = l.tournament_label
    ) = 1;
 
--- Shared name (Cincinnati ATP + WTA): use an existing bracket if it is unique.
+-- Shared name (Masters event ATP + WTA): use an existing bracket if it is unique.
 update public.leagues l
    set tournament_id = x.tournament_id
   from (

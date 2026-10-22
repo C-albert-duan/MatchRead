@@ -3,10 +3,10 @@
   "directive": "MatchRead Sprint Directive 2.1 §2.2 / §3.2",
   "provider_date_fields": [
     {
-      "label": "Cincinnati",
+      "label": "Masters event",
       "tour": "atp",
       "id": "21347",
-      "name": "Cincinnati Open - Cincinnati",
+      "name": "Masters event - Masters event",
       "type": "ATP Masters 1000",
       "surface": null,
       "startDate": "2026-08-10T00:00:00.000Z",
@@ -31,10 +31,10 @@
       ]
     },
     {
-      "label": "Cincinnati",
+      "label": "Masters event",
       "tour": "wta",
       "id": "16740",
-      "name": "Cincinnati Open - Cincinnati",
+      "name": "Masters event - Masters event",
       "type": "WTA 1000",
       "surface": null,
       "startDate": "2026-08-10T00:00:00.000Z",
@@ -59,10 +59,10 @@
       ]
     },
     {
-      "label": "Winston-Salem",
+      "label": "64-draw event",
       "tour": "atp",
       "id": "21348",
-      "name": "Winston-Salem Open - Winston-Salem",
+      "name": "64-draw event Open - 64-draw event",
       "type": "ATP 250",
       "surface": null,
       "startDate": "2026-08-24T00:00:00.000Z",
@@ -87,7 +87,7 @@
       ]
     },
     {
-      "label": "US Open",
+      "label": "slam event",
       "tour": "atp",
       "id": "21349",
       "name": "U.S. Open - New York",
@@ -115,7 +115,7 @@
       ]
     },
     {
-      "label": "US Open",
+      "label": "slam event",
       "tour": "wta",
       "id": "16743",
       "name": "U.S. Open - New York",
@@ -143,10 +143,10 @@
       ]
     },
     {
-      "label": "Monterrey",
+      "label": "32-draw event",
       "tour": "wta",
       "id": "16741",
-      "name": "Abierto GNP Seguros - Monterrey",
+      "name": "Abierto GNP Seguros - 32-draw event",
       "type": "WTA 500",
       "surface": null,
       "startDate": "2026-08-24T00:00:00.000Z",
@@ -176,7 +176,7 @@
     "reason": "no supabase service env",
     "rows": []
   },
-  "cincinnati_fixture_diagnosis": {
+  "fixture_diagnosis": {
     "atp_fonseca_oconnell": {
       "http": 200,
       "provider_singles": 90,
@@ -192,7 +192,7 @@
       "detail": "No provider result naming both Wang and Svitolina"
     }
   },
-  "cincinnati_stored_match_diagnosis": {},
+  "stored_match_diagnosis": {},
   "interpretation": {
     "date_semantics": "Compare provider startDate/endDate to stored starts_on/ends_on/lock_at. Opposite-direction errors imply starts_on is not main_draw_starts_on.",
     "atp_branch": "null_winner_row → stored-row diff finds it. timestamp_no_winner on provider → result never applied.",

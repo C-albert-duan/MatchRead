@@ -15,7 +15,7 @@ select has_function(
 select has_function(
   'public',
   'assert_publish_requires_integrity',
-  array[],
+  array[]::text[],
   'publish integrity trigger function exists'
 );
 

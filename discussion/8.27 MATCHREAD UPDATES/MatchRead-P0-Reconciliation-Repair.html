@@ -1,0 +1,593 @@
+<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>MatchRead — slam event P0</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Instrument+Sans:ital,wght@0,400;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+@page { size: A4; margin: 17mm 15mm 20mm 15mm; }
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  font-family: 'Instrument Sans', Carlito, 'Liberation Sans', 'DejaVu Sans', sans-serif;
+  font-size: 8.0pt; line-height: 1.34;
+  color: #15181B; background: #FFFFFF;
+  margin: 0 auto; padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+.sheet { max-width: 178mm; margin: 0 auto; padding: 0 0 6mm 0; }
+
+/* ---------- masthead ---------- */
+.eyebrow {
+  font-family: 'IBM Plex Mono', 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+  font-size: 7pt; font-weight: 500; letter-spacing: 1.6px;
+  text-transform: uppercase; color: #5A6167;
+}
+.masthead { padding: 0 0 9px 0; border-bottom: 2px solid #0A6B42; margin-bottom: 14px; }
+.masthead h1 {
+  font-family: Archivo, Carlito, 'Liberation Sans', sans-serif;
+  font-size: 19pt; font-weight: 800; letter-spacing: -0.7px; line-height: 1.08;
+  margin: 6px 0 7px 0; color: #15181B;
+}
+.masthead .lead { font-size: 8.6pt; color: #3C4348; margin: 0; max-width: 150mm; }
+.meta {
+  width: 100%; border-collapse: collapse; margin: 0 0 12px 0;
+  font-family: 'IBM Plex Mono', 'DejaVu Sans Mono', monospace; font-size: 7.4pt;
+}
+.meta td { padding: 0 14px 0 0; vertical-align: top; color: #15181B; }
+.meta .k { display: block; font-size: 6.6pt; letter-spacing: 1.4px;
+           text-transform: uppercase; color: #7A8189; margin-bottom: 2px; }
+
+/* ---------- headings ---------- */
+h2 {
+  font-family: Archivo, Carlito, 'Liberation Sans', sans-serif;
+  font-size: 11.6pt; font-weight: 800; letter-spacing: -0.35px;
+  margin: 10px 0 5px 0; padding-bottom: 4px;
+  border-bottom: 1px solid #E4E7E9;
+  page-break-after: avoid;
+}
+h3 {
+  font-family: Archivo, Carlito, 'Liberation Sans', sans-serif;
+  font-size: 9.4pt; font-weight: 700; letter-spacing: -0.15px;
+  margin: 9px 0 4px 0; page-break-after: avoid;
+}
+h2 + p, h3 + p, h2 + table, h3 + table { margin-top: 0; }
+
+p { margin: 0 0 5.5px 0; }
+strong { font-weight: 700; color: #15181B; }
+em { font-style: italic; color: #3C4348; }
+a { color: #0A6B42; text-decoration: none; }
+
+/* ---------- the eyebrow rule between major sections ---------- */
+.brk { height: 0; margin: 5px 0 0 0; }
+
+/* ---------- mono: every identifier and every number ---------- */
+code {
+  font-family: 'IBM Plex Mono', 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+  font-size: 7.8pt; color: #15181B;
+  background: #F4F6F7; padding: 0.4px 2px; border-radius: 2px;
+  word-break: break-word;
+}
+pre {
+  font-family: 'IBM Plex Mono', 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+  font-size: 6.9pt; line-height: 1.38;
+  background: #F7F9FA; border-left: 2px solid #0A6B42;
+  margin: 7px 0 9px 0; padding: 8px 10px;
+  white-space: pre-wrap; word-wrap: break-word;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+/* ---------- blockquote: the caveat ---------- */
+blockquote {
+  margin: 8px 0; padding: 7px 11px;
+  border-left: 2px solid #C9CFD3; background: #FAFBFC;
+  font-size: 8.3pt; color: #3C4348;
+}
+blockquote p { margin: 0 0 5px 0; }
+blockquote p:last-child { margin-bottom: 0; }
+
+/* ---------- tables: hairlines, no boxes, no zebra ---------- */
+table {
+  width: 100%; border-collapse: collapse;
+  margin: 6px 0 8px 0; font-size: 7.45pt; line-height: 1.32;
+}
+th {
+  font-family: 'IBM Plex Mono', 'DejaVu Sans Mono', monospace;
+  font-size: 6.8pt; font-weight: 500; letter-spacing: 1.2px;
+  text-transform: uppercase; color: #5A6167;
+  text-align: left; vertical-align: bottom;
+  padding: 0 8px 4px 0; border-bottom: 1px solid #15181B;
+}
+td {
+  padding: 2.5px 8px 2.5px 0; vertical-align: top;
+  border-bottom: 1px solid #EAEDEF;
+}
+th:last-child, td:last-child { padding-right: 0; }
+tr { page-break-inside: avoid; }
+table code { font-size: 7.1pt; background: #F4F6F7; }
+
+/* ---------- lists ---------- */
+ul, ol { margin: 5px 0 7px 0; padding-left: 16px; }
+li { margin-bottom: 2px; }
+
+/* ---------- the checklist ---------- */
+ul.task-list { list-style: none; padding-left: 0; margin-top: 9px; }
+ul.task-list li label { display: inline; }
+ul.task-list li {
+  padding: 3.6px 0 3.6px 20px; text-indent: -20px;
+  border-bottom: 1px solid #EAEDEF; margin: 0;
+}
+ul.task-list li:last-child { border-bottom: none; }
+.box {
+  display: inline-block; width: 8.5px; height: 8.5px;
+  border: 1.1px solid #15181B; border-radius: 2px;
+  margin-right: 9px; position: relative; top: 0.5px; text-indent: 0;
+}
+
+/* ---------- print discipline ---------- */
+@media print {
+  h2 { page-break-after: avoid; }
+  blockquote, tr { page-break-inside: avoid; }
+}
+
+body { padding: 34px 22px 60px; background: #FBFCFC; }
+.sheet { background: #FFFFFF; padding: 40px 44px 46px; border-radius: 4px;
+         border: 1px solid #EAEDEF; }
+@media (max-width: 720px) { .sheet { padding: 24px 18px 30px; } body { padding: 14px 8px 30px; } }
+</style></head><body><div class='sheet'>
+
+<div class="masthead">
+  <div class="eyebrow">slam event P0 · Reliability</div>
+  <h1>MatchRead — Draw Type, Discovery Cadence &amp; Result Reconciliation</h1>
+  <p class="lead"><strong>Scope:</strong> stop MatchRead publishing the wrong draw, make discovery
+  poll continuously instead of daily, and make result reconciliation repair itself. Small
+  corrections to the existing implementation only. No new consumer features, no new platform.</p>
+</div>
+<table class="meta"><tr>
+  <td><span class="k">Date</span>26 Aug 2026</td>
+  <td><span class="k">Audience</span>Launch engineer</td>
+  <td><span class="k">Priority</span>P0</td>
+  <td><span class="k">Blocks</span>slam event main draw</td>
+  <td><span class="k">Evidence</span>Live site, 26 Aug</td>
+</tr></table>
+<blockquote><p><strong>Access statement, stated once.</strong> I do not have <code>main</code>. I have
+the docs corpus, <code>0001_init.sql</code>, <code>0004_security_hardening.sql</code>,
+<code>packages/core/src/rating/engine.ts</code>,
+<code>supabase/functions/settle-slate/index.ts</code>, <code>MatchCard.tsx</code> and
+<code>tokens.ts</code> &mdash; and the live production site, inspected <strong>26 Aug 2026</strong>.
+Paths are marked <strong>held</strong> (read directly), <strong><code>VERIFY</code></strong> (named
+in the corpus, source unseen) or <strong>new</strong>. Provider-response field names in &sect;2 are
+deliberately placeholders: &sect;2A gives the three commands that resolve them in ten minutes.
+<strong>Do not let a guessed field name gate a published draw.</strong></p></blockquote>
+
+<h2 id="executive-diagnosis">1. Executive diagnosis</h2>
+<p><strong>Confirmed live.</strong>
+<code>/tournaments/t-wta-16743</code> (WTA slam event) simultaneously
+renders the header <strong>“Draw pending”</strong> and a section headed
+<strong>“Official draw — Round of 128”</strong> containing 64
+first-round matches. <code>/tournaments/t-atp-21349</code> (ATP slam event)
+is clean. The defect is WTA-only today.</p>
+<p><strong>The rendered draw is the qualifying draw.</strong> Four
+independent proofs, none requiring repo access:</p>
+<ol type="1">
+<li><strong>Zero seeds in all 64 matches.</strong> MatchRead
+demonstrably renders seeds — Masters event shows <code>1 Zverev</code>,
+<code>26 Martin Etcheverry</code>. A slam event main draw seeds 32 players;
+this draw seeds none.</li>
+<li><strong>Zero WTA top-30 players.</strong> No Sabalenka, Swiatek,
+Gauff, Pegula, Rybakina, Keys, Paolini — who would <em>be</em> the 32
+seeds.</li>
+<li><strong>The roster is qualifying-tier</strong>: Lepchenko, Brengle,
+Mladenovic, Sasnovich, Zidansek, Marino, Ferro, Rus, Watson, Dart,
+Barthel, Osuigwe, Hercog — plus juniors and wildcards (Ngounoue,
+Broadus, Caterina Grant, Andrea Knutson).</li>
+<li><strong>Round count is fabricated.</strong> Women’s qualifying is
+<strong>three rounds</strong> (128 → 64 → 32 → 16 qualifiers). The page
+renders <strong>seven</strong> — R128 through F. MatchRead invented four
+rounds that do not exist in the source event.</li>
+</ol>
+<p><strong>Why size validation could never have caught this.</strong> US
+Open women’s <strong>qualifying is a 128-player draw — exactly the same
+size as the main draw</strong>. <code>drawSize === 128</code> is a
+<em>correct</em> Grand Slam main-draw size. Any classifier that leads
+with size passes qualifying through unchanged. This is the concrete case
+for the rule that <strong>draw size must be a safeguard, never the
+classifier.</strong></p>
+<p><strong>Two related defects in the same family.</strong></p>
+<ul>
+<li><strong><code>t-atp-21347</code> (ATP Masters event) is
+<code>Complete</code> with an impossible bracket.</strong>
+<code>Norrie</code> plays <code>Norrie</code> in R64;
+<code>Cobolli</code> occupies two R32 matches and two R16 matches;
+<code>Nakashima</code> two R32 matches; the final reads
+<code>Fils</code> vs <code>Not played</code>; <strong>no match displays
+a winner</strong>; R128 lists all 32 matches first and all 32 byes
+after, with match timestamps bleeding onto bye rows. Segregated byes,
+index-shifted timestamps and one player in simultaneous matches are the
+signature of a bracket <strong>assembled by pairing a flat result
+list</strong>, not read from an ordered draw.</li>
+<li><strong>64-draw event and 32-draw event read <code>On court</code> on
+the calendar and <code>Draw pending</code> on their own detail
+pages</strong> — matches are being ingested for tournaments with no
+draw, so the importer will not write into an empty tournament.</li>
+</ul>
+<p><strong>Root cause.</strong> The failing predicate is not
+<code>drawExists</code>. It is that <strong>nothing validates draw
+<em>type</em> before publication, and nothing re-checks a tournament
+once draw-shaped rows exist.</strong> Those two gaps compose into the US
+Open failure exactly: qualifying arrives first, satisfies the “we have a
+draw” test, and permanently blocks the main draw behind it.</p>
+<p><strong>One correction to my prior handbook.</strong> I recommended
+GitHub Actions because Edge Functions could not resolve
+<code>workspace:*</code>. <code>settle-slate/index.ts</code> (held)
+imports <code>npm:@matchread/core@^0.1.0</code> — the
+<strong>published-package</strong> form, so §STOP option A has been
+taken and the Edge Function path <em>is</em> the existing architecture.
+Everything below extends it. Confirm that version actually resolves on
+the registry first; if it 404s, that is P0 zero.</p>
+<div class="brk"></div>
+<h2 id="draw-discovery-and-the-us-open-draw-type-fix">2. Draw discovery
+and the slam event draw-type fix</h2>
+<h3 id="a.-identify-the-source-ten-minutes-do-this-first">2A. Identify
+the source — ten minutes, do this first</h3>
+<pre class="bash"><code>psql &quot;$DB&quot; -c &quot;select d.id, d.status, d.structure_provenance, count(s.*)
+               from draws d join draw_seats s on s.draw_id=d.id
+               join tournaments t on t.id=d.tournament_id
+               where t.external_ref=&#39;t-wta-16743&#39; group by 1,2,3;&quot;
+
+node capture.mjs --tour wta --tournament 16743 --out fixtures/uso-wta-2026/
+
+jq &#39;keys, (.. | objects | select(has(&quot;type&quot;) or has(&quot;category&quot;) or has(&quot;eventType&quot;)))&#39; \
+   fixtures/uso-wta-2026/*.json | head -40</code></pre>
+<p>The third command is the one that matters: it names the field the
+classifier must read, from real bytes rather than documentation — the
+discipline that exists because the last parser written from docs scored
+<strong>0 of 27</strong>. Archive before parsing.</p>
+<h3 id="b.-the-selection-rule">2B. The selection rule</h3>
+<p>Classification is <strong>ordered</strong>, and size is last.
+<strong>(1) Provider’s explicit draw/event type field</strong> —
+authoritative; accept only an explicit main-singles value. <strong>(2)
+Round structure</strong> — a main draw terminates in a final (1 match),
+qualifying in N qualifiers (16 at a Slam); <em>this alone separates the
+two slam event 128s.</em> <strong>(3) Seed presence</strong> — zero seeds
+in a 128 draw is disqualifying. <strong>(4) Draw size</strong> —
+safeguard only: assert <code>size ∈ {32,48,56,64,96,128}</code> and
+<code>size === tournaments.draw_size</code>.</p>
+<pre class="ts"><code>// packages/core/src/canon/tennis.ts   VERIFY — extend, do not replace
+export type DrawClass =
+  | { kind: &#39;main_singles&#39;; size: number }
+  | { kind: &#39;rejected&#39;; reason: &#39;qualifying&#39; | &#39;doubles&#39; | &#39;mixed&#39; | &#39;unknown_type&#39;
+                               | &#39;no_seeds&#39; | &#39;size_mismatch&#39; | &#39;terminal_round_not_final&#39; };
+
+export function classifyDraw(ev: DrawTypeEvidence, t: TournamentRow): DrawClass;</code></pre>
+<p><code>DrawTypeEvidence</code> carries the provider’s own
+type/category value, the terminal-round entrant count, the seed count
+and the slot count. <strong>Never infer main-singles from “the array has
+players in it.”</strong> Reject explicitly rather than falling through —
+<code>unknown_type</code> must reject, not default.</p>
+<p>For a Slam, additionally require <code>seedCount === 32</code>,
+<code>size === 128</code>, and <code>terminalRoundMatches === 1</code>
+before publication.</p>
+<h3 id="c.-remove-the-blocking-early-return">2C. Remove the blocking
+early return</h3>
+<p>Grep for <code>drawExists</code>, <code>hasDraw</code>,
+<code>existingDraw</code>, or <code>.maybeSingle()</code> on
+<code>draws</code>, and replace the predicate:</p>
+<pre class="sql"><code>-- was, in effect: &quot;any draw row exists for this tournament&quot;
+-- becomes:
+select not exists (
+  select 1 from draws d
+   where d.tournament_id = $1
+     and d.draw_type = &#39;main_singles&#39;          -- new column, §2D
+     and d.status in (&#39;published&#39;,&#39;locked&#39;,&#39;complete&#39;)   -- VERIFY labels vs 0006
+) as needs_discovery;</code></pre>
+<p>The test is <code>validatedMainSinglesDrawPublished === false</code>,
+not <code>drawExists === false</code>. Qualifying rows must never
+satisfy it.</p>
+<h3 id="d.-migration-0032_draw_type.sql">2D. Migration
+<code>0032_draw_type.sql</code></h3>
+<pre class="sql"><code>create type draw_type as enum (&#39;main_singles&#39;,&#39;qualifying_singles&#39;,&#39;doubles&#39;,&#39;mixed_doubles&#39;,&#39;other&#39;);
+alter table draws add column draw_type draw_type not null default &#39;main_singles&#39;;
+
+-- one main singles draw per tournament: idempotency becomes structural
+create unique index draws_one_main_singles
+  on draws (tournament_id) where draw_type = &#39;main_singles&#39;;
+
+update draws set draw_type = &#39;qualifying_singles&#39;, status = &#39;superseded&#39;  -- VERIFY label
+ where tournament_id = (select id from tournaments where external_ref = &#39;t-wta-16743&#39;);</code></pre>
+<p>Reclassify, do not delete. Nobody has picked this draw (the
+tournament is <code>Draw pending</code>, so entry never opened), and
+keeping the row preserves the evidence. When the real main draw arrives
+it inserts cleanly against the partial unique index.</p>
+<h3 id="e.-cadence">2E. Cadence</h3>
+<p>Extend the existing <code>pg_cron</code> → Edge Function pattern.
+<strong>Do not add a scheduler.</strong> One job, one cadence, tiering
+done in the eligibility query — this is cheaper and easier to reason
+about than four cron entries.</p>
+<p><code>select cron.schedule('discover-draws','*/5 * * * *', $$ select net.http_post(url := '.../functions/v1/discover-draws', …) $$);</code></p>
+<pre class="sql"><code>-- eligibility: tiering lives here, not in four cron entries
+select t.id, t.external_ref, t.tour, t.tier, t.draw_size, t.starts_on
+from tournaments t
+where t.tour in (&#39;ATP&#39;,&#39;WTA&#39;)
+  and t.tier not in (&#39;tour_finals&#39;,&#39;other&#39;)    -- round-robin: canon isKnockout:false
+  and t.starts_on &gt;= current_date - 14
+  and not exists (select 1 from draws d
+                   where d.tournament_id = t.id and d.draw_type = &#39;main_singles&#39;
+                     and d.status in (&#39;published&#39;,&#39;locked&#39;,&#39;complete&#39;))
+  and case when t.starts_on - current_date &gt; 7
+           then (extract(hour from now())::int % 6) = 0 else true end;</code></pre>
+<p>Beyond seven days this fires roughly every six hours; inside seven
+days, every five minutes. <strong>Draw reconciliation (§3) is a separate
+selection</strong> and continues after publication — the query above
+deliberately stops selecting a tournament once its main draw is
+published.</p>
+<div class="brk"></div>
+<h2 id="draw-replacement-reconciliation">3. Draw replacement
+reconciliation</h2>
+<p>Finding the draw once is not enough: withdrawals, lucky losers,
+qualifier placement and seed corrections all land between publication
+and first ball.</p>
+<p>Run every 15 minutes for tournaments with a published main draw that
+has not yet locked, and once an hour after lock. Diff on <strong>(draw
+position, provider player id)</strong> — never on names, per the 39
+shared surnames and four sets of brothers in 900 ranked players.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Provider vs stored</th>
+<th>Pre-lock</th>
+<th>Post-lock</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Same position, same player</td>
+<td>no-op</td>
+<td>no-op</td>
+</tr>
+<tr class="even">
+<td>Same position, different player</td>
+<td><strong>apply</strong>, log <code>replacement</code></td>
+<td><strong>never mutate the seat</strong>; log
+<code>post_lock_replacement</code>, S1 alert</td>
+</tr>
+<tr class="odd">
+<td>In provider, absent locally</td>
+<td>insert</td>
+<td>insert only if the seat is empty</td>
+</tr>
+<tr class="even">
+<td>Local, absent in provider</td>
+<td><strong>do not delete</strong>; log
+<code>orphan_position</code></td>
+<td>do not delete</td>
+</tr>
+</tbody>
+</table>
+<p><strong>User-pick protection is the load-bearing rule.</strong> Once
+picks exist, a seat swap silently regrades somebody’s bracket. Pre-lock,
+a replacement is legitimate, and picks against the departed player
+should be voided rather than marked wrong — a founder decision for
+<code>PRODUCT_DECISIONS.md</code>, not a code default. Post-lock the
+draw is frozen: a lucky loser replacing a withdrawal is handled as a
+<strong>match-level walkover</strong> (§4), not a draw edit, keeping
+<code>replace_draw_entry</code> (<code>VERIFY</code>) the only writer
+that touches a locked seat. Never delete-and-recreate a draw that has
+picks against it.</p>
+<div class="brk"></div>
+<h2 id="result-reconciliation-and-advancement-repair">4. Result
+reconciliation and advancement repair</h2>
+<h3 id="a.-reuse-the-existing-worker-architecture">4A. Reuse the
+existing worker architecture</h3>
+<p><code>settle-slate/index.ts</code> (held) reveals the pattern to
+extend and one asset worth using: it ends by inserting
+<code>{ kind: 'evaluate_badges', payload: { matchId } }</code> and
+<code>{ kind: 'notify_results', … }</code> rows.
+<strong><code>job_queue</code> already exists</strong> with a
+<code>kind</code>/<code>payload</code> shape. Add
+<code>kind: 'reconcile_tournament'</code> rather than inventing a second
+dispatch mechanism, reuse
+<code>requireServiceAuth</code>/<code>serviceClient</code>/<code>json</code>
+from <code>supabase/functions/_shared/supabase.ts</code> (held), and
+follow <code>settle-slate</code>’s stated pattern: <em>event-triggered,
+plus a five-minute sweep as a safety net.</em></p>
+<h3 id="b.-the-repair-pass">4B. The repair pass</h3>
+<p>Every five minutes for active tournaments, against the
+completed-results archive
+<code>GET /tennis/v2/{tour}/tournament/results/{seasonId}</code> —
+<strong>not</strong> the fixtures endpoint, which M3.6 confirmed returns
+<code>{"data": []}</code> for a completed event. A played match leaves
+fixtures permanently, so a fixtures-based comparison sees nothing on
+both sides and concludes nothing is missing.</p>
+<pre class="ts"><code>// packages/settlement/src/reconcile.ts   new
+for (const r of results.filter(isSingles).map(normalizeResult)) {
+  const local = await repo.findMatchByProviderIdentity({ tour, providerMatchId: r.providerMatchId });
+  const d = outcomeDisposition(r.resultType);            // canon
+  if (d.kind === &#39;unknown&#39;) { await run.quarantine(r); continue; }
+  if (!local)               { await createMissingMatch(r, d, run); continue; }
+  const side = await resolveWinnerSide(local, r);         // provider id → &#39;a&#39; | &#39;b&#39;
+  if (side === &#39;conflict&#39;)                     await run.conflict(local, r, &#39;roster_mismatch&#39;);
+  else if (!local.winnerSide &amp;&amp; side)          await repair(local, r, d, side, run);
+  else if (local.winnerSide &amp;&amp; side !== local.winnerSide) await run.conflict(local, r, &#39;winner_changed&#39;);
+  // agrees → no-op.  Fill a hole: automatic. Change an answer: never.
+}
+await settleAll({ drawIds: [t.drawId] });   // EXISTING resolver. Seats fill here, not above.</code></pre>
+<p>This is <code>provider = complete, MatchRead = not played</code> →
+repaired, and it is idempotent by construction: only a null
+<code>winnerSide</code> is filled, and a disagreement records instead of
+overwriting.</p>
+<h3 id="c.-advancement-repair">4C. Advancement repair</h3>
+<p><strong>Do not write a second propagation engine.</strong>
+Advancement is already a derivation over seats from match results, so a
+repaired winner plus one <code>settleAll</code> call refills the entire
+downstream chain — R16 → QF → SF → F — in one pass. That is the whole
+fix.</p>
+<p>Two blockers to clear first. <strong><code>apply_grades</code>
+(<code>0004</code> L494) latches</strong> —
+<code>if v_settled is not null then return 0</code> is a latch, not a
+comparison, deliberately, because the rating ledger is append-only.
+<strong>Read <code>0012</code>’s <code>apply_bracket_state</code> before
+writing anything:</strong> if it shares that shape, a repaired winner on
+an already-<code>settled_at</code> match is a silent no-op and the pass
+reports success while changing nothing. If it latches, add a third
+branch — <em>settled + outcome differs → raise, record conflict.</em>
+Second, <strong><code>0001</code> L112</strong> requires a winner only
+for <code>final</code>, so
+<code>status='retired', winner_side=null</code> is legal and re-selected
+forever by <code>matches_settling</code>. Widen to
+<code>status not in ('final','retired','default','walkover') or winner_side is not null</code>,
+and add the missing <code>default</code>/<code>suspended</code> values
+to <code>match_status</code> (L18) in their own migration step.</p>
+<div class="brk"></div>
+<h2 id="state-integrity-invariants">5. State-integrity invariants</h2>
+<p>Four hard rules. Each one is violated in production today.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Invariant</th>
+<th>Enforcement</th>
+<th>Violated by</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>No <code>Draw pending</code> while a draw renders</td>
+<td>Render the bracket <strong>only</strong> from a
+<code>main_singles</code> draw in
+<code>published</code>/<code>locked</code>/<code>complete</code>; derive
+the header label from that row</td>
+<td>WTA slam event</td>
+</tr>
+<tr class="even">
+<td><code>On court</code> needs an authoritative draw</td>
+<td>Derive status from the draw, not the match table</td>
+<td>64-draw event, 32-draw event</td>
+</tr>
+<tr class="odd">
+<td><code>Complete</code> needs a resolved championship path</td>
+<td>Assert the final has two participants and a winner</td>
+<td>ATP Masters event</td>
+</tr>
+<tr class="even">
+<td>One seat per player per round</td>
+<td><code>unique (draw_id, round, player_id)</code></td>
+<td>ATP Masters event</td>
+</tr>
+</tbody>
+</table>
+<p>That last one is a single index and it would have caught
+<code>Norrie vs Norrie</code>, both duplicate Cobolli matches and both
+duplicate Nakashima matches at insert time.</p>
+<div class="brk"></div>
+<h2 id="observability">6. Observability</h2>
+<p>One structured line per tournament per run, on the existing log
+stream. No new platform.</p>
+<pre><code>ts=…08:20:11Z job=discover-draws tour=WTA tournament=t-wta-16743 provider_status=200
+  draw_types_seen=qualifying_singles main_singles_found=false action=noop reason=qualifying_rejected</code></pre>
+<p>The results equivalent carries <code>matches_checked</code>,
+<code>updates</code>, <code>missing_provider_results</code>,
+<code>propagation_repairs</code> and <code>conflicts</code>.
+<code>draw_types_seen</code> is the field that would have made this
+incident visible on day one rather than four days before the Slam. For
+verification, using what already exists:
+<code>select jobname, schedule, active from cron.job</code> (next
+execution),
+<code>select * from cron.job_run_details order by start_time desc limit 20</code>
+(last execution, provider errors),
+<code>select kind, count(*) from job_queue group by 1</code> (backlog).
+If cron fires but no run rows appear the function is 500ing — check the
+<code>npm:@matchread/core</code> resolution from §1 first.</p>
+<div class="brk"></div>
+<h2 id="p0-implementation-checklist">7. P0 implementation checklist</h2>
+<p><strong>Order matters.</strong> Step 1 ships today — a two-statement
+migration removing a publicly wrong bracket four days out. Steps 2–6 are
+the fix and must land before the main draw publishes around 27–28
+August; step 7 can follow during week one. Test 1 is proved by
+<code>cron.job_run_details</code>, not a code reading. Test 3 is proved
+by pointing discovery at a tournament whose qualifying is already stored
+and watching the main draw publish unattended — <strong>the WTA slam event
+is that fixture, live, right now.</strong> Test 7 is
+<code>max(matches.updated_at)</code> unchanged across three runs. No
+manual SQL update counts as proof.</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>#</th>
+<th>Step (file)</th>
+<th>Proves</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>0</td>
+<td>Confirm <code>npm:@matchread/core@^0.1.0</code> resolves on the
+registry</td>
+<td>nothing below runs if it 404s</td>
+</tr>
+<tr class="even">
+<td>1</td>
+<td><strong>Reclassify the WTA slam event qualifying row; stop rendering it
+today</strong> — <code>0032_draw_type.sql</code></td>
+<td>Tests 2, 8</td>
+</tr>
+<tr class="odd">
+<td>2</td>
+<td>Capture the real WTA 16743 payload; name the provider’s type field —
+<code>fixtures/uso-wta-2026/</code></td>
+<td>Test 2</td>
+</tr>
+<tr class="even">
+<td>3</td>
+<td><code>classifyDraw()</code> — ordered signals, size last,
+<code>unknown_type</code> rejects —
+<code>packages/core/src/canon/tennis.ts</code></td>
+<td>Test 2</td>
+</tr>
+<tr class="odd">
+<td>4</td>
+<td>Replace the <code>drawExists</code> guard with the main-singles
+predicate — discovery worker</td>
+<td>Test 3</td>
+</tr>
+<tr class="even">
+<td>5</td>
+<td><code>discover-draws</code> at <code>*/5</code>, tiered eligibility,
+structured log line — <code>pg_cron</code> + Edge Function</td>
+<td>Tests 1, 3</td>
+</tr>
+<tr class="odd">
+<td>6</td>
+<td>Seat-uniqueness index, championship-path assertion, widened L112,
+<code>default</code>/<code>suspended</code> enums — <code>0032</code>
+(<code>ADD VALUE</code> in its own step)</td>
+<td>Tests 5, 8</td>
+</tr>
+<tr class="even">
+<td>7</td>
+<td>Draw-replacement diff (pre/post-lock split), then result
+reconciliation via <code>job_queue</code> kind
+<code>reconcile_tournament</code> —
+<code>packages/settlement/src/reconcile.ts</code>. Read
+<code>0012</code> first; add the settled-differs branch if it
+latches</td>
+<td>Tests 4–7</td>
+</tr>
+</tbody>
+</table>
+
+</div></body></html>

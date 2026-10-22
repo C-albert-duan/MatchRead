@@ -45,6 +45,22 @@ export function assertDrawBelongsToTournament(draw, tournament) {
 }
 
 /**
+ * Official seed-bye ceiling for a power-of-two slot sheet.
+ * 16/32-slot fields: at most N/8 (a 28-in-32 sheet has 4).
+ * 64/128-slot fields: at most N/4 (a 48-in-64 sheet has 16; a 96-in-128 sheet has 32).
+ * TBD seats are field occupants, not byes.
+ */
+export function maxOfficialByes(slotCount) {
+  const n = Number(slotCount);
+  if (!Number.isInteger(n) || n < 8 || (n & (n - 1)) !== 0) return 0;
+  return n <= 32 ? n / 8 : n / 4;
+}
+
+function seatKindOf(s) {
+  return s.seat_kind || s.kind || (s.is_bye ? "bye" : "player");
+}
+
+/**
  * @typedef {{ code: string, message: string, seat?: number }} IntegrityIssue
  * @typedef {{
  *   safeToPublish: boolean,
@@ -140,6 +156,37 @@ export function evaluateDrawIntegrity(input) {
       code: "draw_type",
       message: `rejected ${drawClass.reason}`,
     });
+  }
+
+  const n = seats.length;
+  let byeCount = 0;
+  for (const s of seats) {
+    if (seatKindOf(s) === "bye") byeCount += 1;
+  }
+  const maxByes = maxOfficialByes(n);
+  if (byeCount > maxByes) {
+    blockingErrors.push({
+      code: "impossible_byes",
+      message: `bye count ${byeCount} exceeds official maximum ${maxByes} for a ${n}-slot field`,
+    });
+  }
+  if (validated.ok) {
+    const kindAt = new Array(n);
+    for (const s of seats) {
+      const pos = Number(s.position);
+      if (Number.isInteger(pos) && pos >= 0 && pos < n) {
+        kindAt[pos] = seatKindOf(s);
+      }
+    }
+    for (let i = 0; i < n; i += 2) {
+      if (kindAt[i] === "bye" && kindAt[i + 1] === "bye") {
+        blockingErrors.push({
+          code: "impossible_byes",
+          message: `first-round pair at seats ${i}/${i + 1} is bye vs bye`,
+          seat: i,
+        });
+      }
+    }
   }
 
   if (tournament.surface == null || tournament.surface === "") {

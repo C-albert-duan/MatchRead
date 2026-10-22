@@ -2,6 +2,7 @@
   "name": "@matchread/core",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -13,7 +14,7 @@
   "scripts": {
     "lint": "node -e \"console.log('core lint ok')\"",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/bracket.test.ts src/pulse.test.ts src/tournament/lock.test.ts && node ../../scripts/verify-settlement-math.mjs"
+    "test": "node --experimental-strip-types --import ../../scripts/register-ts-ext.mjs --test src/bracket.test.ts src/synthetic-bracket.test.ts src/pulse.test.ts src/tournament/lock.test.ts src/edge-grade.test.ts src/live/normalize.test.ts src/live/point-flag.test.ts && node ../../scripts/verify-settlement-math.mjs"
   },
   "devDependencies": {
     "typescript": "^5.5.0"

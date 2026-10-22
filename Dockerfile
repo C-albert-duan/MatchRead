@@ -11,9 +11,11 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat
 COPY package.json package-lock.json ./
 COPY apps/web/package.json ./apps/web/
+COPY apps/listener/package.json ./apps/listener/
 COPY packages/core/package.json ./packages/core/
 COPY packages/i18n/package.json ./packages/i18n/
 COPY packages/tokens/package.json ./packages/tokens/
+COPY packages/provider-rapidapi/package.json ./packages/provider-rapidapi/
 RUN npm ci
 
 # Hot-reload Next.js — no host node_modules required
@@ -37,9 +39,11 @@ COPY . .
 ARG NEXT_PUBLIC_SUPABASE_URL
 ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3001
+ARG NEXT_PUBLIC_SENTRY_DSN=
 ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
     NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
     NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
+    NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN \
     NEXT_TELEMETRY_DISABLED=1
 
 RUN npm run build -w @matchread/web

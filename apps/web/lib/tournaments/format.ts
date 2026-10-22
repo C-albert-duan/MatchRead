@@ -8,9 +8,27 @@
  * render anyway uses the venue zone, then UTC.
  */
 
+export type MatchSession = "day" | "night" | null;
+
+export type MatchPlayerSide = {
+  ref: string;
+  lastName: string;
+  seed: number | null;
+  countryCode: string;
+};
+
 export type MatchScheduleRow = {
-  scheduled_at: string;
+  /** Stored start instant. There is no separate starts_at column. */
+  scheduled_at: string | null;
   has_time: boolean;
+  session?: MatchSession | null;
+  court?: string | null;
+  external_ref?: string | null;
+  /** Server sheet pair. Live and provisional are an overlay in resolution.ts. */
+  state?: "official" | "scheduled";
+  /** Stored sides. Later rounds render these. They are not computed here. */
+  side_a?: MatchPlayerSide | null;
+  side_b?: MatchPlayerSide | null;
 };
 
 export type ViewerTimeInput = {
@@ -88,6 +106,27 @@ export function formatUtcMonth(
   return upper ? month.toUpperCase() : month;
 }
 
+/** Unix epoch is an empty timestamp, not a published start. */
+function isUnixEpoch(value: string): boolean {
+  const instant = new Date(value);
+  return !Number.isNaN(instant.getTime()) && instant.getTime() === 0;
+}
+
+/** UTC midnight is a date stamp, not a published kickoff. */
+export function hasPublishedClock(
+  row: MatchScheduleRow | null | undefined
+): boolean {
+  if (!row?.has_time || !row.scheduled_at) return false;
+  const instant = new Date(row.scheduled_at);
+  if (Number.isNaN(instant.getTime())) return false;
+  return !(
+    instant.getUTCHours() === 0 &&
+    instant.getUTCMinutes() === 0 &&
+    instant.getUTCSeconds() === 0 &&
+    instant.getUTCMilliseconds() === 0
+  );
+}
+
 function formatClock(instant: Date, timeZone: string, locale: string): string {
   return new Intl.DateTimeFormat(locale, {
     timeZone,
@@ -106,29 +145,74 @@ export function matchWhenTimeZone(
   viewerZone: string | null | undefined
 ): string | null {
   if (!row?.scheduled_at) return null;
-  if (!row.has_time) return "UTC";
+  if (!hasPublishedClock(row)) return "UTC";
   return viewerZone?.trim() || null;
 }
 
-/** Per-match when: `11 AUG · 14:00`, or the civil date alone when no clock is known. */
+/**
+ * Start caption for a match.
+ * No stored instant → Time to be announced.
+ * A timed instant stays hidden until `viewerZone` is known.
+ * A date-only instant is the civil date plus that same phrase. Noon and
+ * midnight are not shown as the match time.
+ */
+export function matchStartCaption(
+  row: MatchScheduleRow | null | undefined,
+  viewerZone: string | null | undefined,
+  locale: string,
+  tba: string,
+  tbc: string
+): string | null {
+  if (!row?.scheduled_at || isUnixEpoch(row.scheduled_at)) return tba;
+  const zone = matchWhenTimeZone(
+    { scheduled_at: row.scheduled_at, has_time: row.has_time },
+    viewerZone
+  );
+  if (!zone) return null;
+  return formatMatchWhen(row, zone, locale, tbc, tba);
+}
+
+/** Per-match when: `11 AUG · 14:00`, or the civil date plus the TBA phrase. */
 export function formatMatchWhen(
   row: MatchScheduleRow | null | undefined,
   timeZone: string,
   locale: string,
-  tbc: string
+  tbc: string,
+  tba = "Time to be announced"
 ): string {
   if (!row?.scheduled_at) return tbc;
+  if (isUnixEpoch(row.scheduled_at)) return tba;
   // Date-only rows are a civil date stored as an instant. The day is the UTC
-  // calendar day of that instant, in every zone, and there is no clock.
-  const zone = row.has_time ? zoneOrUtc(timeZone) : "UTC";
+  // calendar day of that instant, in every zone. The stored noon or midnight
+  // is not a kickoff.
+  const timed = hasPublishedClock(row);
+  const zone = timed ? zoneOrUtc(timeZone) : "UTC";
   const ymd = calendarDayInZone(row.scheduled_at, zone);
   if (!ymd) return tbc;
   const noon = new Date(`${ymd}T12:00:00Z`);
   const day = ymd.slice(8, 10);
   const month = formatUtcMonth(noon, locale, true);
   const date = `${day} ${month}`;
-  if (!row.has_time) return date;
+  if (!timed) return `${date} · ${tba}`;
   return `${date} · ${formatClock(new Date(row.scheduled_at), zone, locale)}`;
+}
+
+/**
+ * Scheduled-node caption. The clock is `matchStartCaption`.
+ * Session and court are omitted when null.
+ */
+export function matchScheduleCaption(
+  row: MatchScheduleRow | null | undefined,
+  viewerZone: string | null | undefined,
+  locale: string,
+  labels: { tba: string; tbc: string; day: string; night: string }
+): { when: string | null; place: string | null } {
+  const when = matchStartCaption(row, viewerZone, locale, labels.tba, labels.tbc);
+  const session =
+    row?.session === "day" ? labels.day : row?.session === "night" ? labels.night : null;
+  const court = row?.court?.trim() || null;
+  const place = [session, court].filter(Boolean).join(" · ") || null;
+  return { when, place };
 }
 
 /** Lock instant in the given IANA zone — day word when near, never a bare clock. */

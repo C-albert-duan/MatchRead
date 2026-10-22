@@ -12,11 +12,20 @@ Quick index: [scripts/README.md](../../scripts/README.md).
 | `sync-lock-at.mjs` | `npm run sync:lock-at` | Set `lock_at` from first timed R0 ball |
 | `probe-rapidapi.mjs` | `npm run probe:rapidapi` | Provider connectivity |
 | `probe-event-dates.mjs` | `npm run probe:event-dates` | Read-only date/fixture diagnosis |
+| `capture-live-ndjson.mjs` | `npm run capture:live` | Append raw REST live and WTA companion bodies to `fixtures/live-capture-oct-2026/frames.ndjson` |
+| `replay-live.mjs` | `npm run replay:live` | Replay `fixtures/prototype-timeline.json` or an NDJSON capture through `acceptForwardedLive`. Dry-run prints `live_match_state`. `--write` uses the service role on tournaments the database already carries |
+| `live-listener.mjs` | `npm run listen:live` | Same replay from a local file. A socket flag exits. It does not connect to the provider |
+| `apps/listener` | `npm run listen:provider` | One provider poll. Posts changed raw frames. Set `LISTENER_POLL_MS` to repeat. Railway runs one replica of the same process. Does not write tables |
+| `ci-live-trust.mjs` | `npm run ci:live-trust` | Fails when live files name a settlement writer or a later product surface |
+| `prove-cron.mjs` | `npm run prove:cron` | Read `cron.job` history for `sync-facts-5m` and `settle-leagues` |
 | `tennis-verify.mjs` | `npm run tennis:verify` | `evaluateDrawIntegrity` vs DB (+ optional live) |
 | `preflight-trust-boundary.mjs` | `npm run preflight:trust` | Repo (+ optional live) trust checks |
 | `ci-consumer-boundary.mjs` | `npm run ci:consumer-boundary` | CI: public consumers must use `public_calendar` |
 | `verify-settlement-math.mjs` | `npm run verify:settlement` | Offline scoring invariant (128 → max 512) |
 | `backfill-settle-advance.mjs` | one-shot | Re-bind results + parent advance |
+| `backfill-scorelines.mjs` | `npm run backfill:scorelines` | Dry-run by default. One results-archive request per tournament. `--write` fills a null `official_score` only and does not change `winner_player_id` |
+| `backfill-session-court.mjs` | `npm run backfill:session-court` | Dry-run by default. One fixture request per tournament. `--write` fills a null `session` or `court` from an explicit fixture label. A remote database also needs `--confirm-remote` |
+| `backfill-provider-event-map.mjs` | `npm run backfill:provider-events` | Dry-run by default. Reads stored live captures. Inserts `provider_event_map` only when tour, tournament id, and both player ids pick one match. Does not overwrite a conflicting row. A remote database also needs `--confirm-remote` |
 | `docker-migrate.mjs` | migrate profile | Apply migrations via `DATABASE_URL` |
 | `apply-sql-migration.mjs` | manual | Apply one SQL via Management API |
 | `e2e-live-*.mjs` + `.sql` | live E2E | Fixture setup/cleanup |

@@ -22,8 +22,21 @@
     "preflight:trust": "node scripts/preflight-trust-boundary.mjs",
     "tennis:verify": "node scripts/tennis-verify.mjs",
     "probe:event-dates": "node scripts/probe-event-dates.mjs",
+    "capture:live": "node scripts/capture-live-ndjson.mjs",
+    "replay:live": "node scripts/replay-live.mjs",
+    "listen:live": "node scripts/live-listener.mjs",
+    "listen:provider": "npm run start -w @matchread/listener -- --once",
+    "ci:live-trust": "node scripts/ci-live-trust.mjs",
+    "prove:cron": "node scripts/prove-cron.mjs",
+    "backfill:scorelines": "node scripts/backfill-scorelines.mjs",
+    "backfill:session-court": "node scripts/backfill-session-court.mjs",
+    "backfill:provider-events": "node scripts/backfill-provider-event-map.mjs",
     "ci:consumer-boundary": "node scripts/ci-consumer-boundary.mjs",
     "test:provider": "npm run test -w @matchread/provider-rapidapi",
-    "test:db": "npx supabase test db"
+    "test:db": "npx supabase test db && node --test packages/provider-rapidapi/src/absence-gap.integration.test.js packages/provider-rapidapi/src/live-ingest.integration.test.js packages/provider-rapidapi/src/provider-event-map.integration.test.js",
+    "postinstall": "patch-package"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.1"
   }
 }

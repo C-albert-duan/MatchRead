@@ -11,6 +11,8 @@ Auth pattern: `Authorization: Bearer <INGEST_SECRET>` (functions typically deplo
 
 **File:** `sync-facts/index.ts`
 
+`mode: "live"` is the live branch. A `liveFrames` array is the same branch when `mode` is omitted. Any other `mode` is rejected. There is no `ingest-events` function. The handler validates the body, calls `noteListenerInstance`, then `acceptForwardedLive`. That delegates normalization, provider-event mapping, and `upsert_live_match_state` to the provider package. Calendar, draw, results, and settlement do not run. Every raw row in that branch is written to `platform_events`. The content hash omits receipt time and secret fields. A hash that is already stored is not inserted again and is not projected again, so it does not write `matches` or advance a winner. The listener drops the same row first, through `equalForIngest`. A row that does not become a live score is also archived in `unmapped_live_events`. There is no `live_events` table. A tournament this product does not carry does not insert an `ops_events` row. The response includes `carriedProviderIds`: provider tournament ids that matched exactly one ingestion-enabled tournament. A second `listenerInstanceId` seen within 15 minutes inserts `listener_overlap` and the batch is still projected. A `listenerHeartbeat` object upserts `listener_health` id `listener` and also returns before the pipeline. That row is the latest tick: connection, last provider event, events received, mapped, unmapped, lag, and token age. The token, provider key, and ingest secret are not columns.
+
 Pipeline:
 
 1. Upsert calendar from RapidAPI (via `@matchread/provider-rapidapi`).
@@ -23,8 +25,9 @@ Pipeline:
    On fail when already published: keep the live sheet; ops `refresh_blocked_keep_published`; never clear `published_at`.
    **Published sheet guard:** once `published_at` + seat count match `draw_size`, announced fixture upserts only sync schedule/`provider_match_id` onto seat-aligned R0 slots — they never rewrite sides or append `index >= draw_size/2` rows. Each apply also prunes those extras and refreshes R0 sides from seats. Official TBD vs stored bye is `bye_to_tbd`: overlay writes `kind=tbd` / `player_id=null`, then unwinds the invented R0 bye-advance (`unwind_settlement_parent`) unless the parent is already played/settled.
 5. Reconcile archive results → `apply-results`. A finished live frame is counted and is not an official settlement.
-6. Durable `matches` update first, then `claim_settlement`, then parent advance; audit repair/ops.
+6. Durable `matches` update first, then `claim_settlement`, then parent advance; audit repair/ops. A change to `winner_player_id` clears that player from an unsettled parent side before the row is saved. Draw-path results use `mergeSettledFact` and do not replace a settled winner.
 7. `refresh_lock_at` when timed R0 exists.
+8. `sweep_terminal_live_state` once per run, unless `dryRun`. Deletes `provisional_final` rows older than 24 hours. The same delete runs inside `invoke_sync_facts` on `sync-facts-5m`, so a missing Edge deploy still sweeps. `in_play` and `suspended` stay. `matches` is not updated.
 
 Triggered by pg_cron (~5m), optional GitHub workflow, and ops scripts.
 
@@ -58,6 +61,7 @@ Triggered by cron (~15m). Commissioner/founder can also settle in-process via we
 |------|------|
 | `_shared/apply-draw.ts` | Persist official field; published overlay includes `bye_to_tbd` + fake bye unwind |
 | `_shared/apply-results.ts` | Winners, voids, claims, advances, official score fill |
+| `_shared/sweep-live.ts` | Deletes terminal live rows older than 24 hours. Does not write `matches` |
 | `_shared/sentry.ts` | Optional `@sentry/deno`. Disabled when `SENTRY_DSN` is empty |
 | `_shared/rapidapi.js` | Provider package facade |
 | `_shared/core.js` | Edge-safe grade / matchKey |

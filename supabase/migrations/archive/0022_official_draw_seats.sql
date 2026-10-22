@@ -1,6 +1,6 @@
 -- 0022_official_draw_seats.sql
 -- Official main-draw seats: named player, published bye, or Qualifier/LL TBD.
--- Cincinnati ATP is a 96-player Masters → 128 slots. Idempotent.
+-- Masters event ATP is a 96-player Masters → 128 slots. Idempotent.
 
 alter table public.draw_seats
   add column if not exists seat_kind text;
@@ -43,7 +43,7 @@ update public.draw_seats
    set is_bye = (seat_kind = 'bye')
  where is_bye is distinct from (seat_kind = 'bye');
 
--- ATP Cincinnati official sheet is 128 slots (32 seed byes). Do not infer 64.
+-- ATP Masters event official sheet is 128 slots (32 seed byes). Do not infer 64.
 -- Clear the invented 15:00 lock; lock_at comes from the first timed main-draw ball.
 update public.tournaments
    set draw_size = 128,

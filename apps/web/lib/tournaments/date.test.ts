@@ -15,6 +15,11 @@ test("formats a same-month range", () => {
   );
 });
 
+test("an unreadable calendar date is null", () => {
+  assert.equal(formatTournamentDate("not-a-date", "en"), null);
+  assert.equal(formatTournamentDate(null, "en"), null);
+});
+
 test("formats a cross-month range", () => {
   assert.equal(
     formatTournamentDate("2026-08-30", "en", "2026-09-13"),

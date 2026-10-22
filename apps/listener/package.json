@@ -1,0 +1,19 @@
+{
+  "name": "@matchread/listener",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node --experimental-strip-types --import ../../scripts/register-ts-ext.mjs src/main.ts",
+    "lint": "node -e \"console.log('listener lint ok')\"",
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --import ../../scripts/register-ts-ext.mjs --test src/session.test.ts src/deploy.test.ts"
+  },
+  "dependencies": {
+    "@matchread/provider-rapidapi": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}

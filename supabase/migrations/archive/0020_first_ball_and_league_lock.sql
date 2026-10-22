@@ -356,7 +356,7 @@ $$;
 revoke all on function public.admin_lock_tournament(text, boolean, text) from public;
 grant execute on function public.admin_lock_tournament(text, boolean, text) to authenticated;
 
--- Backfill lock_at from existing timed schedule (Montreal / Toronto).
+-- Backfill lock_at from existing timed schedule (colliding-slug event / dual-city event).
 do $$
 declare
   r record;

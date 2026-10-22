@@ -1,6 +1,6 @@
 -- 0031_wipe_nonfact_noise.sql
 -- Strip fixture / doubles / half-filled Qualifier noise. Keep calendar rows.
--- Cincinnati ATP seats are republished from MDS + Tennis API overlay after this.
+-- Masters event ATP seats are republished from MDS + Tennis API overlay after this.
 -- Idempotent.
 
 -- ---------------------------------------------------------------------------
@@ -13,7 +13,7 @@ update public.tournaments
    and draw_size = 16;
 
 -- ---------------------------------------------------------------------------
--- Cincinnati WTA: partial announced pairs only (no verified 64 sheet).
+-- Masters event WTA: partial announced pairs only (no verified 64 sheet).
 -- ---------------------------------------------------------------------------
 
 delete from public.announced_matchups a
@@ -63,7 +63,7 @@ update public.tournaments
    );
 
 -- ---------------------------------------------------------------------------
--- Cincinnati ATP: bloated announced fx list, Qualifier seats with provider ids
+-- Masters event ATP: bloated announced fx list, Qualifier seats with provider ids
 -- but no real last name, and results keyed to those half-filled seats.
 -- Wipe facts-adjacent noise; keep submitted brackets. Republish via publish-draws.
 -- ---------------------------------------------------------------------------

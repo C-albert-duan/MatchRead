@@ -6,13 +6,13 @@
  *
  * Optional:
  *   LIVE_BASE_URL=https://www.matchreadtennis.com
- *   LIVE_REF=cin-2026
+ *   LIVE_REF=<tournaments.slug>   # otherwise first /tournaments link
  */
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const REF = process.env.LIVE_REF || "cin-2026";
+let REF = process.env.LIVE_REF || "";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
@@ -73,31 +73,38 @@ test("live checklist 1–14", async ({ page, context }) => {
     record(1, "Anonymous user opens MatchRead", "pass", "Landing loads; no Sign out");
   }
 
-  // 2. Sees Cincinnati on the calendar
+  // 2. Sees a published event on the calendar
   await page.goto("/tournaments", { waitUntil: "domcontentloaded" });
-  const cinLink = page.getByRole("link", { name: /Cincinnati/i }).first();
-  const cinVisible = await cinLink.isVisible().catch(() => false);
-  if (cinVisible) {
-    record(2, "Sees Cincinnati on the calendar", "pass", "Cincinnati link present on /tournaments");
+  const eventLink = page.locator('a[href^="/tournaments/"]').first();
+  const eventVisible = await eventLink.isVisible().catch(() => false);
+  if (!REF) {
+    const href = await eventLink.getAttribute("href").catch(() => null);
+    REF = href?.match(/\/tournaments\/([^/?#]+)/)?.[1] || "";
+  }
+  if (eventVisible) {
+    record(2, "Sees an event on the calendar", "pass", `calendar link present (${REF || "first row"})`);
   } else {
-    // Landing calendar may also list it
     await page.goto("/", { waitUntil: "domcontentloaded" });
-    const onHome = await page.getByRole("link", { name: /Cincinnati/i }).first().isVisible().catch(() => false);
+    const onHome = await page.locator('a[href^="/tournaments/"]').first().isVisible().catch(() => false);
+    if (!REF && onHome) {
+      const href = await page.locator('a[href^="/tournaments/"]').first().getAttribute("href");
+      REF = href?.match(/\/tournaments\/([^/?#]+)/)?.[1] || "";
+    }
     record(
       2,
-      "Sees Cincinnati on the calendar",
+      "Sees an event on the calendar",
       onHome ? "pass" : "fail",
-      onHome ? "Cincinnati on landing calendar" : "Cincinnati not found on /tournaments or /"
+      onHome ? "event on landing calendar" : "no event link on /tournaments or /"
     );
   }
 
-  // 3. Opens Cincinnati without signing in
+  // 3. Opens a public event without signing in
   await page.goto(`/tournaments/${REF}`, { waitUntil: "domcontentloaded" });
   await expect(page).toHaveURL(new RegExp(`/tournaments/${REF}`));
   const stillAnon = !(await page.getByRole("button", { name: /Sign out/i }).isVisible().catch(() => false));
   record(
     3,
-    "Opens Cincinnati without signing in",
+    "Opens a public event without signing in",
     stillAnon ? "pass" : "fail",
     stillAnon ? `Loaded /tournaments/${REF} as guest` : "Unexpectedly signed in"
   );
@@ -107,15 +114,15 @@ test("live checklist 1–14", async ({ page, context }) => {
   const drawOk = await drawHeading.isVisible().catch(() => false);
   const bracket = page.locator(".bracket-region, [class*='bracket']").first();
   const hasBracket = await bracket.isVisible().catch(() => false);
-  const zverev = await page.getByText(/Zverev/i).first().isVisible().catch(() => false);
-  if (drawOk && (hasBracket || zverev)) {
+  const namedSeat = await page.locator(".bracket-region").getByText(/[A-Za-z]{3,}/).first().isVisible().catch(() => false);
+  if (drawOk && (hasBracket || namedSeat)) {
     record(4, "Official draw renders correctly", "pass", "Official draw heading + named seats visible");
   } else {
     record(
       4,
       "Official draw renders correctly",
       "fail",
-      `heading=${drawOk} bracket=${hasBracket} sampleName=${zverev}`
+      `heading=${drawOk} bracket=${hasBracket} namedSeat=${namedSeat}`
     );
   }
 
@@ -158,7 +165,7 @@ test("live checklist 1–14", async ({ page, context }) => {
     );
     if (!onSignIn) await page.goto(`/tournaments/${REF}`, { waitUntil: "domcontentloaded" });
   } else {
-    // Cincinnati is past lock — picks disabled; assert locked UX instead of interactive pick
+    // Entry closed — picks disabled; assert locked UX instead of interactive pick
     record(
       5,
       "User tries to make a pick",
@@ -194,7 +201,7 @@ test("live checklist 1–14", async ({ page, context }) => {
     7,
     "User completes a valid bracket",
     "blocked",
-    "Requires signed-in magic-link session and an open entry window; Cincinnati lock_at has passed on live"
+    "Requires signed-in magic-link session and an open entry window; this slug's lock_at may already have passed"
   );
 
   // 8. Entry locks at the correct deadline

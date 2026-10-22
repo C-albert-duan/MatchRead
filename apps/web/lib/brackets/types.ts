@@ -243,25 +243,54 @@ export async function confidenceToSavePayload(
 
 export type OfficialResultsMap = Record<
   string,
-  { winnerRef: string | null; voided: boolean }
+  {
+    winnerRef: string | null;
+    voided: boolean;
+    officialScore: string | null;
+    factKind: "played" | "withdrawal" | "void" | null;
+  }
 >;
 
-/** Official winners: matchKey `r{N}-m{M}` → winner_player_id. */
+function factKindOf(
+  value: string | null | undefined
+): "played" | "withdrawal" | "void" | null {
+  if (value === "played" || value === "withdrawal" || value === "void") {
+    return value;
+  }
+  return null;
+}
+
+/** Official winners: matchKey `r{N}-m{M}` → winner_player_id, score, fact class. */
 export async function loadOfficialResultsMap(
   supabase: SupabaseClient,
   tournamentId: string
 ): Promise<OfficialResultsMap> {
-  const { data: rows } = await supabase
+  type FactRow = {
+    round: number;
+    index_in_round: number;
+    winner_player_id: string | null;
+    voided: boolean | null;
+    official_score: string | null;
+    fact_kind: string | null;
+  };
+  const { data, error } = await supabase
     .from("matches")
-    .select("round, index_in_round, winner_player_id, voided")
+    .select(
+      "round, index_in_round, winner_player_id, voided, official_score, fact_kind"
+    )
     .eq("tournament_id", tournamentId);
+  if (error) {
+    throw new Error(`official results: ${error.message}`);
+  }
 
   const out: OfficialResultsMap = {};
-  for (const row of rows ?? []) {
+  for (const row of (data ?? []) as FactRow[]) {
     if (!row.voided && !row.winner_player_id) continue;
     out[`r${row.round}-m${row.index_in_round}`] = {
       winnerRef: row.voided ? null : row.winner_player_id,
       voided: Boolean(row.voided),
+      officialScore: row.official_score?.trim() || null,
+      factKind: factKindOf(row.fact_kind),
     };
   }
   return out;
@@ -303,6 +332,9 @@ export type AnnouncedMatchupRow = {
   player2_seed: number | null;
   scheduled_at: string | null;
   has_time: boolean;
+  session?: "day" | "night" | null;
+  court?: string | null;
+  external_ref?: string | null;
 };
 
 /**

@@ -367,14 +367,14 @@ revoke all on function public.admin_lock_tournament(text, boolean, text) from pu
 grant execute on function public.admin_lock_tournament(text, boolean, text) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- Fixture seed: US Open 2026 (16-draw for early UX) + Wimbledon (no draw yet)
+-- Fixture seed: slam event 2026 (16-draw for early UX) + grass slam (no draw yet)
 -- ---------------------------------------------------------------------------
 
 insert into public.tournaments (ref, name, surface, starts_on, lock_at, draw_size, venue_tz)
 values
   (
     'uso-2026',
-    'US Open 2026',
+    'slam event 2026',
     'hard',
     '2026-08-31',
     '2026-08-30 15:00:00+00',
@@ -383,7 +383,7 @@ values
   ),
   (
     'wim-2026',
-    'Wimbledon 2026',
+    'grass slam 2026',
     'grass',
     '2026-06-29',
     '2026-06-28 11:00:00+00',
@@ -392,7 +392,7 @@ values
   ),
   (
     'rg-2026',
-    'Roland Garros 2026',
+    'clay slam 2026',
     'clay',
     '2026-05-24',
     '2026-05-24 10:00:00+00',
@@ -407,7 +407,7 @@ on conflict (ref) do update set
   draw_size = excluded.draw_size,
   venue_tz = excluded.venue_tz;
 
--- Publish fixture draw for US Open only (Wimbledon / RG stay draw-pending)
+-- Publish fixture draw for slam event only (grass slam / RG stay draw-pending)
 insert into public.draws (tournament_id)
 select t.id from public.tournaments t where t.ref = 'uso-2026'
 on conflict (tournament_id) do nothing;

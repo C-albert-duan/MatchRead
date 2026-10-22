@@ -265,17 +265,18 @@ export function canonicalizeDisplayName(full, opts = {}) {
 }
 
 /**
- * Terminal outcomes that advance a bracket winner.
+ * Archive types that may advance a winner: `completed` and `retired`.
  * @type {ReadonlySet<string>}
  */
 export const ADVANCING_OUTCOMES = Object.freeze(
-  new Set(["COMPLETED", "WALKOVER", "RETIREMENT", "DEFAULT", "completed", "walkover", "retirement", "default", "WO", "RET"])
+  new Set(["completed", "COMPLETED", "retired", "RETIRED"])
 );
 
 /**
- * MapStat-style result_type → advance / grade disposition (CEO Aug 24 §4.5).
- * Live `matches` forbids voided∧winner together; walkover with a winner advances
- * (voided=false) so the bracket does not stall. Walkover without winner voids.
+ * Disposition for a results-archive `result_type`.
+ * An empty type stays settleable: some finished rows omit it and still carry a winner.
+ * `completed` and `retired` were in the captures. Any other word is unknown:
+ * it does not advance, void, or grade.
  *
  * @param {string|null|undefined} resultType
  * @returns {{ kind: 'settle'|'void'|'skip'|'unknown', advances: boolean, grades: boolean, voided: boolean }}
@@ -287,21 +288,8 @@ export function outcomeDisposition(resultType) {
   if (!raw || raw === "completed" || raw === "final") {
     return { kind: "settle", advances: true, grades: true, voided: false };
   }
-  if (raw === "retired" || raw === "retirement" || raw === "ret") {
+  if (raw === "retired") {
     return { kind: "settle", advances: true, grades: true, voided: false };
-  }
-  if (raw === "default") {
-    return { kind: "settle", advances: true, grades: true, voided: false };
-  }
-  if (raw === "walkover" || raw === "wo") {
-    // Prefer advance when winner id present (caller); voided flag for no-winner case.
-    return { kind: "settle", advances: true, grades: false, voided: false };
-  }
-  if (raw === "cancelled" || raw === "canceled") {
-    return { kind: "void", advances: false, grades: false, voided: true };
-  }
-  if (raw === "suspended") {
-    return { kind: "skip", advances: false, grades: false, voided: false };
   }
   return { kind: "unknown", advances: false, grades: false, voided: false };
 }
@@ -317,4 +305,193 @@ export function canAdvanceWinner(outcome, winnerId) {
   if (ADVANCING_OUTCOMES.has(o)) return true;
   const u = o.toUpperCase();
   return ADVANCING_OUTCOMES.has(u);
+}
+
+const PLAYED_TYPES = new Set(["completed", "final", "retired"]);
+
+/**
+ * Official score text as published. Never parsed into a winner.
+ * The bye token is a seat fact, not a score.
+ * @param {Record<string, unknown>|null|undefined} row
+ * @returns {string|null}
+ */
+export function officialScoreText(row) {
+  const raw = row && typeof row === "object" ? row.result : null;
+  if (typeof raw !== "string") return null;
+  const text = raw.trim();
+  if (!text || /^bye$/i.test(text)) return null;
+  return text;
+}
+
+/** @param {unknown} value */
+function publishedScore(value) {
+  if (value == null) return null;
+  const text = String(value).trim();
+  return text || null;
+}
+
+/**
+ * Official fact class from result_type.
+ * Only `completed` and `retired` are classified. Other words stay null.
+ * @param {Record<string, unknown>|null|undefined} row
+ * @returns {'played'|'withdrawal'|'void'|null}
+ */
+export function officialFactKind(row) {
+  const raw = String(row?.result_type || "")
+    .trim()
+    .toLowerCase();
+  const winner =
+    row?.match_winner != null &&
+    String(row.match_winner).trim() !== "" &&
+    String(row.match_winner) !== "0";
+  if (PLAYED_TYPES.has(raw) && (winner || officialScoreText(row))) return "played";
+  if (!raw && winner) return "played";
+  return null;
+}
+
+/**
+ * Terminal archive row with no winner, and not a withdrawal.
+ * Upcoming rows (no terminal result_type) are not gaps.
+ * @param {Array<Record<string, unknown>>|null|undefined} rows
+ */
+export function splitResultAbsences(rows) {
+  /** @type {string[]} */
+  const withdrawal = [];
+  /** @type {string[]} */
+  const ingestionGap = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const id = row?.id != null ? String(row.id) : "";
+    if (!id) continue;
+    const kind = officialFactKind(row);
+    if (kind === "withdrawal") {
+      withdrawal.push(id);
+      continue;
+    }
+    const rt = String(row?.result_type || "")
+      .trim()
+      .toLowerCase();
+    const winner =
+      row?.match_winner != null &&
+      String(row.match_winner).trim() !== "" &&
+      String(row.match_winner) !== "0";
+    if (PLAYED_TYPES.has(rt) && !winner) ingestionGap.push(id);
+  }
+  return { withdrawal, ingestionGap };
+}
+
+/**
+ * A select error is not an empty row. Callers must fail the run instead of
+ * treating a missing column as "match not found" or a score-less success.
+ * @param {{ data?: unknown, error?: { message?: string } | null } | null | undefined} result
+ */
+export function matchLookupFromQuery(result) {
+  if (!result || typeof result !== "object") {
+    return { ok: false, error: "match select failed" };
+  }
+  if (result.error) {
+    const message =
+      result.error.message == null ? "" : String(result.error.message).trim();
+    return { ok: false, error: message || "match select failed" };
+  }
+  return { ok: true, row: result.data ?? null };
+}
+
+/**
+ * Fill a missing official score or fact kind. Never replace a conflicting
+ * settled winner, void, score, or fact kind.
+ *
+ * @param {{
+ *   settled_at?: string|null,
+ *   winner_player_id?: string|null,
+ *   voided?: boolean|null,
+ *   official_score?: string|null,
+ *   fact_kind?: string|null,
+ * }} existing
+ * @param {{
+ *   winner_player_id?: string|null,
+ *   voided?: boolean|null,
+ *   official_score?: string|null,
+ *   fact_kind?: string|null,
+ * }} incoming
+ */
+export function mergeSettledFact(existing, incoming) {
+  const ex = existing || {};
+  const inc = incoming || {};
+  const inVoid = Boolean(inc.voided);
+  const inWinner = inVoid ? null : inc.winner_player_id ?? null;
+  const exSettled =
+    Boolean(ex.settled_at) && (Boolean(ex.winner_player_id) || Boolean(ex.voided));
+
+  if (!exSettled) {
+    return {
+      action: "write",
+      patch: {
+        voided: inVoid,
+        winner_player_id: inWinner,
+        official_score: inc.official_score ?? null,
+        fact_kind: inc.fact_kind ?? null,
+      },
+      conflicts: [],
+    };
+  }
+
+  /** @type {string[]} */
+  const conflicts = [];
+  /** @type {Record<string, unknown>} */
+  const patch = {};
+  const exWinner = ex.winner_player_id ?? null;
+  const exVoid = Boolean(ex.voided);
+  if (exVoid !== inVoid || (exWinner ?? null) !== (inWinner ?? null)) {
+    conflicts.push("winner");
+  }
+  const exScore = publishedScore(ex.official_score);
+  const inScore = publishedScore(inc.official_score);
+  if (!exScore && inScore) {
+    patch.official_score = inScore;
+  } else if (exScore && inScore && exScore !== inScore) {
+    conflicts.push("score");
+  }
+  if (!ex.fact_kind && inc.fact_kind) {
+    patch.fact_kind = inc.fact_kind;
+  } else if (
+    ex.fact_kind &&
+    inc.fact_kind &&
+    String(ex.fact_kind) !== String(inc.fact_kind)
+  ) {
+    conflicts.push("fact_kind");
+  }
+
+  if (conflicts.includes("winner")) {
+    return { action: "conflict", patch: {}, conflicts };
+  }
+  if (Object.keys(patch).length) {
+    return { action: "fill", patch, conflicts };
+  }
+  return { action: "noop", patch, conflicts };
+}
+
+/**
+ * Why apply-results skipped a winner write. A score or fact-class
+ * conflict is named even when no repair-run id exists to insert ops_events.
+ *
+ * @param {{ action?: string, conflicts?: string[] }|null|undefined} decision
+ */
+export function settledFactSkipReason(decision) {
+  const conflicts = Array.isArray(decision?.conflicts) ? decision.conflicts : [];
+  if (decision?.action === "conflict" || conflicts.includes("winner")) {
+    return "winner conflict";
+  }
+  if (conflicts.includes("score")) return "score conflict";
+  if (conflicts.includes("fact_kind")) return "fact kind conflict";
+  return decision?.action === "fill" ? "filled missing fact" : "already settled";
+}
+
+/**
+ * A REST confirmation removes the provisional live row after the official
+ * winner, score, and parent advance. A winner conflict keeps that row.
+ * The live branch does not call this.
+ * @param {string | null | undefined} action
+ */
+export function clearsProvisionalLive(action) {
+  return action === "write" || action === "fill" || action === "noop";
 }

@@ -1,6 +1,8 @@
 export type RapidApiClientOptions = {
   key: string;
   host?: string;
+  /** Exact response body, before JSON.parse. Used for raw NDJSON capture. */
+  onRawBody?: (row: { path: string; status: number; bodyText: string }) => void;
 };
 
 export type Tour = "atp" | "wta";
@@ -28,6 +30,8 @@ export type IngestResultRow = {
   match_key: string;
   winner_ref: string | null;
   voided: boolean;
+  official_score?: string | null;
+  fact_kind?: "played" | "withdrawal" | "void" | null;
 };
 
 export type CalendarQueryOptions = {
@@ -120,6 +124,8 @@ export type NamedFirstRoundPair = {
   p1: FirstRoundPlayer;
   p2: FirstRoundPlayer;
   instant: { scheduled_at: string; has_time: boolean } | null;
+  session: "day" | "night" | null;
+  court: string | null;
 };
 
 export declare function namedFirstRoundPairs(
@@ -152,8 +158,10 @@ export type BuiltDraw = {
   matches: Record<string, string>;
   schedule: Array<{
     match_key: string;
-    scheduled_at: string;
-    has_time: boolean;
+    scheduled_at?: string;
+    has_time?: boolean;
+    session?: "day" | "night";
+    court?: string;
   }>;
   results: Array<{
     match_key: string;
@@ -305,9 +313,33 @@ export declare function getLiveEvents(client: {
   get: (path: string) => Promise<any>;
 }): Promise<{ events: unknown[]; raw: unknown }>;
 
+export declare const WS_TOKEN_PATH: "/tennis/v2/extend/api/ws-token";
+
 export declare function getWsToken(client: {
   get: (path: string) => Promise<any>;
 }): Promise<{ token: string | null; raw: unknown }>;
+
+export declare function tokenExpiry(
+  token: unknown
+): { exp: number; iat: number | null } | null;
+
+export declare function isTokenExpired(token: unknown, nowMs?: number): boolean;
+
+/** Always false. Token lifetime was a claim, not a waited expiry, so no timer is armed. */
+export declare function proactiveRefreshEnabled(env?: NodeJS.ProcessEnv): boolean;
+
+export declare function connectLive(
+  env?: NodeJS.ProcessEnv,
+  client?: { host?: string; get: (path: string) => Promise<any> },
+  log?: { info: (message: string) => void }
+): Promise<{
+  transport: "rest";
+  host: string | null;
+  reconnect: (now?: number) => Promise<boolean>;
+  /** Seconds since the token `iat` claim. The token itself is not returned. */
+  tokenAgeSec: (now?: number) => number | null;
+  getLiveEvents: (now?: number) => ReturnType<typeof getLiveEvents>;
+}>;
 
 export declare function parseMatchId(matchId: string | null | undefined): {
   player1Id: string;
@@ -315,6 +347,9 @@ export declare function parseMatchId(matchId: string | null | undefined): {
   tournamentId: string;
   roundId: string;
 } | null;
+
+/** `seasonId` when it is an id, else the `matchId` tournament segment. Names are ignored. */
+export declare function capturedTournamentId(frame: unknown): string | null;
 
 export declare function liveEventsForTournament(
   events: unknown,
@@ -346,24 +381,6 @@ export declare function getTournamentResults(
   raw: unknown;
 }>;
 
-export declare function resolveNationalBankOpenWeek(dual: {
-  atp: { tournaments: ProviderCalendarTournament[] };
-  wta: { tournaments: ProviderCalendarTournament[] };
-}): {
-  montreal: {
-    tour: "atp";
-    provider_tournament_id: string;
-    name: string;
-    starts_on: string | null;
-  } | null;
-  toronto: {
-    tour: "wta";
-    provider_tournament_id: string;
-    name: string;
-    starts_on: string | null;
-  } | null;
-};
-
 export declare function mapResultsToIngest(
   matches: ProviderMatchResult[],
   mapping: ReconcileMapping
@@ -373,6 +390,50 @@ export declare function mapResultsToIngest(
 };
 
 export declare function backoffMs(attempt: number): number;
+
+export declare const RECONNECT_BACKOFF_MS: readonly number[];
+
+export declare const STALE_AFTER_MS: number;
+
+export declare function reconnectDelayMs(attempt: number, random?: () => number): number;
+
+export declare function nextReconnectAttempt(attempt: number, stable: boolean): number;
+
+export declare function isProviderStale(
+  lastSuccessAt: number | null,
+  now: number,
+  staleAfterMs?: number
+): boolean;
+
+export declare const HEARTBEAT_MS: number;
+
+export declare const LISTENER_HEALTH_ID: string;
+
+export declare function heartbeatDue(lastAt: number | null, now: number): boolean;
+
+export declare function nextWakeMs(now: number, nextReadAt: number, nextBeatAt: number): number;
+
+export type ListenerHeartbeatInput = {
+  connected: boolean;
+  lastProviderEventAt: string | null;
+  eventsReceived: number;
+  mapped: number;
+  unmapped: number;
+  lagMs: number | null;
+  tokenAgeS: number | null;
+  instanceId: string;
+};
+
+export declare function listenerHealthRow(
+  input: ListenerHeartbeatInput,
+  nowIso: string
+): Record<string, unknown> | null;
+
+export declare function liveIngestRequest(body: unknown): {
+  live: boolean;
+  error?: string;
+  frames?: unknown[];
+};
 
 export declare function validateOfficialSeats(seats: unknown[]):
   | { ok: true; drawSize: number }
@@ -391,6 +452,38 @@ export declare function diffDrawSeats(
   old_kind: string;
   new_kind: string;
 }>;
+
+export declare function overlaySeatPatch(
+  existing: { kind?: string; seat_kind?: string } | null | undefined,
+  incoming: {
+    kind?: string;
+    seat_kind?: string;
+    tbd_label?: string | null;
+    last_name?: string | null;
+    entry?: string | null;
+    seed?: number | null;
+  } | null | undefined
+): Record<string, unknown> | null;
+
+export declare function isFakeByeSettlement(s: {
+  childWinnerId?: string | null;
+  remainingPlayerId?: string | null;
+  vacatedPlayerId?: string | null;
+}): boolean;
+
+export declare function planFakeByeUnwind(s: {
+  childWinnerId?: string | null;
+  remainingPlayerId?: string | null;
+  vacatedPlayerId?: string | null;
+  parentWinnerId?: string | null;
+  parentSettledAt?: string | null;
+  parentOccupantId?: string | null;
+}): { clearChildSettlement: boolean; clearParentSide: boolean };
+
+export declare function r0IndexFromSeatPosition(position: number): {
+  indexInRound: number;
+  childSide: "a" | "b";
+};
 
 export declare function drawPollIntervalMs(input?: {
   now?: Date;
@@ -512,6 +605,82 @@ export declare function proposeShapeBRepairs(
   result_type: string | null;
 }>;
 
+export declare function planScorelineBackfill(input: {
+  matches: Array<{
+    id: string;
+    match_key: string;
+    round: number;
+    index_in_round: number;
+    provider_match_id?: string | null;
+    side_a_provider_id?: string | null;
+    side_b_provider_id?: string | null;
+    settled_at?: string | null;
+    winner_player_id?: string | null;
+    voided?: boolean | null;
+    official_score?: string | null;
+    fact_kind?: string | null;
+  }>;
+  archiveRows?: Array<Record<string, unknown>>;
+  players?: Record<string, string>;
+}): {
+  fills: Array<{
+    match_id: string;
+    match_key: string;
+    official_score?: string;
+    fact_kind?: string;
+  }>;
+  conflicts: Array<{
+    kind: string;
+    match_id: string;
+    match_key: string;
+    existing: unknown;
+    incoming: unknown;
+  }>;
+  unchanged: Array<{ match_id: string; match_key: string }>;
+  unmatchedLocal: Array<{ match_id: string; match_key: string; reason: string }>;
+  unmatchedArchive: Array<{
+    provider_match_id: string;
+    reason: string;
+    official_score: string | null;
+  }>;
+  skippedUnsettled: Array<{
+    match_id: string;
+    match_key: string;
+    reason: string;
+    official_score: string;
+  }>;
+};
+
+export declare function planSessionCourtBackfill(input: {
+  matches: Array<{
+    id: string;
+    round?: number;
+    index_in_round?: number;
+    provider_match_id?: string | null;
+    session?: string | null;
+    court?: string | null;
+  }>;
+  fixtures?: Array<Record<string, unknown>>;
+}): {
+  changed: number;
+  unchanged: number;
+  unknownSession: number;
+  unknownCourt: number;
+  missingProviderMapping: number;
+  writes: Array<{
+    match_id: string;
+    provider_match_id: string;
+    session?: "day" | "night";
+    court?: string;
+  }>;
+  conflicts: Array<{
+    match_id: string;
+    field: "session" | "court";
+    existing: string;
+    incoming: string;
+  }>;
+};
+
 export declare function selectArchiveRows<T extends { id?: string | number | null }>(
   rows: T[],
   allowIds?: Array<string | number> | null
@@ -542,6 +711,47 @@ export declare function planProviderMatchRelocation(
   assign: { match_key: string; patch: { provider_match_id: string } } | null;
 };
 
+export declare function entryRowsFromInfo(info: unknown): unknown[] | null;
+
+export declare function absenceObservability(input: {
+  absences: {
+    withdrawal?: string[];
+    ingestionGap?: string[];
+    unexplained?: string[];
+  };
+  ref: string;
+  slug: string;
+  tour: string;
+  providerTournamentId: string | number;
+  fixturesLoaded: boolean;
+  entriesLoaded: boolean;
+}): Array<{
+  kind: "error" | "reconcile";
+  name: string;
+  payload: Record<string, unknown>;
+}>;
+
+export declare function absenceSignalLog(row: {
+  kind: string;
+  name: string;
+  payload: Record<string, unknown>;
+}): string;
+
+export declare function classifyPlayerAbsences(input: {
+  seats?: Array<{
+    provider_player_id?: string | null;
+    player_id?: string | null;
+  }>;
+  archiveRows?: unknown[];
+  fixtures?: unknown[] | null;
+  entries?: unknown[] | null;
+}): {
+  withdrawal: string[];
+  ingestionGap: string[];
+  unexplained: string[];
+  settleBlocked: boolean;
+};
+
 export declare function planArchiveResults(input: {
   rows?: Array<{ id?: string | number | null }>;
   allowIds?: Array<string | number> | null;
@@ -562,6 +772,9 @@ export declare function planArchiveResults(input: {
     provider_match_id?: string | null;
     match_key?: string;
   }>;
+  fixtures?: unknown[] | null;
+  entries?: unknown[] | null;
+  info?: unknown;
 }): {
   archiveRows: Array<{ id?: string | number | null }>;
   bound: ReturnType<typeof bindResultsByPlayerPair>;
@@ -571,6 +784,12 @@ export declare function planArchiveResults(input: {
   authDiff: { orphans: Array<{ provider_match_id: string }>; missingFromStore: string[] };
   providerIdUpdates: Array<{ match_key: string; provider_match_id: string }>;
   applyResults: Array<{ match_key: string; provider_match_id?: string }>;
+  absences: {
+    withdrawal: string[];
+    ingestionGap: string[];
+    unexplained: string[];
+    settleBlocked: boolean;
+  };
 };
 
 export declare function bindResultsByPlayerPair(
@@ -663,6 +882,212 @@ export declare function isSilentSubscription(
 
 export declare const LiveConnectionState: Record<string, string>;
 
+export declare const LIVE_STALE_MS: number;
+
+export declare function deriveLiveFlags(
+  frame: Record<string, unknown>,
+  now?: number
+): { live: boolean; provisional: boolean; stale: boolean; serving: false };
+
+export declare function normalizeLivePayload(
+  body: unknown,
+  receivedAt?: string
+): Array<
+  | { ok: false; reason: string }
+  | { ok: true; frame: Record<string, unknown> }
+>;
+
+export declare function livePhase(status: unknown): "in_play" | "unknown";
+
+export declare function resolvePlayerSides(
+  match: Record<string, unknown> | null | undefined
+): Map<string, "a" | "b"> | null;
+
+export declare function providerSide(
+  sides: Map<string, "a" | "b"> | null,
+  providerId: unknown
+): "a" | "b" | null;
+
+export declare function restLiveDifference(
+  live: { score?: unknown; winner?: unknown; public_ref?: unknown } | null | undefined,
+  official: { score?: unknown; winner?: unknown; public_ref?: unknown } | null | undefined
+): {
+  kind: "reconcile";
+  name: "live_rest_disagreement";
+  payload: Record<string, string | null>;
+} | null;
+
+export declare function liveRestDisagreement(
+  frame: Record<string, unknown>,
+  match: Record<string, unknown>,
+  provisionalSide?: "a" | "b" | null
+): {
+  kind: "reconcile";
+  name: "live_rest_disagreement";
+  payload: Record<string, string | null>;
+} | null;
+
+export declare function explicitServingId(
+  row: Record<string, unknown>
+): string | null;
+
+export declare function normalizeCapturedFrame(
+  input: unknown,
+  catalog: {
+    matches: Array<Record<string, unknown>>;
+    eventMap?: Array<Record<string, unknown>>;
+  }
+):
+  | {
+      ok: true;
+      state: {
+        matchId: string;
+        tournamentId: string;
+        publicRef: string;
+        phase: "in_play" | "suspended" | "provisional_final";
+        sets: string | null;
+        game: string | null;
+        serving: "a" | "b" | null;
+        flag: "live" | "provisional" | null;
+        pointFlags: null;
+        provisionalWinner: string | null;
+        occurredAt: string | null;
+        receivedAt: string | null;
+      };
+    }
+  | { ok: false; reason: string };
+
+export declare function canonicalLiveFrame(input: unknown):
+  | { ok: false; reason: string }
+  | { ok: true; frame: Record<string, unknown> };
+
+export declare function liveRowsFromNdjson(
+  text: string
+): Record<string, unknown>[];
+
+export declare function planProviderEventMap(
+  liveRows: unknown[],
+  matches: Array<{
+    match_id: string;
+    tour: string;
+    tournament_provider_id: string;
+    side_a_provider_id: string | null;
+    side_b_provider_id: string | null;
+  }>
+): {
+  rows: Array<{ tour: "atp" | "wta"; provider_event_id: string; match_id: string }>;
+  unmapped: {
+    tour: number;
+    id: number;
+    matchId: number;
+    not_found: number;
+    ambiguous_match: number;
+    ambiguous_event: number;
+  };
+};
+
+export declare function mapFrameToMatch(
+  frame: Record<string, unknown>,
+  catalog: {
+    matches: Array<Record<string, unknown>>;
+    eventMap?: Array<Record<string, unknown>>;
+  }
+): {
+  status: "mapped" | "not_found" | "ambiguous";
+  reason: string | null;
+  match: Record<string, unknown> | null;
+};
+
+export declare function projectLiveFrame(
+  previous: Record<string, unknown> | null,
+  mapped: { frame: Record<string, unknown>; match: Record<string, unknown> }
+): {
+  action: string;
+  reason: string | null;
+  state: Record<string, unknown> | null;
+  officialPatch: null;
+  advance: false;
+  disagreement: {
+    kind: "reconcile";
+    name: "live_rest_disagreement";
+    payload: Record<string, string | null>;
+  } | null;
+};
+
+export declare function liveUpsertArgs(
+  state: Record<string, unknown>
+): Record<string, unknown>;
+
+/** Null. matches has no status column, and official winner columns are blocked. */
+export declare function officialMatchPatch(
+  proposed?: Record<string, unknown>
+): Record<string, unknown> | null;
+
+export declare function findMatchByProviderEvent(
+  admin: {
+    from: (table: string) => {
+      select: (columns: string) => {
+        eq: (column: string, value: string) => {
+          eq: (
+            column: string,
+            value: string
+          ) => {
+            maybeSingle: () => Promise<{
+              data: { match_id: string } | null;
+              error: { message: string } | null;
+            }>;
+          };
+        };
+      };
+    };
+  },
+  tour: string,
+  providerEventId: string
+): Promise<string | null>;
+
+export declare function liveStateRow(
+  state: Record<string, unknown>
+): Record<string, unknown>;
+
+export declare function replayLiveFrames(
+  frames: unknown[],
+  catalog: {
+    matches: Array<Record<string, unknown>>;
+    eventMap?: Array<Record<string, unknown>>;
+  }
+): {
+  states: Array<Record<string, unknown>>;
+  health: {
+    applied: number;
+    duplicate: number;
+    ignored: number;
+    unmapped: number;
+    ambiguous: number;
+    disagreements: number;
+  };
+  disagreements: Array<{
+    kind: "reconcile";
+    name: "live_rest_disagreement";
+    payload: Record<string, string | null>;
+  }>;
+  steps: Array<{
+    action: string;
+    reason: string | null;
+    state: Record<string, unknown> | null;
+    officialPatch: null;
+    advance: false;
+    disagreement: {
+      kind: "reconcile";
+      name: "live_rest_disagreement";
+      payload: Record<string, string | null>;
+    } | null;
+  }>;
+};
+
+export declare function providerSocketEnabled(env?: NodeJS.ProcessEnv): boolean;
+
+export declare function openProviderSocket(env?: NodeJS.ProcessEnv): never;
+
 export declare function parseSeedOrEntry(raw: unknown): {
   seed: number | null;
   entry: "wc" | "pr" | "q" | "ll" | null;
@@ -733,6 +1158,7 @@ export declare function assertDrawBelongsToTournament(
     provider_season_id?: string | null;
   }
 ): void;
+export declare function maxOfficialByes(slotCount: number): number;
 export declare function evaluateDrawIntegrity(input: {
   seats: unknown[];
   tournament?: {
@@ -741,9 +1167,13 @@ export declare function evaluateDrawIntegrity(input: {
     surface?: string | null;
     bracket_eligible?: boolean | null;
     draw_checked_at?: string | null;
+    draw_size?: number | null;
   };
   drawTour?: string | null;
   drawProviderId?: string | null;
+  drawPathHint?: string | null;
+  drawProviderType?: string | null;
+  terminalRoundMatches?: number | null;
   source?: string | null;
   sourceSnapshotId?: string | null;
 }): {
@@ -753,4 +1183,111 @@ export declare function evaluateDrawIntegrity(input: {
   checkedAt: string;
   sourceSnapshotId?: string | null;
 };
+
+export declare function officialScoreText(
+  row: Record<string, unknown> | null | undefined
+): string | null;
+
+export declare function mergeSettledFact(
+  existing: {
+    settled_at?: string | null;
+    winner_player_id?: string | null;
+    voided?: boolean | null;
+    official_score?: string | null;
+    fact_kind?: string | null;
+  },
+  incoming: {
+    winner_player_id?: string | null;
+    voided?: boolean | null;
+    official_score?: string | null;
+    fact_kind?: string | null;
+  }
+): {
+  action: "write" | "fill" | "conflict" | "noop";
+  patch: Record<string, unknown>;
+  conflicts: string[];
+};
+
+export declare function settledFactSkipReason(
+  decision:
+    | { action?: string; conflicts?: string[] }
+    | null
+    | undefined
+): string;
+
+/** True when an official confirmation should delete the provisional live row. */
+export declare function clearsProvisionalLive(
+  action: string | null | undefined
+): boolean;
+
+export declare function matchLookupFromQuery(result: {
+  data?: unknown;
+  error?: { message?: string } | null;
+} | null | undefined):
+  | { ok: true; row: unknown }
+  | { ok: false; error: string };
+
+export declare function encodeCaptureLine(record: {
+  captured_at: string;
+  path: string;
+  status: number;
+  body_text: string;
+}): string;
+
+export type FrameRecorder = {
+  filePath: string;
+  recordText(frame: {
+    transport?: string;
+    path?: string;
+    status?: number;
+    payload: string;
+  }): Promise<void>;
+  recordJson(frame: {
+    transport?: string;
+    path?: string;
+    status?: number;
+    payload: unknown;
+  }): Promise<void>;
+  recordBinary(
+    bytes: Uint8Array,
+    meta?: { transport?: string; path?: string }
+  ): Promise<void>;
+  lifecycle(event: string, detail?: string | null): Promise<void>;
+  drained(): Promise<void>;
+  close(): Promise<void>;
+};
+
+export declare function createFrameRecorder(filePath: string): FrameRecorder;
+
+export declare function bindProcessSignals(
+  recorder: FrameRecorder,
+  proc?: NodeJS.Process
+): void;
+
+export declare function captureReport(
+  records: Array<Record<string, unknown>>
+): {
+  lines: number;
+  http: { path: string; status: unknown; bytes: number }[];
+};
+
+export declare function wtaTournamentIdFromLiveText(
+  text: string | null | undefined
+): string | null;
+
+export declare function parseMatchSession(
+  row: unknown
+): "day" | "night" | null;
+
+export declare function parseMatchCourt(row: unknown): string | null;
+
+export declare function runLiveCapture(session: {
+  recorder: FrameRecorder;
+  read: (path: string) => Promise<{
+    path?: string;
+    status: number;
+    bodyText: string;
+  }>;
+  year: number | string;
+}): Promise<void>;
 

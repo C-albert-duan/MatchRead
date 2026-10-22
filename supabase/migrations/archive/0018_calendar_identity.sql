@@ -1,12 +1,12 @@
 -- 0018_calendar_identity.sql
--- Gate 1: Montreal must not occupy the US Open slug. Upcoming events must exist
+-- Gate 1: colliding-slug event must not occupy the slam event slug. Upcoming events must exist
 -- as rows so /tournaments can list them before any draw is published.
 -- Idempotent.
 --
--- Root cause (1.1 / 1.2): migration 0011 reused ref uso-2026 for Montreal
+-- Root cause (1.1 / 1.2): migration 0011 reused ref uso-2026 for colliding-slug event
 -- ("stable URLs"). The calendar already reads row.ref; the URL was wrong
--- because the stored ref was wrong. Cincinnati, Winston-Salem, and both
--- US Opens were never inserted.
+-- because the stored ref was wrong. Masters event, 64-draw event, and both
+-- slam events were never inserted.
 
 -- ---------------------------------------------------------------------------
 -- Lock authority: a trigger so a direct write cannot bypass RLS
@@ -36,13 +36,13 @@ comment on function public.brackets_reject_if_locked() is
   'Database is the lock authority. RLS is not enough: a direct write must also fail.';
 
 -- ---------------------------------------------------------------------------
--- Montreal keeps its draw (UUID) and takes its own ref
+-- colliding-slug event keeps its draw (UUID) and takes its own ref
 -- ---------------------------------------------------------------------------
 
 update public.tournaments
    set ref = 'nbo-mtl-2026'
  where ref = 'uso-2026'
-   and name ilike '%Montreal%'
+   and name ilike '%colliding-slug event%'
    and not exists (
      select 1 from public.tournaments x where x.ref = 'nbo-mtl-2026'
    );
@@ -58,29 +58,29 @@ insert into public.tournaments (
 values
   (
     'nbo-mtl-2026',
-    'National Bank Open Montreal 2026',
+    'dual-city event colliding-slug event 2026',
     'atp',
     'hard',
     '2026-08-03',
     '2026-08-02 15:00:00+00',
     64,
-    'America/Toronto',
+    'America/dual-city event',
     '21346'
   ),
   (
     'nbo-tor-2026',
-    'National Bank Open Toronto 2026',
+    'dual-city event dual-city event 2026',
     'wta',
     'hard',
     '2026-08-03',
     '2026-08-02 15:00:00+00',
     64,
-    'America/Toronto',
+    'America/dual-city event',
     '16739'
   ),
   (
     'cin-2026',
-    'Cincinnati Open 2026',
+    'Masters event Open 2026',
     'atp',
     'hard',
     '2026-08-13',
@@ -91,7 +91,7 @@ values
   ),
   (
     'cin-wta-2026',
-    'Cincinnati Open 2026',
+    'Masters event Open 2026',
     'wta',
     'hard',
     '2026-08-13',
@@ -102,7 +102,7 @@ values
   ),
   (
     'wsal-2026',
-    'Winston-Salem Open 2026',
+    '64-draw event Open 2026',
     'atp',
     'hard',
     '2026-08-23',
@@ -113,7 +113,7 @@ values
   ),
   (
     'uso-wta-2026',
-    'US Open 2026',
+    'slam event 2026',
     'wta',
     'hard',
     '2026-08-30',
@@ -135,13 +135,13 @@ on conflict (ref) do update set
     excluded.provider_tournament_id
   );
 
--- uso-2026 is US Open again. Never overwrite a row that is still Montreal.
+-- uso-2026 is slam event again. Never overwrite a row that is still colliding-slug event.
 insert into public.tournaments (
   ref, name, tour, surface, starts_on, lock_at, draw_size, venue_tz
 )
 select
   'uso-2026',
-  'US Open 2026',
+  'slam event 2026',
   'atp',
   'hard',
   '2026-08-30',
@@ -152,7 +152,7 @@ where not exists (
   select 1
     from public.tournaments t
    where t.ref = 'uso-2026'
-     and t.name ilike '%Montreal%'
+     and t.name ilike '%colliding-slug event%'
 )
 on conflict (ref) do update set
   name = excluded.name,
@@ -162,7 +162,7 @@ on conflict (ref) do update set
   lock_at = excluded.lock_at,
   draw_size = excluded.draw_size,
   venue_tz = excluded.venue_tz
-  where public.tournaments.name not ilike '%Montreal%';
+  where public.tournaments.name not ilike '%colliding-slug event%';
 
 -- ---------------------------------------------------------------------------
 -- Prove lock: a direct insert against a started tournament must error.

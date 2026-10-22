@@ -11,19 +11,19 @@ import {
   isOnCourt,
 } from "./status.ts";
 
-const montreal = {
+const inPlayEvent = {
   hasDraw: true,
   starts_on: "2026-08-03",
   lock_at: "2026-08-02T15:00:00.000Z",
 };
 
-const torontoNoDraw = {
+const pendingEvent = {
   hasDraw: false,
   starts_on: "2026-08-03",
   lock_at: "2026-08-02T15:00:00.000Z",
 };
 
-const usOpen = {
+const upcomingNoDraw = {
   hasDraw: false,
   starts_on: "2026-08-30",
   lock_at: "2026-08-29T15:00:00.000Z",
@@ -56,42 +56,42 @@ test("a past lock_at without a draw is not an entry lock", () => {
   );
 });
 
-test("Montreal with a locked draw is on court; Toronto without a draw is not", () => {
-  assert.equal(calendarStatus(montreal, rehearsal), "live");
-  assert.equal(calendarStatus(torontoNoDraw, rehearsal), "drawPending");
+test("a locked published draw is on court; the same week without a draw is pending", () => {
+  assert.equal(calendarStatus(inPlayEvent, rehearsal), "live");
+  assert.equal(calendarStatus(pendingEvent, rehearsal), "drawPending");
   assert.equal(calendarStatusMessageKey("live"), "calendar.onCourt");
-  assert.equal(isInPlay(montreal, rehearsal), true);
-  assert.equal(isOnCourt(montreal, rehearsal), true);
-  assert.equal(isOnCourt(torontoNoDraw, rehearsal), false);
-  assert.equal(isEntryOpen(montreal, rehearsal), false);
-  assert.equal(isEntryOpen(torontoNoDraw, rehearsal), false);
+  assert.equal(isInPlay(inPlayEvent, rehearsal), true);
+  assert.equal(isOnCourt(inPlayEvent, rehearsal), true);
+  assert.equal(isOnCourt(pendingEvent, rehearsal), false);
+  assert.equal(isEntryOpen(inPlayEvent, rehearsal), false);
+  assert.equal(isEntryOpen(pendingEvent, rehearsal), false);
 });
 
-test("US Open with no draw is draw-pending before it starts", () => {
-  assert.equal(calendarStatus(usOpen, rehearsal), "drawPending");
+test("an unpublished future event is draw-pending before it starts", () => {
+  assert.equal(calendarStatus(upcomingNoDraw, rehearsal), "drawPending");
 });
 
 test("an unlocked draw before start is Open", () => {
-  const cin = {
+  const unlocked = {
     hasDraw: true,
     starts_on: "2026-08-13",
     lock_at: "2026-08-12T15:00:00.000Z",
   };
   const beforeLock = new Date("2026-08-11T12:00:00.000Z");
-  assert.equal(calendarStatus(cin, beforeLock), "open");
-  assert.equal(isEntryOpen(cin, beforeLock), true);
-  assert.equal(isOnCourt(cin, beforeLock), false);
+  assert.equal(calendarStatus(unlocked, beforeLock), "open");
+  assert.equal(isEntryOpen(unlocked, beforeLock), true);
+  assert.equal(isOnCourt(unlocked, beforeLock), false);
 });
 
 test("a started draw with no lock_at is not entry-open", () => {
-  const astana = {
+  const noLock = {
     hasDraw: true,
     starts_on: "2026-08-10",
     lock_at: null as string | null,
   };
-  assert.equal(isEntryOpen(astana, rehearsal), false);
-  assert.equal(isOnCourt(astana, rehearsal), false);
-  assert.equal(calendarStatus(astana, rehearsal), "live");
+  assert.equal(isEntryOpen(noLock, rehearsal), false);
+  assert.equal(isOnCourt(noLock, rehearsal), false);
+  assert.equal(calendarStatus(noLock, rehearsal), "live");
 });
 
 test("a locked draw is not on court before the week starts", () => {

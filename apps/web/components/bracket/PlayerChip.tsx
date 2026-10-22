@@ -1,11 +1,11 @@
 /**
- * Sole renderer for seed / display name / country / entry on bracket seats.
- * Disambiguation relies on seed + country always being present when the
- * integrity gate allowed duplicate surnames.
+ * Editor seat. Pick controls stay here. The public sheet uses SeatName on the server.
  */
 "use client";
 
 import type { SlotOccupant } from "@matchread/core";
+import type { PickHighlight, SeatSource } from "@/lib/brackets/resolution";
+import { seatFace, type SeatLabels } from "@/components/bracket/SeatName";
 import { useT } from "@/components/shell/LocaleProvider";
 
 type GradeTone = "correct" | "incorrect" | "voided" | "official" | null;
@@ -20,76 +20,11 @@ type Props = {
   name?: string;
   value?: string;
   checked?: boolean;
-  /** Seat index within the match (0 = top, 1 = bottom) for connector targets. */
   seat?: 0 | 1;
+  officialWinner?: boolean;
+  pickRule?: PickHighlight | null;
+  seatSource?: SeatSource;
 };
-
-function labelFor(
-  occupant: SlotOccupant,
-  t: (
-    key:
-      | "bracket.notPlayed"
-      | "draw.tbd"
-      | "draw.entry.wc"
-      | "draw.entry.pr"
-      | "draw.entry.q"
-      | "draw.entry.ll"
-  ) => string
-): {
-  text: string;
-  seed: string;
-  country: string;
-  entry: string;
-  kindClass: string;
-} {
-  switch (occupant.kind) {
-    case "player": {
-      const tag =
-        occupant.entryStatus === "wc"
-          ? t("draw.entry.wc")
-          : occupant.entryStatus === "pr"
-            ? t("draw.entry.pr")
-            : occupant.entryStatus === "q"
-              ? t("draw.entry.q")
-              : occupant.entryStatus === "ll"
-                ? t("draw.entry.ll")
-                : "";
-      return {
-        text: occupant.lastName,
-        seed: occupant.seed != null ? String(occupant.seed) : "",
-        country: occupant.countryCode,
-        entry: tag,
-        kindClass: "",
-      };
-    }
-    case "bye":
-      return { text: "Bye", seed: "", country: "", entry: "", kindClass: "name--bye" };
-    case "tbd":
-      return {
-        text: t("draw.tbd"),
-        seed: "",
-        country: "",
-        entry: "",
-        kindClass: "name--tbd",
-      };
-    case "dash":
-      return {
-        text: t("bracket.notPlayed"),
-        seed: "",
-        country: "",
-        entry: "",
-        kindClass: "name--empty",
-      };
-    case "unpicked":
-      return {
-        text: "Unpicked",
-        seed: "",
-        country: "",
-        entry: "",
-        kindClass: "name--empty",
-      };
-  }
-}
 
 export function PlayerChip({
   occupant,
@@ -102,52 +37,38 @@ export function PlayerChip({
   value,
   checked,
   seat,
+  officialWinner = false,
+  pickRule = null,
+  seatSource,
 }: Props) {
   const t = useT();
-  const meta = labelFor(occupant, t);
-  const className = [
-    "name",
-    meta.kindClass,
-    chosen && !grade ? "name--chosen" : "",
-    grade === "correct" ? "name--correct" : "",
-    grade === "incorrect" ? "name--incorrect" : "",
-    grade === "voided" ? "name--voided" : "",
-    grade === "official" ? "name--official" : "",
-    occupant.kind !== "player" ? "name--placeholder" : "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
-  const playerRef = occupant.kind === "player" ? occupant.ref : undefined;
-  const dataAttrs = {
-    ...(seat != null ? { "data-seat": String(seat) } : {}),
-    ...(playerRef ? { "data-player-ref": playerRef } : {}),
+  const labels: SeatLabels = {
+    notPlayed: t("bracket.notPlayed"),
+    tbd: t("draw.tbd"),
+    wc: t("draw.entry.wc"),
+    pr: t("draw.entry.pr"),
+    q: t("draw.entry.q"),
+    ll: t("draw.entry.ll"),
+    official: t("result.official"),
+    winner: t("match.page.winner"),
   };
-
-  const inner = (
-    <>
-      <span
-        className="name-seed numeral"
-        aria-hidden={meta.seed ? undefined : true}
-      >
-        {meta.seed || "\u00a0"}
-      </span>
-      <span className="name-text">{meta.text}</span>
-      {meta.country ? (
-        <span className="name-country">{meta.country}</span>
-      ) : null}
-      {meta.entry ? (
-        <span className="name-entry">{meta.entry}</span>
-      ) : null}
-    </>
-  );
+  const face = seatFace({
+    occupant,
+    labels,
+    chosen,
+    grade,
+    seat,
+    officialWinner,
+    pickRule,
+    seatSource,
+  });
 
   if (as === "button" && occupant.kind === "player") {
     return (
       <label
-        className={className}
+        className={face.className}
         data-chosen={chosen ? "true" : "false"}
-        {...dataAttrs}
+        {...face.attrs}
       >
         <input
           type="radio"
@@ -158,14 +79,14 @@ export function PlayerChip({
           disabled={disabled}
           onChange={() => onClick?.()}
         />
-        {inner}
+        {face.body}
       </label>
     );
   }
 
   return (
-    <span className={className} {...dataAttrs}>
-      {inner}
+    <span className={face.className} {...face.attrs}>
+      {face.body}
     </span>
   );
 }

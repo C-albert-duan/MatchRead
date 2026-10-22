@@ -19,9 +19,11 @@ tmp-*-results.json
 tmp-*-fixtures.json
 tmp-*-rebuild-payload.json
 tmp-*-draw.json
+tmp-*.mjs
 
 # Next.js / Vercel
 apps/web/.next
+apps/web/.next-e2e
 apps/web/out
 .vercel
 
@@ -41,6 +43,10 @@ Thumbs.db
 # Supabase
 supabase/.branches
 supabase/.temp
+
+# Raw provider capture (may contain tokens). Never commit.
+captures/
+fixtures/live-capture-oct-2026/
 
 # Debug / local tooling
 *.log

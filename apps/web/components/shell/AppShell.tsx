@@ -3,6 +3,7 @@ import { signOut } from "@/app/actions/auth";
 import { BackButton } from "@/components/shell/BackButton";
 import { LocaleSwitcher } from "@/components/shell/LocaleSwitcher";
 import { ShellHeader } from "@/components/shell/ShellHeader";
+import { LiveMatchLayer } from "@/components/live/LiveMatchLayer";
 import { LiveRefresh } from "@/components/shell/LiveRefresh";
 import { NavigationProgressHost } from "@/components/shell/NavigationProgressHost";
 import { OfflineBanner } from "@/components/shell/OfflineBanner";
@@ -17,6 +18,8 @@ type Props = {
   email?: string | null;
   /** Full arena atmosphere (landing). Default app routes still get a light wash. */
   arena?: boolean;
+  /** History control. The landing route is the root, so it has no back target. */
+  showBack?: boolean;
 };
 
 export function AppShell({
@@ -24,6 +27,7 @@ export function AppShell({
   signedIn,
   email,
   arena = false,
+  showBack = true,
 }: Props) {
   const locale = getLocale();
 
@@ -31,12 +35,22 @@ export function AppShell({
     <LocaleProvider locale={locale}>
       <div className={arena ? "shell shell--arena" : "shell"}>
         <LiveRefresh enabled />
+        <LiveMatchLayer
+          labels={{
+            live: t("live.badge"),
+            stale: t("live.stale"),
+            delayed: t("live.delayed"),
+            lastUpdated: t("live.lastUpdated"),
+            provisional: t("live.provisional"),
+            serving: t("live.serving"),
+          }}
+        />
         <NavigationProgressHost />
         <OfflineBanner message={t("offline.banner")} />
         {signedIn ? <DisplayNameBootstrap /> : null}
         <ShellHeader>
           <div className="shell-header-inner">
-            <BackButton label={t("nav.back")} />
+            {showBack ? <BackButton label={t("nav.back")} /> : null}
             <Link href="/" className="wordmark">
               <Mark className="wordmark-mark" />
               MatchRead

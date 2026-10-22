@@ -1,5 +1,5 @@
 /**
- * Winston-Salem rehearsal gate (offline): import → integrity → withhold → heal.
+ * Offline rehearsal gate: import → integrity → withhold → heal.
  * Does not require live SQL; proves the trust-boundary modules compose.
  */
 import assert from "node:assert/strict";
@@ -16,7 +16,7 @@ import {
   validateOfficialSeats,
 } from "./index.js";
 
-function winstonSeats() {
+function sampleSeats() {
   // 32-draw ATP 250 shape with real provider ids and distinguishable labels
   return Array.from({ length: 32 }, (_, i) => {
     const names = [
@@ -40,7 +40,7 @@ function winstonSeats() {
   });
 }
 
-describe("Winston-Salem rehearsal (offline trust boundary)", () => {
+describe("offline rehearsal (trust boundary)", () => {
   it("calendar tier is bracket product", () => {
     const tier = normalizeTier("ATP 250", "singles");
     assert.equal(tier.tier, "tour_250");
@@ -69,7 +69,7 @@ describe("Winston-Salem rehearsal (offline trust boundary)", () => {
   });
 
   it("official seats pass structure + integrity gate", () => {
-    const seats = winstonSeats();
+    const seats = sampleSeats();
     const structure = validateOfficialSeats(seats);
     assert.equal(structure.ok, true);
 
@@ -90,7 +90,7 @@ describe("Winston-Salem rehearsal (offline trust boundary)", () => {
 
   it("integrity blocks ineligible publish", () => {
     const report = evaluateDrawIntegrity({
-      seats: winstonSeats(),
+      seats: sampleSeats(),
       tournament: {
         tour: "atp",
         provider_id: "21400",
