@@ -92,14 +92,32 @@ function storedIdCompatible(stored, archiveId) {
   return current === String(archiveId || "").trim();
 }
 
+function positionKey(round, indexInRound) {
+  return `${Number(round)}:${Number(indexInRound)}`;
+}
+
+/**
+ * A one-sided later-round match cannot have been played while the stored
+ * match feeding its empty side is still undecided. A feeder that is not
+ * stored (missing topology) or carries no `decided` flag does not block.
+ */
+function emptySideFeederUndecided(m, byPosition) {
+  const { a, b } = occupantIds(m);
+  if ((a && b) || (!a && !b)) return false;
+  const feederIndex = Number(m.index_in_round) * 2 + (a ? 1 : 0);
+  const feeder = byPosition.get(positionKey(Number(m.round) - 1, feederIndex));
+  return feeder?.decided === false;
+}
+
 /**
  * Later-round one-sided candidate. R0 is never a partial target.
- * Occupant must be in the pair, and a foreign canonical provider_match_id
- * excludes the row.
+ * Occupant must be in the pair, a foreign canonical provider_match_id
+ * excludes the row, and so does an undecided feeder on the empty side.
  */
-function isValidLaterPartial(m, p1, p2, archiveId) {
+function isValidLaterPartial(m, p1, p2, archiveId, byPosition) {
   if (!(Number(m.round) > 0)) return false;
   if (!isOneSidedKnownInPair(m, p1, p2)) return false;
+  if (emptySideFeederUndecided(m, byPosition)) return false;
   return storedIdCompatible(m.provider_match_id, archiveId);
 }
 
@@ -129,7 +147,8 @@ function isValidLaterPartial(m, p1, p2, archiveId) {
  *   side_a_provider_id: string|null,
  *   side_b_provider_id: string|null,
  *   provider_match_id?: string|null,
- * }>} matchSides
+ *   decided?: boolean,
+ * }>} matchSides `decided`: the stored match has a winner or is void.
  * @param {Record<string, string>} players provider_id → winner_ref (uuid or legacy)
  */
 export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
@@ -142,10 +161,12 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
   }
 
   const byProviderMatch = new Map();
+  const byPosition = new Map();
   for (const m of matchSides) {
     if (m.provider_match_id) {
       byProviderMatch.set(String(m.provider_match_id), m);
     }
+    byPosition.set(positionKey(m.round, m.index_in_round), m);
   }
 
   const results = [];
@@ -191,7 +212,7 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
     // later-round row excludes it. Two valid hits fail closed.
     if (!target && p1 && p2) {
       const laterPartials = matchSides.filter((m) =>
-        isValidLaterPartial(m, p1, p2, id)
+        isValidLaterPartial(m, p1, p2, id, byPosition)
       );
       if (laterPartials.length === 1) {
         target = laterPartials[0];
@@ -213,6 +234,7 @@ export function bindResultsByPlayerPair(rows, matchSides, players = {}) {
         byId &&
         Number(byId.round) > 0 &&
         occupantsCompatibleWithPair(byId, p1, p2) &&
+        !emptySideFeederUndecided(byId, byPosition) &&
         storedIdCompatible(byId.provider_match_id, id)
       ) {
         target = byId;

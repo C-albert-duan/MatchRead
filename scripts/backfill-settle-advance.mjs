@@ -40,7 +40,7 @@ for (const event of targets) {
   const { data: matchRows } = await admin
     .from("matches")
     .select(
-      "id, round, index_in_round, provider_match_id, side_a_player_id, side_b_player_id"
+      "id, round, index_in_round, provider_match_id, side_a_player_id, side_b_player_id, winner_player_id, voided"
     )
     .eq("tournament_id", event.id);
 
@@ -72,6 +72,7 @@ for (const event of targets) {
     side_b_provider_id: m.side_b_player_id
       ? providerByUuid.get(m.side_b_player_id) ?? null
       : null,
+    decided: Boolean(m.winner_player_id) || m.voided === true,
   }));
 
   const { singles } = await getTournamentResults(

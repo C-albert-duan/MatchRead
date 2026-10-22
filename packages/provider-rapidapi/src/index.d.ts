@@ -762,6 +762,8 @@ export declare function planArchiveResults(input: {
     side_a_provider_id: string | null;
     side_b_provider_id: string | null;
     provider_match_id?: string | null;
+    /** The stored match has a winner or is void. */
+    decided?: boolean;
   }>;
   players?: Record<string, string>;
   mapping?: { players?: Record<string, string>; matches?: Record<string, string> };
@@ -801,6 +803,8 @@ export declare function bindResultsByPlayerPair(
     side_a_provider_id: string | null;
     side_b_provider_id: string | null;
     provider_match_id?: string | null;
+    /** The stored match has a winner or is void. */
+    decided?: boolean;
   }>,
   players?: Record<string, string>
 ): {

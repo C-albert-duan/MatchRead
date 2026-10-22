@@ -219,6 +219,7 @@ export function planScorelineBackfill(input) {
     side_b_provider_id: m.side_b_provider_id
       ? String(m.side_b_provider_id)
       : null,
+    decided: Boolean(m.winner_player_id) || m.voided === true,
   }));
   const bound = bindResultsByPlayerPair(archiveRows, sides, players);
   const byKey = new Map(bound.results.map((row) => [row.match_key, row]));

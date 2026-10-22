@@ -69,9 +69,9 @@ const WINDOW_FUTURE_DAYS = 60;
 /** Cron/full runs: cap draw+results work so Edge does not idle-timeout (504). */
 const MAX_EVENTS_PER_RUN = 10;
 /**
- * Slots per run for published events outside the window that still have
- * settled matches with no official score (settled before 0022). The results
- * archive fills them; a filled match leaves the set, so this drains itself.
+ * Slots per run for published events, in or out of the window, that still
+ * have settled matches with no official score (settled before 0022). The
+ * results archive fills them; a filled match leaves the set, so this drains.
  */
 const MAX_SCORE_BACKFILL_PER_RUN = 2;
 
@@ -680,6 +680,19 @@ async function listSyncedEvents(
 
     // ~5m tick matches typical cron; rotates which events sit in the budget.
     const tick = Math.floor(nowMs / (5 * 60 * 1000));
+
+    // Finished events sort last in `rest` and starve behind a live week, so
+    // score debt reserves its own slots, in or out of the window. In-play
+    // events still rotate through the remaining budget.
+    const debtIds = await loadScoreDebtTournamentIds(admin);
+    const backfill = rotateList(
+      all.filter(
+        (e) => e.published_at && debtIds.has(e.id) && !inPlayIds.has(e.id)
+      ),
+      tick
+    ).slice(0, MAX_SCORE_BACKFILL_PER_RUN);
+    const inPlayBudget = MAX_EVENTS_PER_RUN - backfill.length;
+
     const needDraw = rotateList(
       inPlay.filter((e) => !e.published_at),
       tick
@@ -688,19 +701,16 @@ async function listSyncedEvents(
       inPlay.filter((e) => Boolean(e.published_at)),
       tick + 1
     );
-    const drawBudget = Math.min(
-      needDraw.length,
-      Math.ceil(MAX_EVENTS_PER_RUN / 2)
-    );
+    const drawBudget = Math.min(needDraw.length, Math.ceil(inPlayBudget / 2));
     const selectedInPlay: SyncedEvent[] = [
       ...needDraw.slice(0, drawBudget),
     ];
-    const resultsRoom = Math.max(0, MAX_EVENTS_PER_RUN - selectedInPlay.length);
+    const resultsRoom = Math.max(0, inPlayBudget - selectedInPlay.length);
     selectedInPlay.push(...needResults.slice(0, resultsRoom));
-    if (selectedInPlay.length < MAX_EVENTS_PER_RUN) {
+    if (selectedInPlay.length < inPlayBudget) {
       const used = new Set(selectedInPlay.map((e) => e.id));
       for (const e of [...needDraw, ...needResults]) {
-        if (selectedInPlay.length >= MAX_EVENTS_PER_RUN) break;
+        if (selectedInPlay.length >= inPlayBudget) break;
         if (!used.has(e.id)) {
           used.add(e.id);
           selectedInPlay.push(e);
@@ -708,26 +718,13 @@ async function listSyncedEvents(
       }
     }
 
-    const windowIds = new Set(events.map((e) => e.id));
-    const debtIds = await loadScoreDebtTournamentIds(admin);
-    const backfill = rotateList(
-      all.filter(
-        (e) => e.published_at && debtIds.has(e.id) && !windowIds.has(e.id)
-      ),
-      tick
-    ).slice(
-      0,
-      Math.min(
-        MAX_SCORE_BACKFILL_PER_RUN,
-        Math.max(0, MAX_EVENTS_PER_RUN - selectedInPlay.length)
-      )
-    );
-
-    const room = Math.max(
-      0,
-      MAX_EVENTS_PER_RUN - selectedInPlay.length - backfill.length
-    );
-    events = [...selectedInPlay, ...backfill, ...rest.slice(0, room)];
+    const room = Math.max(0, inPlayBudget - selectedInPlay.length);
+    const backfillIds = new Set(backfill.map((e) => e.id));
+    events = [
+      ...selectedInPlay,
+      ...backfill,
+      ...rest.filter((e) => !backfillIds.has(e.id)).slice(0, room),
+    ];
   }
   return events;
 }
@@ -1044,7 +1041,7 @@ async function loadMatchSides(
   const { data: matchRows } = await admin
     .from("matches")
     .select(
-      "id, round, index_in_round, provider_match_id, side_a_player_id, side_b_player_id"
+      "id, round, index_in_round, provider_match_id, side_a_player_id, side_b_player_id, winner_player_id, voided"
     )
     .eq("tournament_id", tournamentId);
 
@@ -1080,6 +1077,7 @@ async function loadMatchSides(
     side_b_provider_id: m.side_b_player_id
       ? providerByUuid.get(String(m.side_b_player_id)) ?? null
       : null,
+    decided: Boolean(m.winner_player_id) || m.voided === true,
   }));
 }
 

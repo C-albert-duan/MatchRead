@@ -31,7 +31,7 @@ Pipeline:
 
 Triggered by pg_cron (~5m), optional GitHub workflow, and ops scripts.
 
-Cron/full runs (no `slug`) process at most ~10 events per invoke so the Edge call finishes before gateway idle timeout. Bracket-eligible in-play events are capped under that budget with a **5-minute sticky rotation** and a split between unpublished (draw) and published (results) so one Slam cannot starve the other. Up to 2 slots go to published events outside the window that still have a settled, non-void match with no `official_score` and no `fact_kind` (settled before `0022`); their results archive fills the score, and a filled match leaves that set, so the backfill drains itself. Remaining slots go to near-window events (unpublished preferred). Calendar upsert still covers the dual-tour window every run.
+Cron/full runs (no `slug`) process at most ~10 events per invoke so the Edge call finishes before gateway idle timeout. Bracket-eligible in-play events are capped under that budget with a **5-minute sticky rotation** and a split between unpublished (draw) and published (results) so one Slam cannot starve the other. Up to 2 slots go to published events, in or out of the window (finished events otherwise sort last and starve behind a live week), that still have a settled, non-void match with no `official_score` and no `fact_kind` (settled before `0022`); their results archive fills the score, and a filled match leaves that set, so the backfill drains itself. Remaining slots go to near-window events (unpublished preferred). Calendar upsert still covers the dual-tour window every run.
 
 Bye auto-settle on R0 write must advance the winner into the parent side; `apply-results` also heals missing parent advances before binding new results.
 

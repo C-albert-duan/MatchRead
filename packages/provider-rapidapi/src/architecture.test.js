@@ -275,7 +275,7 @@ describe("bindResultsByPlayerPair", () => {
     assert.equal(bindings[0].bound_by, "pair");
   });
 
-  function side(match_key, round, index_in_round, a, b, provider_match_id = null) {
+  function side(match_key, round, index_in_round, a, b, provider_match_id = null, decided) {
     return {
       match_key,
       round,
@@ -283,6 +283,7 @@ describe("bindResultsByPlayerPair", () => {
       side_a_provider_id: a,
       side_b_provider_id: b,
       provider_match_id,
+      ...(decided === undefined ? {} : { decided }),
     };
   }
 
@@ -457,6 +458,59 @@ describe("bindResultsByPlayerPair", () => {
     );
     assert.equal(results.length, 0);
     assert.equal(bindings.length, 0);
+    assert.equal(skipped[0].reason, "no match_key mapping");
+  });
+
+  // t-atp-21358 (Oct 2026): a player's R16 result found no full pair, and the
+  // next round (player vs empty) took it while the other R16 was unplayed.
+  const r16Win = {
+    id: "8900111",
+    player1Id: "pS",
+    player2Id: "pO",
+    match_winner: "pS",
+    result_type: "completed",
+  };
+
+  it("does not bind a one-sided match whose empty side's feeder is undecided", () => {
+    const { results, bindings, skipped } = bindResultsByPlayerPair(
+      [r16Win],
+      [
+        side("r1-m2", 1, 2, "pS", null, "8900999", true),
+        side("r1-m3", 1, 3, "pD", "pB", null, false),
+        side("r2-m1", 2, 1, "pS", null),
+      ],
+      { pS: "pS", pO: "pO" }
+    );
+    assert.equal(results.length, 0);
+    assert.equal(bindings.length, 0);
+    assert.equal(skipped[0].reason, "no match_key mapping");
+  });
+
+  it("still binds that one-sided match once the empty side's feeder is decided", () => {
+    const { results, bindings } = bindResultsByPlayerPair(
+      [r16Win],
+      [
+        side("r1-m2", 1, 2, "pS", null, "8900999", true),
+        side("r1-m3", 1, 3, "pD", "pB", null, true),
+        side("r2-m1", 2, 1, "pS", null),
+      ],
+      { pS: "pS", pO: "pO" }
+    );
+    assert.equal(results.length, 1);
+    assert.equal(results[0].match_key, "r2-m1");
+    assert.equal(bindings[0].bound_by, "partial");
+  });
+
+  it("does not rebind by provider_match_id while the empty side's feeder is undecided", () => {
+    const { results, skipped } = bindResultsByPlayerPair(
+      [r16Win],
+      [
+        side("r1-m3", 1, 3, "pD", "pB", null, false),
+        side("r2-m1", 2, 1, "pS", null, "8900111"),
+      ],
+      { pS: "pS", pO: "pO" }
+    );
+    assert.equal(results.length, 0);
     assert.equal(skipped[0].reason, "no match_key mapping");
   });
 
@@ -833,7 +887,7 @@ describe("reconcile withhold-then-heal", () => {
 });
 
 describe("archive allow-list", () => {
-  function side(match_key, round, index_in_round, a, b, provider_match_id = null) {
+  function side(match_key, round, index_in_round, a, b, provider_match_id = null, decided) {
     return {
       match_key,
       round,
@@ -841,6 +895,7 @@ describe("archive allow-list", () => {
       side_a_provider_id: a,
       side_b_provider_id: b,
       provider_match_id,
+      ...(decided === undefined ? {} : { decided }),
     };
   }
 
