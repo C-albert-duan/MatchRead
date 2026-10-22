@@ -14,6 +14,8 @@ export {
   canAdvanceWinner,
   absenceObservability,
   absenceSignalLog,
+  classifyPlayerAbsences,
+  entryRowsFromInfo,
   canonicalizeDisplayName,
   createClient,
   createLiveSessionState,
