@@ -28,6 +28,7 @@
     "listen:provider": "npm run start -w @matchread/listener -- --once",
     "ci:live-trust": "node scripts/ci-live-trust.mjs",
     "prove:cron": "node scripts/prove-cron.mjs",
+    "test:scripts": "node --test scripts/cron-proof.test.mjs",
     "backfill:scorelines": "node scripts/backfill-scorelines.mjs",
     "backfill:session-court": "node scripts/backfill-session-court.mjs",
     "backfill:provider-events": "node scripts/backfill-provider-event-map.mjs",

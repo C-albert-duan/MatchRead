@@ -31,6 +31,9 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Script tests
+        run: npm run test:scripts
+
       - name: Consumer boundary
         run: npm run ci:consumer-boundary
 

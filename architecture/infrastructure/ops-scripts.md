@@ -17,7 +17,7 @@ Quick index: [scripts/README.md](../../scripts/README.md).
 | `live-listener.mjs` | `npm run listen:live` | Same replay from a local file. A socket flag exits. It does not connect to the provider |
 | `apps/listener` | `npm run listen:provider` | One provider poll. Posts changed raw frames. Set `LISTENER_POLL_MS` to repeat. Railway runs one replica of the same process. Does not write tables |
 | `ci-live-trust.mjs` | `npm run ci:live-trust` | Fails when live files name a settlement writer or a later product surface |
-| `prove-cron.mjs` | `npm run prove:cron` | Read `cron.job` history for `sync-facts-5m` and `settle-leagues` |
+| `prove-cron.mjs` | `npm run prove:cron` | Read `cron.job` + latest `cron.job_run_details` and Vault `project_url` / `ingest_secret`. Exit **0** only when both jobs are active, latest runs **succeeded**, and Vault is set so `invoke_*` can `net.http_post`. Exit **1** when Vault is empty (local “succeeded” rows are not Edge proof). Exit **2** when `DATABASE_URL` is unset or `psql` fails. Rules: `scripts/lib/cron-proof.mjs`; tests: `scripts/cron-proof.test.mjs` |
 | `tennis-verify.mjs` | `npm run tennis:verify` | `evaluateDrawIntegrity` vs DB (+ optional live) |
 | `preflight-trust-boundary.mjs` | `npm run preflight:trust` | Repo (+ optional live) trust checks |
 | `ci-consumer-boundary.mjs` | `npm run ci:consumer-boundary` | CI: public consumers must use `public_calendar` |

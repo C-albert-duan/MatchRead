@@ -13,7 +13,7 @@ Env: copy `.env.provider.example` → `.env.provider` (gitignored).
 | `probe-event-dates.mjs` | `npm run probe:event-dates` | Read-only calendar/date diagnosis |
 | `capture-live-ndjson.mjs` | `npm run capture:live` | Raw REST live + WTA companion NDJSON (gitignored) |
 | `replay-live.mjs` | `npm run replay:live` | Replay `fixtures/prototype-timeline.json` or an NDJSON capture through `acceptForwardedLive`. `--write` updates live rows only |
-| `prove-cron.mjs` | `npm run prove:cron` | Read-only cron run history |
+| `prove-cron.mjs` | `npm run prove:cron` | Cron + Vault proof (exit 1 if Vault empty) |
 | `tennis-verify.mjs` | `npm run tennis:verify -- --slug …` | Integrity vs DB (+ optional live provider) |
 | `preflight-trust-boundary.mjs` | `npm run preflight:trust` | Trust checks (`--live` for hosted probe) |
 | `ci-consumer-boundary.mjs` | `npm run ci:consumer-boundary` | CI: web uses `public_calendar` only |

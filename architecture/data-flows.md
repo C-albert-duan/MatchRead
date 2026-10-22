@@ -265,7 +265,7 @@ Deploy targets one listener replica (`.railway/railway.ts`). Correctness does no
 | Ops `capture:live` | provider HTTP only | Raw NDJSON under `fixtures/live-capture-oct-2026/` |
 | `apps/listener` | `sync-facts` `{ mode: "live", liveFrames }` | One request per tick. Does not settle |
 | Ops `replay:live` | `acceptForwardedLive`, then `live_match_state` when `--write` | Replay `fixtures/prototype-timeline.json` or an M1 NDJSON capture. Does not settle `matches` |
-| Ops `prove:cron` | `cron.job` / `cron.job_run_details` | Read-only. BLOCKED while `DATABASE_URL` is unset; see [supabase.md](./infrastructure/supabase.md) |
+| Ops `prove:cron` | `cron.job` / `cron.job_run_details` / Vault | Read-only. Requires `DATABASE_URL`. Fails closed when Vault secrets are missing: `return_message` `1 row` is not proof Edge ran. See [ops-scripts.md](./infrastructure/ops-scripts.md) |
 | Ops `backfill:scorelines` | results archive, then `matches.official_score` | Dry-run unless `--write`. One archive request per tournament. Fills a null scoreline. Does not change the winner |
 | Ops `backfill:session-court` | fixtures, then null `matches.session` / `matches.court` | Dry-run unless `--write`. Prints intended writes first. A remote URL also needs `--confirm-remote`. Copies an explicit day, night, or court label. Does not infer either from the clock, the event surface, or match order |
 | Ops `backfill:provider-events` | stored live captures, then `provider_event_map` | Dry-run unless `--write`. Live id is not a fixture id. Inserts a row only for one proven player-pair match. Does not replace a row that already points elsewhere. A remote URL also needs `--confirm-remote` |

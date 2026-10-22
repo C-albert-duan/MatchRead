@@ -92,7 +92,9 @@ Migrations schedule two jobs. That is the definition in SQL, not proof that a ho
 
 ### Hosted run history — BLOCKED
 
-`npm run prove:cron` on 2026-10-07 exited 2: `DATABASE_URL` is not set and `SUPABASE_DB_URL` is not set. Hosted `cron.job` / `cron.job_run_details` were not read.
+`npm run prove:cron` exits **2** when `DATABASE_URL` / `SUPABASE_DB_URL` is unset. It exits **1** when the database is reachable but Vault `project_url` and `ingest_secret` are not both set. Exit **0** means jobs are active, latest runs succeeded, and Vault is configured. Rules live in `scripts/lib/cron-proof.mjs`.
+
+On 2026-10-07 it exited 2: `DATABASE_URL` is not set and `SUPABASE_DB_URL` is not set. Hosted `cron.job` / `cron.job_run_details` were not read.
 
 The local database, queried the same day, has both jobs `active` with those schedules. Latest local rows were `succeeded` at `2026-10-07T18:00:00Z` with `return_message` `1 row`. Local Vault has no `project_url` or `ingest_secret`, so those rows are the SQL function returning without `net.http_post`. They are not Edge executions. Detail is in [docs/provider-capture-findings.md](../../docs/provider-capture-findings.md).
 
