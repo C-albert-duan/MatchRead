@@ -12,6 +12,7 @@ import {
   normalizeTour,
   overlayOfficialDraw,
   parseOfficialDraw,
+  acceptedOfficialDrawSizes,
   parseFixtureInstant,
   diffDrawSeats,
   overlaySeatPatch,
@@ -704,6 +705,66 @@ describe("parseOfficialDraw", () => {
       { prefix: "wta", expectedDrawSize: 128 }
     );
     assert.equal(parsed.ok, false);
+  });
+
+  // t-wta-16750 (Wuhan, 56 players): stored as 128 from the 1000 tier guess,
+  // so the official 64-slot sheet was never picked and the draw never published.
+  function seededFirstRound(slots, idBase = 100) {
+    return Array.from({ length: slots / 2 }, (_, i) => ({
+      player1: {
+        id: idBase + i,
+        name: `Alpha ${i}`,
+        countryAcr: "USA",
+        seed: i < slots / 4 ? String(i + 1) : undefined,
+      },
+      player2: { id: idBase + 500 + i, name: `Beta ${i}`, countryAcr: "ESP" },
+    }));
+  }
+
+  it("takes a 64-slot main sheet for a 1000 guessed at 128", () => {
+    const parsed = parseOfficialDraw(
+      { singles: seededFirstRound(64) },
+      { prefix: "wta", expectedDrawSize: 128, acceptedDrawSizes: [128, 64] }
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    assert.equal(parsed.drawSize, 64);
+  });
+
+  it("still prefers the 128 sheet when both sizes are present", () => {
+    const parsed = parseOfficialDraw(
+      { rounds: [{ matches: seededFirstRound(128) }, { matches: seededFirstRound(64, 3000) }] },
+      { prefix: "atp", expectedDrawSize: 128, acceptedDrawSizes: [128, 64] }
+    );
+    assert.equal(parsed.ok, true);
+    if (!parsed.ok) throw new Error(parsed.reason);
+    assert.equal(parsed.drawSize, 128);
+  });
+
+  it("keeps a Slam exact at 128", () => {
+    const parsed = parseOfficialDraw(
+      { singles: seededFirstRound(64) },
+      { prefix: "wta", expectedDrawSize: 128, acceptedDrawSizes: [128] }
+    );
+    assert.equal(parsed.ok, false);
+    if (parsed.ok) throw new Error("expected reject");
+    assert.match(parsed.reason, /size 128$/);
+  });
+
+  it("still skips a qualifying key sized 64 for a 1000", () => {
+    const parsed = parseOfficialDraw(
+      { qualifying: seededFirstRound(64) },
+      { prefix: "wta", expectedDrawSize: 128, acceptedDrawSizes: [128, 64] }
+    );
+    assert.equal(parsed.ok, false);
+  });
+
+  it("widens only a 1000 guessed at 128", () => {
+    assert.deepEqual(acceptedOfficialDrawSizes({ draw_size: 128, tier: "masters_1000" }), [128, 64]);
+    assert.deepEqual(acceptedOfficialDrawSizes({ draw_size: 128, tier: "grand_slam" }), [128]);
+    assert.deepEqual(acceptedOfficialDrawSizes({ draw_size: 64, tier: "masters_1000" }), [64]);
+    assert.deepEqual(acceptedOfficialDrawSizes({ draw_size: 32, tier: "tour_500" }), [32]);
+    assert.deepEqual(acceptedOfficialDrawSizes({ draw_size: null, tier: "masters_1000" }), []);
   });
 
   it("reads a flat multi-round singles list (Masters / mega-draw shape)", () => {

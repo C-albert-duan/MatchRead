@@ -235,7 +235,7 @@ export declare function nonMainDrawKind(
 
 export declare function parseOfficialDraw(
   raw: unknown,
-  opts?: { prefix?: string; expectedDrawSize?: number }
+  opts?: { prefix?: string; expectedDrawSize?: number; acceptedDrawSizes?: number[] }
 ):
   | {
       ok: true;
@@ -277,6 +277,11 @@ export declare function getTournamentSeeds(
   year: number | string
 ): Promise<{ tour: Tour; name: string; year: number; raw: unknown }>;
 
+export declare function acceptedOfficialDrawSizes(event: {
+  draw_size?: number | null;
+  tier?: string | null;
+}): number[];
+
 export declare function fetchOfficialSeats(
   client: { get: (path: string) => Promise<any> },
   event: {
@@ -286,6 +291,7 @@ export declare function fetchOfficialSeats(
     api_name?: string;
     starts_on?: string | null;
     draw_size?: number;
+    tier?: string | null;
   }
 ): Promise<
   | { ok: true; drawSize: number; seats: OfficialDrawSeat[]; source: string }
@@ -301,6 +307,7 @@ export declare function resolveOfficialSeats(
     api_name?: string;
     starts_on?: string | null;
     draw_size?: number;
+    tier?: string | null;
   },
   fixtures?: unknown[],
   opts?: { allowFixtureDraw?: boolean }

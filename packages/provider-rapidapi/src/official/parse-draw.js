@@ -517,11 +517,20 @@ function toSeat(person, position, prefix) {
 
 /**
  * @param {unknown} raw
- * @param {{ prefix?: string, expectedDrawSize?: number }} [opts]
+ * @param {{ prefix?: string, expectedDrawSize?: number, acceptedDrawSizes?: number[] }} [opts]
+ *   `acceptedDrawSizes`: sheet sizes to accept, in preference order. Defaults
+ *   to `[expectedDrawSize]`. The picked sheet is classified at its own size.
  */
 export function parseOfficialDraw(raw, opts = {}) {
   const prefix = String(opts.prefix || "p").replace(/[^a-z0-9-]/gi, "") || "p";
   const expected = Number(opts.expectedDrawSize) || 0;
+  const accepted = (
+    Array.isArray(opts.acceptedDrawSizes) && opts.acceptedDrawSizes.length
+      ? opts.acceptedDrawSizes
+      : [expected]
+  )
+    .map(Number)
+    .filter((size) => size > 0);
   const body = unwrap(raw);
   const terminalRoundMatches = terminalRoundMatchCount(raw);
   const matchSets = collectMatchArrays(body, [], expected);
@@ -531,7 +540,7 @@ export function parseOfficialDraw(raw, opts = {}) {
       drawSize: row.sides.length * 2,
       pathHint: row.pathHint,
     })),
-    expected
+    accepted
   );
   if (picked) {
     const seats = [];
@@ -543,11 +552,11 @@ export function parseOfficialDraw(raw, opts = {}) {
       {
         pathHint: picked.pathHint,
         size: picked.drawSize,
-        expectedSize: expected,
+        expectedSize: accepted.length ? picked.drawSize : 0,
         seedCount: countSeeds(seats),
         terminalRoundMatches,
       },
-      { draw_size: expected || null }
+      { draw_size: accepted.length ? picked.drawSize : null }
     );
     if (classified.kind === "rejected") {
       return {
@@ -573,7 +582,7 @@ export function parseOfficialDraw(raw, opts = {}) {
       drawSize: row.people.length,
       pathHint: row.pathHint,
     })),
-    expected
+    accepted
   );
   if (pickedSeats) {
     const seats = pickedSeats.item.map((p, i) => toSeat(p, i, prefix));
@@ -581,11 +590,11 @@ export function parseOfficialDraw(raw, opts = {}) {
       {
         pathHint: pickedSeats.pathHint,
         size: pickedSeats.drawSize,
-        expectedSize: expected,
+        expectedSize: accepted.length ? pickedSeats.drawSize : 0,
         seedCount: countSeeds(seats),
         terminalRoundMatches,
       },
-      { draw_size: expected || null }
+      { draw_size: accepted.length ? pickedSeats.drawSize : null }
     );
     if (classified.kind === "rejected") {
       return {
@@ -612,10 +621,10 @@ export function parseOfficialDraw(raw, opts = {}) {
       if (kind) seen.push(kind);
     }
   }
-  if (expected) {
+  if (accepted.length) {
     return {
       ok: false,
-      reason: `no official Tennis API main-singles draw of size ${expected}`,
+      reason: `no official Tennis API main-singles draw of size ${accepted.join(" or ")}`,
       draw_types_seen: seen,
     };
   }
@@ -626,12 +635,17 @@ export function parseOfficialDraw(raw, opts = {}) {
   };
 }
 
-function pickSized(candidates, expected) {
+/** First valid candidate of the first accepted size; the largest when none are given. */
+function pickSized(candidates, accepted) {
   const valid = candidates.filter(
     (row) => row.drawSize >= 16 && (row.drawSize & (row.drawSize - 1)) === 0
   );
-  if (expected) {
-    return valid.find((row) => row.drawSize === expected) || null;
+  if (accepted.length) {
+    for (const size of accepted) {
+      const hit = valid.find((row) => row.drawSize === size);
+      if (hit) return hit;
+    }
+    return null;
   }
   valid.sort((a, b) => b.drawSize - a.drawSize);
   return valid[0] || null;

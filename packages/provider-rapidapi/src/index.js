@@ -1015,9 +1015,24 @@ export {
 } from "./capture-ndjson.js";
 
 /**
+ * Main-singles sheet sizes an event may publish, in preference order.
+ * Until a draw publishes, `draw_size` is a tier guess: a 1000 is stored as
+ * 128 (96 players plus byes), but a 56-player 1000 such as Wuhan is a
+ * 64-slot sheet. Slams and every other guess stay exact.
+ * @param {{ draw_size?: number|null, tier?: string|null }} event
+ * @returns {number[]}
+ */
+export function acceptedOfficialDrawSizes(event) {
+  const size = Number(event?.draw_size) || 0;
+  if (!size) return [];
+  if (size === 128 && event?.tier === "masters_1000") return [128, 64];
+  return [size];
+}
+
+/**
  * Official seats from Tennis API draws. Never invent slot order from match ids.
  * @param {{ get: (path: string) => Promise<any> }} client
- * @param {{ ref?: string, tour?: string, name?: string, api_name?: string, starts_on?: string|null, draw_size?: number }} event
+ * @param {{ ref?: string, tour?: string, name?: string, api_name?: string, starts_on?: string|null, draw_size?: number, tier?: string|null }} event
  */
 export async function fetchOfficialSeats(client, event) {
   const { drawNameCandidates, drawYear, parseOfficialDraw } = await import(
@@ -1035,6 +1050,7 @@ export async function fetchOfficialSeats(client, event) {
       const parsed = parseOfficialDraw(raw, {
         prefix,
         expectedDrawSize: Number(event?.draw_size) || 0,
+        acceptedDrawSizes: acceptedOfficialDrawSizes(event),
       });
       if (parsed.ok) return parsed;
       lastReason = parsed.reason || lastReason;
