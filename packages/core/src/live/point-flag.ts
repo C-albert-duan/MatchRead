@@ -25,7 +25,7 @@ function pair(text: string): [number, number] | null {
 }
 
 /** Completed set winner. 7-6 counts. 6-6 does not. */
-function setWinner(games: [number, number]): "a" | "b" | null {
+export function setWinner(games: [number, number]): "a" | "b" | null {
   const [a, b] = games;
   if (a >= 6 && a - b >= 2) return "a";
   if (b >= 6 && b - a >= 2) return "b";

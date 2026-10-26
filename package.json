@@ -27,6 +27,7 @@
     "listen:live": "node scripts/live-listener.mjs",
     "listen:provider": "npm run start -w @matchread/listener -- --once",
     "ci:live-trust": "node scripts/ci-live-trust.mjs",
+    "ci:core-vocabulary": "node scripts/ci-core-vocabulary.mjs",
     "prove:cron": "node scripts/prove-cron.mjs",
     "test:scripts": "node --test scripts/cron-proof.test.mjs",
     "backfill:scorelines": "node scripts/backfill-scorelines.mjs",

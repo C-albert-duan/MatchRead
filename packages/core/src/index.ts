@@ -78,8 +78,36 @@ export {
   liveFlag,
   normalizeLiveMatchState,
 } from "./live/normalize";
-export { derivePointFlags } from "./live/point-flag";
+export { derivePointFlags, setWinner } from "./live/point-flag";
 export type { PointFlagInput } from "./live/point-flag";
+export {
+  ceilingDeltaIfLost,
+  ceilingMaths,
+  eliminatedRefs,
+  forwardStatus,
+  leader,
+} from "./live/ceiling";
+export type { CeilingInput, CeilingTriad, ForwardStatus, LiveLead } from "./live/ceiling";
+export {
+  compareReasons,
+  CONSENSUS_SHARE,
+  CONTRARIAN_SHARE,
+  matters,
+  MATTERS_FLOOR,
+  reasonsFor,
+} from "./live/consequence";
+export type {
+  ConsequenceContext,
+  ConsequenceMatch,
+  MatchStatus,
+  Reason,
+  ReasonKind,
+  ReasonParams,
+} from "./live/consequence";
+export { classify, DEFAULT_IMPORTANCE, matchConsequence } from "./live/importance";
+export type { Importance, ImportanceConfig, MatchConsequence } from "./live/importance";
+export { compareMyMatches, rankMyMatches } from "./live/my-matches";
+export type { RankableMatch } from "./live/my-matches";
 export type {
   CanonicalGame,
   CanonicalSet,
