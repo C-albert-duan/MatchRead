@@ -46,8 +46,16 @@ There is no `apply_bracket_state`. `mergeSettledFact` plus `claim_settlement` ke
 
 ## D-M4-7 `ImportanceConfig` storage
 
-Defaults live in `packages/core/src/live/importance.ts` (`criticalAtOrBelow: 0`, `importantAtOrBelow: 2`). The server overrides them from a single-row `app_config` table (key `importance`, `jsonb`, founder write, 60 s cache), which arrives with the Phase 4 migration. Until then the server uses the defaults.
+Defaults live in `packages/core/src/live/importance.ts` (`criticalAtOrBelow: 0`, `importantAtOrBelow: 2`). The server overrides them from a single-row `app_config` table (key `importance`, `jsonb`, 60 s cache), added in migration `0044`. Writes are service role only: the web holds the anon key and founder access is an app-level gate, so a founder retunes it from the SQL editor or a script. A missing or malformed row falls back to the defaults.
 
 ## D-M4-8 D5, the Realtime connection ceiling
 
 **Open.** Read the concurrent-connection limit for the Supabase plan from the dashboard and record it here before any load test. `/me` opens one channel per tournament in which the user holds a bracket.
+
+## D-M4-9 Forward exposure is an index, not a table
+
+The plan's `bracket_forward_exposure (match_id, bracket_id, forward_node_id, pts)` is keyed by the live match. Later-round entrants are unknown at lock, so that table cannot be filled correctly at lock time. Picks are already per match and fixed after lock, so "which forward picks are lost if player X loses" is the picks naming X. Migration `0044` adds `picks (player_id, bracket_id)` for that read, and `ceilingDeltaIfLost` computes points from the user's own picks. Cross-user fan-out ("everyone exposed to this match", needed for Pulse and `urgent`) reads the same index.
+
+## D-M4-10 `stage_events` and founder tiles
+
+Migration `0045` adds `stage_events` (own-row insert and read) and `stage_event_rates(since)`, which returns aggregates only. `/founder/integrity` shows Stage changes in the last 24 h, the busiest user-hour (event mark above 2), and `winner_conflict` rows in the last 7 days (error mark at 1 or more). Both tiles read apart from the page's main load, so a database without `0045` shows "none" instead of failing.
