@@ -59,6 +59,9 @@ export function AppShell({
             <nav className="shell-nav" aria-label="Primary">
               {signedIn ? (
                 <>
+                  <Link href="/me" className="act act--quiet">
+                    {t("nav.me")}
+                  </Link>
                   <Link
                     href="/leagues"
                     className="act act--prominent act--standard-size"

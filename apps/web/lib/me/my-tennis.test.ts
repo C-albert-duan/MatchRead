@@ -15,6 +15,7 @@ const sheet = buildSyntheticBracket16();
 const names = new Map(sheet.players.map((player) => [player.ref, player.lastName]));
 
 const tournament: MyTennisTournament = {
+  id: "00000000-0000-0000-0000-0000000000a1",
   ref: "syn-16",
   name: "Synthetic Bracket",
   drawSize: 16,

@@ -45,6 +45,8 @@ export type MyTennisMatch = {
 };
 
 export type MyTennisTournament = {
+  /** Tournament uuid. The live layer subscribes by it, as bracket cells do. */
+  id: string;
   ref: string;
   name: string;
   drawSize: number;
@@ -72,6 +74,7 @@ export type MyMatchRow = {
   matchRef: string;
   matchKey: string;
   tournamentRef: string;
+  tournamentId: string;
   tournamentName: string;
   leagueId: string;
   round: number;
@@ -103,6 +106,8 @@ export type MyTennisTriad = {
 export type MyTennisView = {
   rows: MyMatchRow[];
   triads: MyTennisTriad[];
+  /** Last names for every player a row or reason can name. */
+  names: Record<string, string>;
 };
 
 function officialOf(matches: readonly MyTennisMatch[]): OfficialResults {
@@ -198,6 +203,7 @@ export function assembleMyTennis(ctx: MyTennisContext, config: ImportanceConfig)
         matchRef: match.externalRef,
         matchKey: match.key,
         tournamentRef: tournament.ref,
+        tournamentId: tournament.id,
         tournamentName: tournament.name,
         leagueId: bracket.leagueId,
         round: match.round,
@@ -249,5 +255,15 @@ export function assembleMyTennis(ctx: MyTennisContext, config: ImportanceConfig)
       ? a.leagueId < b.leagueId ? -1 : a.leagueId > b.leagueId ? 1 : 0
       : a.tournamentRef < b.tournamentRef ? -1 : 1
   );
-  return { rows: ranked, triads };
+  const names: Record<string, string> = {};
+  for (const tournament of Object.values(ctx.tournaments)) {
+    for (const seat of tournament.seats) {
+      if (seat.player_id && seat.last_name) names[seat.player_id] = seat.last_name;
+    }
+    for (const match of tournament.matches) {
+      if (match.sideARef && match.sideALastName) names[match.sideARef] = match.sideALastName;
+      if (match.sideBRef && match.sideBLastName) names[match.sideBRef] = match.sideBLastName;
+    }
+  }
+  return { rows: ranked, triads, names };
 }

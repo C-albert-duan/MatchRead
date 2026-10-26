@@ -86,6 +86,7 @@ async function loadContext(
         court: match.court?.trim() || null,
       }));
       tournaments[row.slug] = {
+        id: row.id,
         ref: row.slug,
         name: row.name,
         drawSize: row.draw_size as number,
@@ -137,8 +138,15 @@ export async function viewMyTennis(
   );
   // The repositories take narrow query shapes; the full client type is too
   // deep for the compiler to check against them (same cast as live.ts).
+  // Live rows count only while the overlay is open (listener heartbeat under
+  // 90 s, 0041). With the listener down, /me shows the official state, never
+  // a frozen score as in play. Bracket pages get the same gate from /api/live.
+  const overlay = await supabase.rpc("live_overlay_open");
+  const overlayOpen = !overlay.error && overlay.data === true;
   const [liveRows, config] = await Promise.all([
-    readLiveMatches(supabase as unknown as Parameters<typeof readLiveMatches>[0], openRefs),
+    overlayOpen
+      ? readLiveMatches(supabase as unknown as Parameters<typeof readLiveMatches>[0], openRefs)
+      : Promise.resolve([]),
     readImportanceConfig(
       supabase as unknown as Parameters<typeof readImportanceConfig>[0],
       nowMs
