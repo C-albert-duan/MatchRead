@@ -105,6 +105,8 @@ export type {
   ReasonKind,
   ReasonParams,
 } from "./live/consequence";
+export { swingsFirstPlace } from "./live/swing";
+export type { SwingMatch, SwingMember } from "./live/swing";
 export { classify, DEFAULT_IMPORTANCE, matchConsequence } from "./live/importance";
 export type { Importance, ImportanceConfig, MatchConsequence } from "./live/importance";
 export { compareMyMatches, rankMyMatches } from "./live/my-matches";

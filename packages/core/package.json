@@ -14,7 +14,7 @@
   "scripts": {
     "lint": "node -e \"console.log('core lint ok')\"",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --import ../../scripts/register-ts-ext.mjs --test src/bracket.test.ts src/synthetic-bracket.test.ts src/pulse.test.ts src/tournament/lock.test.ts src/edge-grade.test.ts src/upside.test.ts src/live/normalize.test.ts src/live/point-flag.test.ts src/live/ceiling.test.ts src/live/consequence.test.ts && node ../../scripts/verify-settlement-math.mjs"
+    "test": "node --experimental-strip-types --import ../../scripts/register-ts-ext.mjs --test src/bracket.test.ts src/synthetic-bracket.test.ts src/pulse.test.ts src/tournament/lock.test.ts src/edge-grade.test.ts src/upside.test.ts src/live/normalize.test.ts src/live/point-flag.test.ts src/live/ceiling.test.ts src/live/consequence.test.ts src/live/swing.test.ts && node ../../scripts/verify-settlement-math.mjs"
   },
   "devDependencies": {
     "typescript": "^5.5.0"

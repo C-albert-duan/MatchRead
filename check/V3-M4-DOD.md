@@ -72,7 +72,8 @@
 | Daily Picks resolve only through `settle-slate` | **N/A** | Not in this repo (mobile) |
 | Heat internal-only or absent | **Pass** | Absent |
 | Fan identity below the live experience | **N/A** | Stretch item; rating tables are not in this repo |
-| Pulse, visitor aggregates, League Swing | **N/A** | Deferred |
+| League Swing | **Pass** | Added after the walk (D-M4-12): `swing.test.ts`, `my-tennis.test.ts` "a match swings the league". Not browser-verified |
+| Pulse, visitor aggregates | **N/A** | Deferred |
 
 ## Platform
 

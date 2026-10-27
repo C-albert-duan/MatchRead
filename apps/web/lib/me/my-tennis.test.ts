@@ -166,6 +166,50 @@ test("the triad agrees with gradeBracket and projects only a leading pick", () =
   assert.equal(leading.projected, 2);
 });
 
+test("a match swings the league when its result changes who is first", () => {
+  const official = Object.fromEntries(
+    tournament.matches
+      .filter((match) => match.winnerRef)
+      .map((match) => [match.key, { winnerRef: match.winnerRef }])
+  );
+  const mine = gradeBracket({ drawSize: 16, picks: picks("a"), official }).score;
+  const theirs = gradeBracket({ drawSize: 16, picks: picks("b"), official }).score;
+  const withRival = (rivalLead: number): MyTennisContext => {
+    const base = context({ "syn16-r0-m2": liveRow("syn16-r0-m2", "4-6,1-0") });
+    return {
+      ...base,
+      brackets: base.brackets.map((bracket) => ({
+        ...bracket,
+        league: [
+          { memberId: "me", otherPoints: 0, picks: picks("a") },
+          // Season-style carry so the two start level, or the rival ahead.
+          { memberId: "rival", otherPoints: mine - theirs + rivalLead, picks: picks("b") },
+        ],
+      })),
+    };
+  };
+  const swingOn = (view: ReturnType<typeof assembleMyTennis>, ref: string) =>
+    view.rows
+      .find((row) => row.matchRef === ref)
+      ?.consequence.reasons.some((reason) => reason.kind === "swing") ?? false;
+
+  const level = assembleMyTennis(withRival(0), DEFAULT_IMPORTANCE);
+  assert.equal(swingOn(level, "syn16-r0-m2"), true);
+  // A swing alone clears the floor, so a scheduled match with it is listed.
+  const scheduled = level.rows.find((row) => row.matchRef === "syn16-r1-m0");
+  assert.ok(scheduled?.consequence.reasons.some((reason) => reason.kind === "swing"));
+  assert.equal(scheduled?.matters, true);
+
+  const runaway = assembleMyTennis(withRival(100), DEFAULT_IMPORTANCE);
+  assert.equal(swingOn(runaway, "syn16-r0-m2"), false);
+  // No league members loaded (before lock): no swing.
+  const unloaded = assembleMyTennis(
+    context({ "syn16-r0-m2": liveRow("syn16-r0-m2", "4-6,1-0") }),
+    DEFAULT_IMPORTANCE
+  );
+  assert.equal(swingOn(unloaded, "syn16-r0-m2"), false);
+});
+
 test("with two leagues on one draw, a match keeps the more pressing bracket", () => {
   const view = assembleMyTennis(
     context({}, [

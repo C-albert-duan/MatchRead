@@ -6,6 +6,9 @@
  * keeps the bracket whose top reason is most pressing. A match point comes
  * from the side-a live score and the tournament's match format; a break point
  * stays null because the feed has no server (docs/v3-m4-decisions.md D-M4-1).
+ * A match swings when its result changes who is first in the bracket's league
+ * (`swingsFirstPlace`, D-M4-12); the loader passes league members only once
+ * the tournament is locked.
  */
 import {
   ceilingDeltaIfLost,
@@ -13,11 +16,13 @@ import {
   compareReasons,
   derivePointFlags,
   eliminatedRefs,
+  gradeBracket,
   leader,
   matchConsequence,
   matters,
   rankMyMatches,
   reasonsFor,
+  swingsFirstPlace,
   type BracketPicks,
   type CeilingInput,
   type DrawSeat,
@@ -27,6 +32,7 @@ import {
   type MatchStatus,
   type OfficialResults,
   type SetsToWin,
+  type SwingMember,
 } from "@matchread/core";
 import type { LiveDisplayState } from "../live/view.ts";
 
@@ -59,11 +65,21 @@ export type MyTennisTournament = {
   matches: MyTennisMatch[];
 };
 
+/** One league member's bracket on the same tournament, the user included. */
+export type MyTennisRival = {
+  memberId: string;
+  /** Season leagues: points from the league's other tournaments. Otherwise 0. */
+  otherPoints: number;
+  picks: BracketPicks;
+};
+
 export type MyTennisBracket = {
   bracketId: string;
   leagueId: string;
   tournamentRef: string;
   picks: BracketPicks;
+  /** League members for the swing reason. Empty before lock or in a solo league. */
+  league?: MyTennisRival[];
 };
 
 export type MyTennisContext = {
@@ -179,6 +195,13 @@ export function assembleMyTennis(ctx: MyTennisContext, config: ImportanceConfig)
     });
 
     const eliminated = eliminatedRefs(tournament.drawSize, tournament.seats, official);
+    const members: SwingMember[] = (bracket.league ?? []).map((rival) => ({
+      memberId: rival.memberId,
+      points:
+        rival.otherPoints +
+        gradeBracket({ drawSize: tournament.drawSize, picks: rival.picks, official }).score,
+      picks: rival.picks,
+    }));
     for (const match of tournament.matches) {
       const live = ctx.live[match.externalRef];
       const status = statusOf(match, live);
@@ -200,6 +223,13 @@ export function assembleMyTennis(ctx: MyTennisContext, config: ImportanceConfig)
                   setsToWin: tournament.setsToWin,
                 })
               : null,
+          swing:
+            status !== "final" &&
+            swingsFirstPlace(tournament.drawSize, members, {
+              matchKey: match.key,
+              sideARef: match.sideARef,
+              sideBRef: match.sideBRef,
+            }),
         },
         { drawSize: tournament.drawSize, picks: bracket.picks, eliminated }
       );

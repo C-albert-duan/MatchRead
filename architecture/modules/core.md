@@ -13,6 +13,7 @@ Export barrel: `packages/core/src/index.ts`.
 | Grading | `grade.ts`, `scoring.ts` | Grade picks vs official; round weights; champion bonus; rank |
 | Live brand | `live-trust.ts` | `LiveOnly<T>` is not assignable to an authoritative official result |
 | Live state | `live/state.ts`, `live/normalize.ts`, `live/point-flag.ts` | Canonical phase, sets, game points, serving side, and the phase flag. `derivePointFlags` reads side-oriented sets, the current game, serving, and sets-to-win. It returns a break point and a match point, or null. An unoriented score, a malformed game, a format other than sets-to-win 2 or 3, a 6-6 set, or a missing server on a break point is null. It does not read a provider label. `setsToWinFor(tour, tier)` gives the format: 3 for ATP Grand Slam, 2 for other tiers, null when either is missing |
+| League Swing | `live/swing.ts` | `swingsFirstPlace(drawSize, members, match)`: true when side a winning and side b winning leave different members tied for first, from banked totals plus that match's round weight (and the champion bonus on the final). Feeds the `swing` reason in `reasonsFor` |
 | Daily Check | `pulse.ts` | Narrative pulse from standings/results |
 | Engagement | `engagement.ts` | Bracket health / highlights |
 | Eligibility | `eligibility.ts` | `PUBLIC_TIERS` + `isBracketProduct` (mirrors SQL) |

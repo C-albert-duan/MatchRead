@@ -33,7 +33,7 @@ Elimination is derived from each player's seat path: a player is out once any ma
 | `future` | the user's pick for the sibling match (the parent's other feeder) | Yes |
 | `alone` | league pick aggregate, passed in by the server | When the caller supplies it |
 | `consensus` / `contrarian` | MatchRead-wide pick share, passed in by the server | When the caller supplies it |
-| `swing` | projected standings | Deferred (Handoff Phase 3) |
+| `swing` | league members' banked points and picks | Yes, after lock (D-M4-12) |
 | `daily` | Daily Picks | N/A in this repo (mobile only) |
 
 A missing input means that kind is never emitted. `reasonsFor` never guesses one.
@@ -65,3 +65,14 @@ Migration `0045` adds `stage_events` (own-row insert and read) and `stage_event_
 ## D-M4-11 Live re-ranking on `/me` is a throttled server refresh
 
 M4.5 asks for live patches to re-sort My Tennis with the same core function in the browser. Ranking reads the user's picks, the draw's seats and the importance config; shipping those to the client would put every bracket the user holds into the page payload. Instead, the live layer announces each paint (`mr:live-paint`), and `LiveRerank` refreshes the page only when a patch changes what ranking reads from a live match: whether it is live, and who leads (`leader`, sets then games, the same core function). The server then runs `assembleMyTennis` on the new live row, so the list, the Stage and Projected follow it; score ticks that keep the leader patch in place. Refreshes are at least 5 s apart. The 45 s background refresh stays as the floor. `MyMatchList` still keeps rows below the top three from moving under the reader.
+
+## D-M4-12 League Swing: the result changes who is first
+
+Added 2026-10-27. A match that is not final gets `kind: "swing"` (prio 3) when side a winning and side b winning leave different members first in the bracket's league. `swingsFirstPlace` in `packages/core/src/live/swing.ts` decides it.
+
+- **Standings are banked points, not projected.** Each member's total is their points from the league's other tournaments (season leagues: `season_points` minus this bracket's stored `points`; event leagues: 0) plus their bracket on this tournament graded on official results. Other live matches are not projected.
+- **One match at a time.** The winner adds its round weight to every member who picked them, plus the champion bonus on the final. No other match is assumed.
+- **First place is a set.** Members tied on the top score share first, so a tie breaking into a sole leader, or a sole leader becoming a tie, is a swing. The alphabetical tie-break `rankRows` uses for positions is not read.
+- **Season members without a bracket here still count** at their season total, since they can still be first.
+- **Only after lock.** `viewMyTennis` reads league members' brackets only when `isTournamentLocked` holds (tournament `lock_at` or the league's `locked_at`), so the reason never reflects picks that can still change. A solo league has no swing.
+- The reason names no member and no score; the copy is `me.reason.swing`. Swing does not trigger a live re-rank on its own: it depends on official results, which already refresh `/me`.

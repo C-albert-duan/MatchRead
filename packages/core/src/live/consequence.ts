@@ -5,9 +5,9 @@
  * them into copy in every locale. Priority 0 is the most pressing reason in
  * the product, and the list is sorted by ascending priority.
  *
- * A reason whose input is absent is never emitted. Point flags reach this
- * function only when the caller has them (replay today; see
- * docs/v3-m4-decisions.md D-M4-1).
+ * A reason whose input is absent is never emitted. Point flags and `swing`
+ * reach this function only when the caller has them (see
+ * docs/v3-m4-decisions.md D-M4-1 and D-M4-12).
  */
 
 import { buildRoundStructure, matchKey, type BracketPicks } from "../bracket";
@@ -57,6 +57,8 @@ export type ConsequenceMatch = {
   pickShare?: Readonly<Record<string, number>>;
   /** Players on which this user is the only member of their league. */
   aloneOn?: ReadonlySet<string>;
+  /** The result changes who is first in the bracket's league (`swingsFirstPlace`). */
+  swing?: boolean;
 };
 
 export type ConsequenceContext = {
@@ -171,6 +173,8 @@ export function reasonsFor(match: ConsequenceMatch, ctx: ConsequenceContext): Re
     else if (pressed(side)) add(2, "forward", { state: "pressure", playerRef: ref });
     else if (match.status !== "final") add(6, "forward", { state: "open", playerRef: ref });
   }
+
+  if (match.status !== "final" && match.swing === true) add(3, "swing", {});
 
   if (round < lastRound && match.status !== "final") {
     const sibling = ctx.picks[matchKey(round, index ^ 1)];
