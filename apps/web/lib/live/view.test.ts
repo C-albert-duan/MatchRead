@@ -88,8 +88,15 @@ test("tournament live state is read by public ref", async () => {
   assert.equal(JSON.stringify(state).includes("secret-id"), false);
   assert.equal(JSON.stringify(state).includes("internal-id"), false);
   assert.equal(calls.some((call) => call.startsWith("tournaments:slug=evt-1:id")), true);
+  // The snapshot carries the provider sequence (F-1) so frames held during a
+  // refetch order against it; ids still never leave the server.
   assert.equal(
-    calls.some((call) => call.startsWith("live_match_state:tournament_id=internal-id:") && !call.includes("sequence_source")),
+    calls.some(
+      (call) =>
+        call.startsWith("live_match_state:tournament_id=internal-id:") &&
+        call.includes("sequence_source") &&
+        !call.includes("match_id")
+    ),
     true
   );
   assert.equal(await readLiveTournamentState({ from: () => { throw new Error("no"); } }, "11111111-1111-4111-8111-111111111111"), null);

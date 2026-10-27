@@ -51,7 +51,10 @@ export function isLiveStale(
 
 /**
  * One cell. Official sheet wins. An older or equal provider clock does not replace
- * the cell. A snapshot refetch is the current row and may replace what the cell showed.
+ * the cell. A snapshot refetch is the current row and may replace what the cell
+ * showed, unless its provider clock is strictly older than the cell's: the stored
+ * row only moves forward on that clock (0037), so an older snapshot is a refetch
+ * that resolved after a newer frame had already painted.
  */
 export function acceptLiveEvent(input: {
   generation: number;
@@ -75,7 +78,13 @@ export function acceptLiveEvent(input: {
 
   if (input.generation !== input.currentGeneration) return skip("stale channel");
   if (input.cell.official) return skip("official");
-  if (!input.fromSnapshot) {
+  if (input.fromSnapshot) {
+    const prevClock = clockMs(input.cell.occurredAt);
+    const nextClock = clockMs(input.row.occurred_at);
+    if (prevClock != null && nextClock != null && nextClock < prevClock) {
+      return skip("older snapshot");
+    }
+  } else {
     const prevClock = clockMs(input.cell.occurredAt);
     const nextClock = clockMs(input.row.occurred_at);
     if (prevClock != null && nextClock != null) {

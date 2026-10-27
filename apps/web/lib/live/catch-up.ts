@@ -53,16 +53,20 @@ export function acceptVisibilityChange<T>(
 }
 
 /**
- * A frame while the tab is hidden, or while the foreground refetch is in flight,
- * is not queued. A visible live tab applies it. A tab still opening holds it
- * until the first snapshot.
+ * A frame while the tab is hidden is not queued: the foreground refetch reads
+ * the current projection instead. A frame that arrives after the tab is
+ * visible, while that refetch is in flight, is newer than or equal to the
+ * snapshot, so it is held and applied after it (dropping it left the cell on
+ * the older snapshot). A visible live tab applies a frame at once. A tab still
+ * opening holds it until the first snapshot.
  */
 export function deliverLiveChange<T>(
   sync: LiveSync<T>,
   change: T,
   gate: { hidden: boolean; recovering: boolean }
 ): { sync: LiveSync<T>; apply: T | null } {
-  if (gate.hidden || gate.recovering) return { sync, apply: null };
+  if (gate.hidden) return { sync, apply: null };
+  if (gate.recovering) return { sync: { phase: sync.phase, held: [...sync.held, change] }, apply: null };
   if (sync.phase !== "apply") return { sync: holdLivePatch(sync, change), apply: null };
   return { sync, apply: change };
 }
@@ -78,14 +82,18 @@ export function enterForeground<T>(sync: LiveSync<T>): {
 }
 
 /**
- * The foreground snapshot is on screen. Anything still queued is dropped.
+ * The foreground snapshot is on screen. Frames held during the refetch are
+ * released to apply through the normal ordering check; nothing missed while
+ * hidden is replayed. A channel that is not confirmed yet keeps its frames for
+ * its own first snapshot.
  */
 export function finishForegroundRefetch<T>(sync: LiveSync<T>): {
   sync: LiveSync<T>;
   replay: readonly T[];
+  patches: T[];
 } {
-  const flushed = projectionRefetched(sync);
-  return { sync: { phase: flushed.sync.phase, held: [] }, replay: [] };
+  if (sync.phase === "subscribe" || sync.phase === "confirm") return { sync, replay: [], patches: [] };
+  return { sync: { phase: "apply", held: [] }, replay: [], patches: sync.held };
 }
 
 /**

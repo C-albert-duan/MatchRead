@@ -414,6 +414,10 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
       sync = openLiveSync();
       confirmed.clear();
       refetchStarted = false;
+      // A new generation reads its own snapshot after subscribing. A foreground
+      // refetch from the old generation returns early and must not leave the
+      // layer stuck "recovering" (every later frame was dropped: V3-M4-DOD F-1).
+      recovering = false;
       const next = pageTournaments();
       expected = next.length;
       if (!alive) return;
@@ -439,7 +443,10 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
       void refetch(gen).finally(() => {
         if (!alive || gen !== generation) return;
         recovering = false;
-        sync = finishForegroundRefetch(sync).sync;
+        const finished = finishForegroundRefetch(sync);
+        sync = finished.sync;
+        if (!layerOpen) return;
+        for (const change of finished.patches) applyChange(gen, change);
       });
     }
 

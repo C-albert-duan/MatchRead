@@ -14,7 +14,7 @@
 | `ci:live-trust`, `ci:core-vocabulary`, `ci:consumer-boundary`, `verify:settlement`, lint, typecheck, build | **Pass** |
 | Playwright `my-tennis.spec.ts` | 4/4 **Pass** |
 | Playwright `raw-html.spec.ts` | 2/2 **Pass** (now seeds its own calendar row when the target is local) |
-| Playwright `live-client.spec.ts` | 6/6 on 8 of 10 runs. **2 failures**: the first run after `db reset` (cold Realtime, seen before), and 1 intermittent "shows stale" failure (see Finding F-1) |
+| Playwright `live-client.spec.ts` | Before the F-1 fix: 6/6 on 8 of 10 runs (one cold-Realtime failure after `db reset`, one intermittent "shows stale"). **After the fix: 20/20 consecutive runs** |
 
 ## Trust boundary
 
@@ -35,7 +35,7 @@
 | An eliminated champion zeroes every forward node naming them in one pass | **Pass** | `ceiling.test.ts` |
 | I1–I5 | **Pass** | Core and web property tests; BANKED equals `gradeBracket` at every frame |
 | I6 (duplicates cannot change official scoring) | **Pass** | Integration + `live-invariants.test.js` |
-| I7 (stale or out-of-order cannot roll the UI back) | **Partial** | Database (pgTAP `43`–`45`) and client patch tests pass; the browser shows an intermittent rollback by a snapshot paint (F-1) |
+| I7 (stale or out-of-order cannot roll the UI back) | **Pass** | pgTAP `43`–`45`; client patch tests; `snapshot-order.test.ts`; `live-client` 20/20 after the F-1 fix |
 | `reasonsFor` / `classify` deterministic, no clock reads | **Pass** | Determinism tests; no `Date.now`/`new Date()` in `packages/core/src/live` |
 | `flag` derived, never parsed; underivable is null | **Pass** | `point-flag.test.ts`. On real REST data it is always null (D-M4-1), so `critical` is unreachable there by design |
 | Latch documented; the settled-differs path exists | **Pass** | D-M4-6: first winner kept, `winner_conflict` in `ops_events`, founder tile |
@@ -86,7 +86,11 @@
 
 ## Findings
 
-**F-1. Intermittent snapshot rollback in the live layer (M3 code).** One warm `live-client` run failed "shows stale": the cell ended with `data-live-sequence="0"` and an older observation than the frame the test had just written. The spec writes only sequences 1–6; sequence 0 is what a `/api/live` snapshot paint produces (the snapshot carries no sequence), and snapshot paints skip the ordering check in `acceptLiveEvent` by design. A snapshot fetched before a newer realtime frame but applied after it can therefore paint older state over newer. Rate here: 1 in 9 warm runs. Suggested fix: carry `occurred_at`/`sequence` in the snapshot columns and let a snapshot paint only when it is not older than the cell, or drop realtime frames received during a refetch and re-request. Not changed in this pass.
+**F-1. Live layer stuck "recovering" (M3 code). Fixed.** Root cause, from a browser trace: a foreground refetch sets `recovering`; if the Realtime channel reconnected while it was in flight (`begin()` moved to a new generation), the refetch's `finally` returned early on the generation check and never cleared `recovering`. From then on every frame was dropped as "during recovery", so a cell could sit on older data than the database. Fix, with regression tests in `apps/web/lib/live/snapshot-order.test.ts`:
+- `begin()` resets `recovering`; a new generation reads its own snapshot.
+- Frames that arrive while a foreground refetch is in flight (after the tab is visible) are held and applied after the snapshot instead of dropped. Frames missed while hidden are still not replayed.
+- The `/api/live` snapshot carries `sequence` and `sequence_source`, so held frames order against what the snapshot painted (`view.test.ts` updated: ids still never leave the server).
+- A snapshot whose provider clock is strictly older than the cell's no longer paints over it (the stored row only moves forward on that clock, 0037). A lower sequence alone still lets a snapshot replace the cell, as before.
 
 **F-2. Cold Realtime after `db reset`.** The first `live-client` run after a reset fails test 1 while Realtime warms up; reruns pass. A warm-up subscription in the spec's `beforeAll` would remove the noise.
 
