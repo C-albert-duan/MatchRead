@@ -52,6 +52,7 @@ export type { LockFixture, LockTournament } from "./tournament/lock";
 
 export {
   computeAlive,
+  knownEliminated,
   detailBracketGrade,
   expectedPickCount,
   gradeBracket,

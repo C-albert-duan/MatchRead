@@ -19,7 +19,7 @@ A new authenticated Server Component route, `/me` ("My Tennis"), lists matches i
 
 `POINTS = { R16: 40, QF: 80, SF: 160, F: 320 }` from the prototype is **not** used. `ceiling.ts` uses `roundWeight(r) = 2^r` and the champion bonus from `grade.ts`, so at full settlement `banked` equals `gradeBracket(...).score`, and on an untouched complete bracket `ceiling` equals `maxBracketScore(drawSize)`.
 
-Elimination is derived from each player's seat path: a player is out once any match on their path has a different official winner. `gradeBracket().upside` is **not** reused for the Ceiling. Its `computeAlive` treats a player who has not yet won a match as not alive, so `upside` can rise when that player wins their first match, which would break invariant I2.
+Elimination is derived from each player's seat path: a player is out once any match on their path has a different official winner. `gradeBracket().upside` is **not** reused for the Ceiling. When M4 was built, its `computeAlive` treated a player who had not yet won a match as not alive, so `upside` could rise when that player won their first match, which would break invariant I2. F-3 later made `upside` a true remaining maximum (`knownEliminated`); it now equals Ceiling minus Banked on every replayed step, but the Ceiling keeps its own seat-path code, which also handles live leads.
 
 ## D-M4-4 Reason kinds this repo can feed
 

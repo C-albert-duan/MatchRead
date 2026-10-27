@@ -61,6 +61,27 @@ export function maxBracketScore(drawSize) {
   return total;
 }
 
+/** Players known to be out after the matches decided through `through` (see core grade.ts). */
+export function knownEliminated(drawSize, picks, official, through) {
+  const out = new Set();
+  for (const round of buildRoundStructure(drawSize)) {
+    if (round.index > through) break;
+    for (const match of round.matches) {
+      const o = official[match.key];
+      const winner = o?.winnerPlayerId;
+      if (!winner || o?.voided) continue;
+      const pick = picks[match.key];
+      if (pick && pick !== winner) out.add(pick);
+      if (round.index === 0) continue;
+      for (const feeder of [match.indexInRound * 2, match.indexInRound * 2 + 1]) {
+        const f = official[matchKey(round.index - 1, feeder)];
+        if (f?.winnerPlayerId && !f.voided && f.winnerPlayerId !== winner) out.add(f.winnerPlayerId);
+      }
+    }
+  }
+  return out;
+}
+
 export function computeAlive(drawSize, official, through) {
   const rounds = buildRoundStructure(drawSize);
   const alive = new Set();
@@ -150,17 +171,22 @@ export function gradeBracket(input) {
     score += championBonus;
   }
 
-  const alive = computeAlive(drawSize, official, through);
+  // Same rule as packages/core grade.ts (V3-M4-DOD F-3).
+  const out = knownEliminated(drawSize, picks, official, through);
+  const open = (key, round) => {
+    const o = official[key];
+    if (o?.voided) return false;
+    return round > through || !o?.winnerPlayerId;
+  };
   let upside = 0;
   for (const round of rounds) {
-    if (round.index <= through) continue;
     const w = roundWeight(round.index);
     for (const match of round.matches) {
       const pick = picks[match.key];
-      if (pick && alive.has(pick)) upside += w;
+      if (pick && !out.has(pick) && open(match.key, round.index)) upside += w;
     }
   }
-  if (through < lastRound && myChampion && alive.has(myChampion)) {
+  if (myChampion && !out.has(myChampion) && open(finalKey, lastRound)) {
     upside += championBonus;
   }
 
@@ -171,7 +197,7 @@ export function gradeBracket(input) {
     voided,
     upside,
     championPlayerId: myChampion,
-    championAlive: myChampion ? alive.has(myChampion) : null,
+    championAlive: myChampion ? !out.has(myChampion) : null,
     maxScore,
   };
 }

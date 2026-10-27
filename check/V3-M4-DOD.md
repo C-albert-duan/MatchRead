@@ -10,7 +10,7 @@
 |---|---|
 | pgTAP (`supabase test db`) | 32 files, 256 tests, **Pass** (includes `49` app_config, `50` stage_events) |
 | DB integration (absence-gap, live-ingest, provider-event-map) | 18/18 **Pass** |
-| Unit: core / web / provider / listener / scripts | 59 / 162 / 276 / 23 / 5, all **Pass** |
+| Unit: core / web / provider / listener / scripts | 64 / 162 / 276 / 23 / 5, all **Pass** |
 | `ci:live-trust`, `ci:core-vocabulary`, `ci:consumer-boundary`, `verify:settlement`, lint, typecheck, build | **Pass** |
 | Playwright `my-tennis.spec.ts` | 7/7 **Pass** (every rendered Stage state: morning, live, next, reckoning, empty) |
 | Playwright `raw-html.spec.ts` | 2/2 **Pass** (now seeds its own calendar row when the target is local) |
@@ -100,7 +100,11 @@
 - Tests: `channel.test.ts` (notice reported only for `postgres_changes` ok, and only while open) and `snapshot-order.test.ts`. `live-client.spec.ts` also pushes one warm-up frame in `beforeAll`.
 - Result: 10/10 `live-client` runs straight after `db reset`, where it had failed about one run in three.
 
-**F-3. `gradeBracket().upside` is not a ceiling.** It counts only players who have already won a match, so it is 0 before play and rises as results arrive. M4 does not use it (D-M4-3). Any existing screen showing "upside" as a remaining maximum understates it early in a draw.
+**F-3. `gradeBracket().upside` was not a remaining maximum. Fixed.** It counted only players who had won in the furthest round played. Before play it was 0, so `bracketHealth` read every bracket as finished and the league page showed **"In Trouble"** for all of them; early in each round it undercounted (a perfect 16-draw read 22 left to play for instead of 39 after one match), and Pulse's "N still to play for" lines showed the same wrong numbers. `championAlive` was also false before play. Fix:
+- `knownEliminated()` in `grade.ts`: a player is out once a decided match shows it (the other feeder winner, or a pick on that match that did not win it). `upside` counts every open match whose pick is not out, plus the champion bonus while the final is open; `championAlive` is "not out".
+- `perfectPicksRemaining()` uses the same rule (it undercounted the same way).
+- The Edge copy in `supabase/functions/_shared/core.js` changes in step.
+- Tests: `packages/core/src/upside.test.ts`: before play, early in a round, a beaten pick in all its later rounds, perfect picks remaining, and 200 replayed draws where `upside` equals M4's Ceiling minus Banked at every step, on both the core and Edge copies. All five failed on the old code.
 
 ## Still blocked on ops (unchanged)
 
