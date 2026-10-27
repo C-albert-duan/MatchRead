@@ -95,7 +95,7 @@ test("I1-I4 hold on the rendered view at every frame of a replayed day", () => {
     const context = (live: Record<string, LiveDisplayState>): MyTennisContext => ({
       brackets,
       tournaments: {
-        "syn-16": { id: "t-uuid", ref: "syn-16", name: "Synthetic", drawSize: 16, seats: sheet.seats, matches },
+        "syn-16": { id: "t-uuid", ref: "syn-16", name: "Synthetic", drawSize: 16, setsToWin: 2, seats: sheet.seats, matches },
       },
       live,
     });

@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
-import { derivePointFlags, type PointFlagInput } from "./point-flag.ts";
+import { derivePointFlags, setsToWinFor, type PointFlagInput } from "./point-flag.ts";
 
 /**
  * Supported formats are sets-to-win 2 or 3, and game tokens 0, 15, 30, 40, AD.
@@ -267,5 +267,20 @@ describe("captured scores", () => {
       assert.equal(games.has(game), true, game);
     }
     assert.equal([...scores].some((score) => /(^|,)(7-6|6-7)(,|$)/.test(score)), true);
+  });
+});
+
+describe("match format from the tournament row", () => {
+  it("is best of five only for men's Grand Slam singles", () => {
+    assert.equal(setsToWinFor("atp", "grand_slam"), 3);
+    assert.equal(setsToWinFor("wta", "grand_slam"), 2);
+    assert.equal(setsToWinFor("atp", "masters_1000"), 2);
+    assert.equal(setsToWinFor("wta", "tour_250"), 2);
+  });
+
+  it("is unknown without a tour or a tier", () => {
+    assert.equal(setsToWinFor(null, "grand_slam"), null);
+    assert.equal(setsToWinFor("atp", null), null);
+    assert.equal(setsToWinFor("itf", "itf"), null);
   });
 });

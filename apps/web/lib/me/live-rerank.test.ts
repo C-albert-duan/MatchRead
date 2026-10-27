@@ -18,10 +18,28 @@ test("a leader change, a match going live and a match leaving the live layer re-
 });
 
 test("the leader is read the same way as the server ranks: sets, then games", () => {
-  assert.deepEqual(liveMark(true, "6-3,2-4"), { live: true, lead: "a" });
-  assert.deepEqual(liveMark(true, "6-3,4-6,2-4"), { live: true, lead: "b" });
-  assert.deepEqual(liveMark(true, "garbage"), { live: true, lead: null });
-  assert.deepEqual(liveMark(false, "6-3"), { live: false, lead: null });
+  assert.equal(liveMark(true, "6-3,2-4").lead, "a");
+  assert.equal(liveMark(true, "6-3,4-6,2-4").lead, "b");
+  assert.equal(liveMark(true, "garbage").lead, null);
+  assert.deepEqual(liveMark(false, "6-3"), {
+    live: false,
+    lead: null,
+    matchPoint: null,
+    setsToWin: null,
+  });
+});
+
+test("a match point starting or ending re-ranks; the format comes from the server mark", () => {
+  const plain = liveMark(true, "6-3,5-2", "30-15", 2);
+  const point = liveMark(true, "6-3,5-2", "40-15", 2);
+  assert.equal(plain.matchPoint, null);
+  assert.equal(point.matchPoint, "a");
+  assert.equal(ranksMayChange(plain, point), true);
+  assert.equal(ranksMayChange(point, liveMark(true, "6-3,5-3", "0-0", 2)), true);
+  // Best of five: one set up is not a match point yet.
+  assert.equal(liveMark(true, "6-3,5-2", "40-15", 3).matchPoint, null);
+  // Unknown format derives nothing.
+  assert.equal(liveMark(true, "6-3,5-2", "40-15", null).matchPoint, null);
 });
 
 test("refreshes are spaced at least the minimum gap apart", () => {

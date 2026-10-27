@@ -34,6 +34,17 @@ export function setWinner(games: [number, number]): "a" | "b" | null {
   return null;
 }
 
+/**
+ * Match format from the tournament row. Men's Grand Slam singles is best of
+ * five; every other tour-level singles draw is best of three. An unknown tour
+ * or tier is null, so no match point is derived.
+ */
+export function setsToWinFor(tour: string | null, tier: string | null): SetsToWin | null {
+  if (tour !== "atp" && tour !== "wta") return null;
+  if (!tier) return null;
+  return tour === "atp" && tier === "grand_slam" ? 3 : 2;
+}
+
 function gamePointSide(game: string): ServingSide | null {
   if (!/^(0|15|30|40|AD)-(0|15|30|40|AD)$/.test(game)) return null;
   const parts = game.split("-");

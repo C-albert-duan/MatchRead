@@ -7,8 +7,9 @@ import { liveMark, ranksMayChange, refreshDelay, type LiveMark } from "@/lib/me/
 
 /**
  * Re-ranks My Tennis when a live patch changes what the ranking reads: a
- * match going live or ending, or the leader changing. Score ticks that keep
- * the same leader only patch in place. `marks` is what the server ranked on.
+ * match going live or ending, the leader changing, or a match point starting
+ * or ending. Other score ticks only patch in place. `marks` is what the
+ * server ranked on.
  */
 export function LiveRerank({ marks }: { marks: Record<string, LiveMark> }) {
   const router = useRouter();
@@ -21,8 +22,9 @@ export function LiveRerank({ marks }: { marks: Record<string, LiveMark> }) {
     const onPaint = (event: Event) => {
       const detail = (event as CustomEvent<LivePaintDetail>).detail;
       if (!detail?.ref || !known.current.has(detail.ref)) return;
-      const next = liveMark(detail.live, detail.sets);
-      if (!ranksMayChange(known.current.get(detail.ref), next)) return;
+      const previous = known.current.get(detail.ref);
+      const next = liveMark(detail.live, detail.sets, detail.game, previous?.setsToWin ?? null);
+      if (!ranksMayChange(previous, next)) return;
       known.current.set(detail.ref, next);
       if (timer != null) return;
       timer = window.setTimeout(() => {

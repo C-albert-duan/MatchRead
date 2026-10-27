@@ -79,7 +79,7 @@ export {
   liveFlag,
   normalizeLiveMatchState,
 } from "./live/normalize";
-export { derivePointFlags, setWinner } from "./live/point-flag";
+export { derivePointFlags, setsToWinFor, setWinner } from "./live/point-flag";
 export type { PointFlagInput } from "./live/point-flag";
 export {
   ceilingDeltaIfLost,

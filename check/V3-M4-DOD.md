@@ -40,7 +40,7 @@
 | I6 (duplicates cannot change official scoring) | **Pass** | Integration + `live-invariants.test.js` |
 | I7 (stale or out-of-order cannot roll the UI back) | **Pass** | pgTAP `43`–`45`; client patch tests; `snapshot-order.test.ts`; `live-client` 20/20 after the F-1 fix |
 | `reasonsFor` / `classify` deterministic, no clock reads | **Pass** | Determinism tests; no `Date.now`/`new Date()` in `packages/core/src/live` |
-| `flag` derived, never parsed; underivable is null | **Pass** | `point-flag.test.ts`. On real REST data it is always null (D-M4-1), so `critical` is unreachable there by design |
+| `flag` derived, never parsed; underivable is null | **Pass** | `point-flag.test.ts`. Match point is derived on real data from the tournament format (D-M4-1, revised 2026-10-27; `my-tennis.test.ts`, `live-rerank.test.ts`); break point stays null without a server |
 | Latch documented; the settled-differs path exists | **Pass** | D-M4-6: first winner kept, `winner_conflict` in `ops_events`, founder tile |
 | Projected standings never write a settled number | **N/A** | Deferred (Handoff Phase 3) |
 

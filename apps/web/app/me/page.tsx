@@ -41,7 +41,10 @@ export default async function MyTennisPage() {
   const marks = Object.fromEntries(
     view.rows
       .filter((row) => row.status !== "final")
-      .map((row) => [row.matchRef, liveMark(row.status === "live", row.live?.sets)])
+      .map((row) => [
+        row.matchRef,
+        liveMark(row.status === "live", row.live?.sets, row.live?.game, row.setsToWin),
+      ])
   );
   const tournamentName =
     view.rows.find((row) => row.tournamentRef === model.triad?.tournamentRef)?.tournamentName ?? "";

@@ -3,13 +3,15 @@
  *
  * One row per match the user has a stake in, ranked by `rankMyMatches`. When
  * the user holds brackets in several leagues for one tournament, a match
- * keeps the bracket whose top reason is most pressing. Point flags are null
- * on real data (docs/v3-m4-decisions.md D-M4-1).
+ * keeps the bracket whose top reason is most pressing. A match point comes
+ * from the side-a live score and the tournament's match format; a break point
+ * stays null because the feed has no server (docs/v3-m4-decisions.md D-M4-1).
  */
 import {
   ceilingDeltaIfLost,
   ceilingMaths,
   compareReasons,
+  derivePointFlags,
   eliminatedRefs,
   leader,
   matchConsequence,
@@ -24,6 +26,7 @@ import {
   type MatchConsequence,
   type MatchStatus,
   type OfficialResults,
+  type SetsToWin,
 } from "@matchread/core";
 import type { LiveDisplayState } from "../live/view.ts";
 
@@ -50,6 +53,8 @@ export type MyTennisTournament = {
   ref: string;
   name: string;
   drawSize: number;
+  /** From tour and tier; null leaves match points underived. */
+  setsToWin: SetsToWin | null;
   seats: DrawSeat[];
   matches: MyTennisMatch[];
 };
@@ -89,6 +94,7 @@ export type MyMatchRow = {
   winnerRef: string | null;
   officialScore: string | null;
   live: Pick<LiveDisplayState, "phase" | "sets" | "game" | "serving" | "receivedAt"> | null;
+  setsToWin: SetsToWin | null;
   consequence: MatchConsequence;
   /** Clears MATTERS_FLOOR; the list shows only these. */
   matters: boolean;
@@ -184,7 +190,16 @@ export function assembleMyTennis(ctx: MyTennisContext, config: ImportanceConfig)
           sideBRef: match.sideBRef,
           winnerRef: match.winnerRef,
           leader: status === "live" ? leader(live?.sets) : null,
-          pointFlags: null,
+          pointFlags:
+            status === "live" && live
+              ? derivePointFlags({
+                  oriented: true,
+                  sets: live.sets,
+                  game: live.game,
+                  serving: live.serving,
+                  setsToWin: tournament.setsToWin,
+                })
+              : null,
         },
         { drawSize: tournament.drawSize, picks: bracket.picks, eliminated }
       );
@@ -227,6 +242,7 @@ export function assembleMyTennis(ctx: MyTennisContext, config: ImportanceConfig)
                 receivedAt: live.receivedAt,
               }
             : null,
+        setsToWin: tournament.setsToWin,
         consequence: matchConsequence(
           {
             matchRef: match.externalRef,

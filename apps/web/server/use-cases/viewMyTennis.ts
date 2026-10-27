@@ -7,6 +7,7 @@
  * core `rankMyMatches`, so a refetch is not needed for every point.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { setsToWinFor } from "@matchread/core";
 import { loadTournamentReadModel, projectMemberPicks } from "../../lib/brackets/read-model.ts";
 import {
   assembleMyTennis,
@@ -32,7 +33,14 @@ type BracketRow = {
   picks: Parameters<typeof projectMemberPicks>[0];
 };
 
-type TournamentRow = { id: string; slug: string; name: string; draw_size: number | null };
+type TournamentRow = {
+  id: string;
+  slug: string;
+  name: string;
+  draw_size: number | null;
+  tour: string | null;
+  tier: string | null;
+};
 
 function yesterday(now: Date): string {
   return new Date(now.getTime() - 86_400_000).toISOString().slice(0, 10);
@@ -58,7 +66,7 @@ async function loadContext(
 
   const { data: tournamentData, error: tournamentError } = await supabase
     .from("tournaments")
-    .select("id, slug, name, draw_size")
+    .select("id, slug, name, draw_size, tour, tier")
     .in("id", tournamentIds)
     .gte("ends_on", yesterday(now));
   if (tournamentError) throw new Error(`my tournaments: ${tournamentError.message}`);
@@ -90,6 +98,7 @@ async function loadContext(
         ref: row.slug,
         name: row.name,
         drawSize: row.draw_size as number,
+        setsToWin: setsToWinFor(row.tour, row.tier),
         seats: model.seats,
         matches,
       };

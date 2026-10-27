@@ -19,6 +19,7 @@ const tournament: MyTennisTournament = {
   ref: "syn-16",
   name: "Synthetic Bracket",
   drawSize: 16,
+  setsToWin: 2,
   seats: sheet.seats,
   matches: sheet.matches.map((match) => ({
     key: match.key,
@@ -53,12 +54,12 @@ function picks(side: "a" | "b"): BracketPicks {
   return out;
 }
 
-function liveRow(ref: string, sets: string): LiveDisplayState {
+function liveRow(ref: string, sets: string, game = "15-30"): LiveDisplayState {
   return {
     publicRef: ref,
     phase: "in_play",
     sets: sets as LiveDisplayState["sets"],
-    game: "15-30" as LiveDisplayState["game"],
+    game: game as LiveDisplayState["game"],
     serving: null,
     flag: "live",
     provisionalWinner: null,
@@ -100,6 +101,37 @@ test("a trailing live pick ranks first and a settled win with no stake is absent
   assert.equal(view.rows[0].live?.sets, "4-6,1-0");
   assert.equal(view.rows[0].matters, true);
   assert.ok(!view.rows.some((row) => row.matchRef === "syn16-r0-m0"));
+});
+
+test("match point against a live pick is the top reason and reads as critical", () => {
+  const view = assembleMyTennis(
+    context({ "syn16-r0-m2": liveRow("syn16-r0-m2", "4-6,2-5", "15-40") }),
+    DEFAULT_IMPORTANCE
+  );
+  const row = view.rows[0];
+  assert.equal(row.matchRef, "syn16-r0-m2");
+  assert.deepEqual(row.consequence.reasons[0], {
+    prio: 0,
+    kind: "flag",
+    params: { flag: "match-point", against: true, playerRef: "syn16-p05" },
+  });
+  assert.equal(row.consequence.importance, "critical");
+
+  // Best of five, one set down: the same game is not a match point.
+  const fiveSets = assembleMyTennis(
+    {
+      ...context({ "syn16-r0-m2": liveRow("syn16-r0-m2", "4-6,2-5", "15-40") }),
+      tournaments: { "syn-16": { ...tournament, setsToWin: 3 } },
+    },
+    DEFAULT_IMPORTANCE
+  );
+  assert.notEqual(fiveSets.rows[0].consequence.reasons[0].kind, "flag");
+  // No server in the feed, so no break point at 15-40 in an early game.
+  const early = assembleMyTennis(
+    context({ "syn16-r0-m2": liveRow("syn16-r0-m2", "4-6,1-1", "15-40") }),
+    DEFAULT_IMPORTANCE
+  );
+  assert.ok(!early.rows[0].consequence.reasons.some((reason) => reason.kind === "flag"));
 });
 
 test("scheduled picks are rows below the floor, so the countdown can still find them", () => {

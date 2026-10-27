@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, it } from "node:test";
 import { normalizePairKey } from "./event-mapper.js";
 import { parseMatchId } from "./live.js";
-import { liveRowsFromNdjson } from "./live-frame.js";
+import { liveRowsFromNdjson, orientScoreText } from "./live-frame.js";
 import { normalizeCapturedFrame } from "./live-normalize.js";
 import { m1CaptureSkip } from "./live-replay-harness.js";
 
@@ -326,8 +326,9 @@ describe("I5 normalizer fixtures", () => {
       const other = guarded.value.swapped[index];
       assert.equal(other.ok, true, shape);
       assert.equal(other.state.matchId, state.matchId, shape);
-      assert.equal(other.state.sets, state.sets, shape);
-      assert.equal(other.state.game, state.game, shape);
+      // Swapped sides read the same frame from the other side.
+      assert.equal(other.state.sets, orientScoreText(state.sets, "swap"), shape);
+      assert.equal(other.state.game, orientScoreText(state.game, "swap"), shape);
       assert.equal(other.state.serving, null, shape);
       if (state.game && /^(40-(0|15|30)|AD-40|(0|15|30)-40|40-AD)$/.test(state.game)) {
         breakShaped += 1;

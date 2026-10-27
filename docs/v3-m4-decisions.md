@@ -3,13 +3,15 @@
 **Date:** 2026-10-26. **Basis:** `main` @ `2756218` (migration head `0043`, pgTAP up to `48`).
 Each decision applies the recommended default from the remaining-work plan (Phase 2). Revisit a decision here before changing code that depends on it.
 
-## D-M4-1 Point flags: ship without them on real data
+## D-M4-1 Point flags: match point on real data, break point not yet
 
-REST live rows carry neither sets-to-win nor a server id, so `live-normalize.js` sets `pointFlags: null` (see `provider-capture-findings.md`). M4 ships with that as it stands.
+REST live rows carry neither sets-to-win nor a server id (see `provider-capture-findings.md`). M4 first shipped with `pointFlags: null` everywhere. Revised 2026-10-27:
 
-- `reasonsFor` emits `kind: "flag"` only when the caller passes `pointFlags`. Replay and tests can do that; real ingest cannot yet.
-- `classify` returns `critical` only for a `flag` reason, so `critical` is unreachable on real data. That is the intended degraded mode, not a bug.
-- Revisit when a socket feed (MEGA decision) or a reliable server indicator exists. Persisting flags would then be migration `0044_live_point_flags.sql`.
+- **Match point is derived at read time.** `assembleMyTennis` calls `derivePointFlags` on the stored live row with sets-to-win from `setsToWinFor(tour, tier)`: 3 for `atp` + `grand_slam`, 2 for any other tier, null (no match point) when tour or tier is missing. Nothing new is stored, so no migration.
+- **Scores are stored from side a.** The live row lists the provider's first player on the left. Pair mapping is order-free, so a match could hold that player as side b and the stored score read backwards. Before this, Projected, `leader` and the pressure reasons could credit the wrong player on such a match. `projectLiveFrame` and `normalizeCapturedFrame` now swap `score_text` and `points_text` when the first player (`matchId` segment 1) is side b. When the first player is not one of the sides (an event-mapped frame whose id names no players), the provider order is kept as before.
+- **Break point stays null.** It needs the server, and `indicator` is not a server. Revisit when a socket feed (MEGA decision) or a reliable server indicator exists.
+- `classify` returns `critical` for a match point against the user's pick. The Stage maps `urgent` to the calm `live` treatment, so the effect is the top row and the Stage focus, not a takeover.
+- `LiveRerank` refreshes `/me` when a patch starts or ends a match point (D-M4-11). The server mark carries the format so the client can re-derive it.
 
 ## D-M4-2 The Stage lives on `/me`
 
@@ -25,7 +27,7 @@ Elimination is derived from each player's seat path: a player is out once any ma
 
 | kind | Source | Status |
 |---|---|---|
-| `flag` | `pointFlags` | Replay only (D-M4-1) |
+| `flag` | `pointFlags` | Match point yes; break point replay only (D-M4-1) |
 | `champion` | the user's final pick | Yes |
 | `forward` | the user's picks at or after this round naming either entrant | Yes |
 | `future` | the user's pick for the sibling match (the parent's other feeder) | Yes |
