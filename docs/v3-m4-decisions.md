@@ -59,3 +59,7 @@ The plan's `bracket_forward_exposure (match_id, bracket_id, forward_node_id, pts
 ## D-M4-10 `stage_events` and founder tiles
 
 Migration `0045` adds `stage_events` (own-row insert and read) and `stage_event_rates(since)`, which returns aggregates only. `/founder/integrity` shows Stage changes in the last 24 h, the busiest user-hour (event mark above 2), and `winner_conflict` rows in the last 7 days (error mark at 1 or more). Both tiles read apart from the page's main load, so a database without `0045` shows "none" instead of failing.
+
+## D-M4-11 Live re-ranking on `/me` is a throttled server refresh
+
+M4.5 asks for live patches to re-sort My Tennis with the same core function in the browser. Ranking reads the user's picks, the draw's seats and the importance config; shipping those to the client would put every bracket the user holds into the page payload. Instead, the live layer announces each paint (`mr:live-paint`), and `LiveRerank` refreshes the page only when a patch changes what ranking reads from a live match: whether it is live, and who leads (`leader`, sets then games, the same core function). The server then runs `assembleMyTennis` on the new live row, so the list, the Stage and Projected follow it; score ticks that keep the leader patch in place. Refreshes are at least 5 s apart. The 45 s background refresh stays as the floor. `MyMatchList` still keeps rows below the top three from moving under the reader.

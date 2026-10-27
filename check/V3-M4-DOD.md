@@ -2,7 +2,7 @@
 
 **Run:** 2026-10-26, branch `v3/m4-core` (`main` @ `2756218` + M4 commits), local Supabase after a fresh `db reset`.
 **Verdicts:** **Pass**, **Partial**, **Blocked** (ops or a missing input, not code), **N/A** (deferred by the plan or not in this repo).
-**Decisions referenced:** [`docs/v3-m4-decisions.md`](../docs/v3-m4-decisions.md) (D-M4-1 … D-M4-10).
+**Decisions referenced:** [`docs/v3-m4-decisions.md`](../docs/v3-m4-decisions.md) (D-M4-1 … D-M4-11).
 
 ## Evidence from this run
 
@@ -10,13 +10,14 @@
 |---|---|
 | pgTAP (`supabase test db`) | 32 files, 256 tests, **Pass** (includes `49` app_config, `50` stage_events) |
 | DB integration (absence-gap, live-ingest, provider-event-map) | 18/18 **Pass** |
-| Unit: core / web / provider / listener / scripts | 64 / 162 / 276 / 23 / 5, all **Pass** |
+| Unit: core / web / provider / listener / scripts | 64 / 166 / 276 / 23 / 5, all **Pass** |
 | `ci:live-trust`, `ci:core-vocabulary`, `ci:consumer-boundary`, `verify:settlement`, lint, typecheck, build | **Pass** |
-| Playwright `my-tennis.spec.ts` | 7/7 **Pass** (every rendered Stage state: morning, live, next, reckoning, empty) |
+| Playwright `my-tennis.spec.ts` | 8/8 **Pass** (every rendered Stage state: morning, live, next, reckoning, empty; and a live leader change re-ranks without a reload) |
 | Playwright `raw-html.spec.ts` | 2/2 **Pass** (now seeds its own calendar row when the target is local) |
 | Playwright `live-client.spec.ts` | Before the F-1 fix: 6/6 on 8 of 10 runs (one cold-Realtime failure after `db reset`, one intermittent "shows stale"). After the F-1 fix: 20/20 warm runs. **After the F-2 fix: 10/10 runs each straight after `db reset`, plus 10/10 warm** |
 | Playwright `founder-stage.spec.ts` | 1/1 **Pass** (`/founder/integrity` as a founder: 3 Stage changes, busiest user-hour 3, event mark) |
 | Playwright combined `my-tennis` + `raw-html` | 5 runs, 44/45: one failure in the first run after the live-client loop was not captured and did not recur in 4 reruns (36/36) |
+| Playwright, all four local specs together | 3 runs on the final build, 17/17 each (51/51). With `LiveRerank` removed, the re-rank test fails as it should ("under pressure" still shown after 15 s) |
 
 ## Trust boundary
 
@@ -105,6 +106,10 @@
 - `perfectPicksRemaining()` uses the same rule (it undercounted the same way).
 - The Edge copy in `supabase/functions/_shared/core.js` changes in step.
 - Tests: `packages/core/src/upside.test.ts`: before play, early in a round, a beaten pick in all its later rounds, perfect picks remaining, and 200 replayed draws where `upside` equals M4's Ceiling minus Banked at every step, on both the core and Edge copies. All five failed on the old code.
+
+**F-4. `/me` did not re-rank on live patches.** Scores patched in place, but the order, reasons, the Stage and Projected only followed on the 45 s background refresh, so a match that turned pressing could wait up to 45 s to rise. Fixed per D-M4-11: the live layer announces each paint (`lib/live/paint-event.ts`), and `LiveRerank` refreshes `/me` when a patch changes whether a match is live or who leads (core `leader`), at most every 5 s. Tests: `lib/me/live-rerank.test.ts` and `my-tennis.spec.ts` "a live leader change re-ranks the page without a reload" (passes in about 1 s; fails without the component).
+
+**F-5. Untranslated founder caption.** `/founder/integrity` showed a hard-coded English "freshness" in two places. Now `founder.integrity.freshnessWarning` in en/es/ja.
 
 ## Still blocked on ops (unchanged)
 

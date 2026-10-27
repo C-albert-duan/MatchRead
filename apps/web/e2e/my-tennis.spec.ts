@@ -253,6 +253,47 @@ test("in play: the champion's match leads the Stage and the list, with its reaso
   await context.close();
 });
 
+test("a live leader change re-ranks the page without a reload", async ({ browser }) => {
+  await beat("up");
+  const context = await browser.newContext({ baseURL: BASE });
+  await signIn(context);
+  const page = await context.newPage();
+  await page.goto("/me");
+  const stage = page.locator(".stage");
+  await expect(stage.locator(".my-row-reason")).toHaveText("Your champion Cole is under pressure");
+  await expect(stage.locator("[data-live-badge]")).toBeVisible({ timeout: 20_000 });
+  await page.evaluate(() => {
+    (window as unknown as { __noReload: boolean }).__noReload = true;
+  });
+
+  // Cole takes the lead: the reason is recomputed on the server and the page
+  // follows well inside the 45 s background refresh.
+  await rest(
+    "live_match_state",
+    {
+      match_id: liveMatchId,
+      tournament_id: tournamentId,
+      public_ref: `${SLUG}-r0-m1`,
+      phase: "in_play",
+      score_text: "6-3,2-1",
+      points_text: "15-0",
+      sequence: 2,
+      sequence_source: "seq",
+      frame_key: "me-spec-2",
+      source: "replay",
+      received_at: new Date().toISOString(),
+      flag: "live",
+    },
+    "on_conflict=match_id",
+    "POST",
+    "resolution=merge-duplicates,return=minimal"
+  );
+  await expect(stage.locator(".my-row-reason")).toHaveText("Your champion Cole is on court", { timeout: 15_000 });
+  // Same document: re-ranked in place, not reloaded.
+  expect(await page.evaluate(() => (window as unknown as { __noReload?: boolean }).__noReload)).toBe(true);
+  await context.close();
+});
+
 /** The bracket context is cached per user for 15 s, so reload until the Stage moves. */
 async function reloadUntil(page: Page, treatment: string) {
   await expect

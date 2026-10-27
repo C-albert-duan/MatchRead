@@ -290,7 +290,7 @@ export default async function FounderIntegrityPage() {
                     : `${health.providerFreshness.lagMs} ms`}
                 </dd>
                 {health.providerFreshness.drawFreshness ? (
-                  <dd className="t-caption">freshness</dd>
+                  <dd className="t-caption">{t("founder.integrity.freshnessWarning")}</dd>
                 ) : null}
               </div>
             ) : null}
@@ -390,7 +390,7 @@ export default async function FounderIntegrityPage() {
                         — {blocking.map((b: { code?: string }) => b.code).join(", ")}
                       </span>
                     ) : null}
-                    {freshness ? <span className="t-caption"> freshness</span> : null}
+                    {freshness ? <span className="t-caption"> {t("founder.integrity.freshnessWarning")}</span> : null}
                   </li>
                 );
               })}

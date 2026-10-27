@@ -5,11 +5,13 @@ import { CeilingTriad } from "@/components/me/CeilingTriad";
 import { MatchRow } from "@/components/me/MatchRow";
 import { MyMatchList } from "@/components/me/MyMatchList";
 import { Stage } from "@/components/me/Stage";
+import { LiveRerank } from "@/components/me/LiveRerank";
 import { StageBeacon } from "@/components/me/StageBeacon";
 import { ViewerClocks } from "@/components/me/ViewerClocks";
 import { AppShell } from "@/components/shell/AppShell";
 import { getSessionUser } from "@/lib/auth";
 import { getLocale, t } from "@/lib/i18n";
+import { liveMark } from "@/lib/me/live-rerank";
 import { stageModel } from "@/lib/me/stage-policy";
 import { publicPageMetadata } from "@/lib/seo";
 import { createClient } from "@/lib/supabase/server";
@@ -36,6 +38,11 @@ export default async function MyTennisPage() {
   const view = await viewMyTennis(createClient() as unknown as SupabaseClient, user.id, { now });
   const model = stageModel(view, now);
   const listed = view.rows.filter((row) => row.matters);
+  const marks = Object.fromEntries(
+    view.rows
+      .filter((row) => row.status !== "final")
+      .map((row) => [row.matchRef, liveMark(row.status === "live", row.live?.sets)])
+  );
   const tournamentName =
     view.rows.find((row) => row.tournamentRef === model.triad?.tournamentRef)?.tournamentName ?? "";
 
@@ -51,6 +58,7 @@ export default async function MyTennisPage() {
 
           <Stage model={model} names={view.names} now={now} />
           <StageBeacon state={model.state} matchRef={model.focus?.matchRef ?? null} />
+          <LiveRerank marks={marks} />
 
           {model.triad ? <CeilingTriad triad={model.triad} tournamentName={tournamentName} /> : null}
 

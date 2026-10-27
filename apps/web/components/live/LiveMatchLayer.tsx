@@ -29,6 +29,7 @@ import {
   type LiveRow,
 } from "@/lib/live/patch";
 import { knownServingSide, liveScoreFields, type LiveScoreFields } from "@/lib/live/score";
+import { LIVE_PAINT_EVENT } from "@/lib/live/paint-event";
 import { isPublicMatchRef } from "@/lib/tournaments/href";
 import {
   liveTournamentWatches,
@@ -47,6 +48,11 @@ type Labels = {
 };
 
 const reportedAt = new Map<string, number>();
+
+/** Tells listeners such as My Tennis re-ranking what a cell now shows. */
+function announcePaint(ref: string, live: boolean, sets: string | null) {
+  window.dispatchEvent(new CustomEvent(LIVE_PAINT_EVENT, { detail: { ref, live, sets } }));
+}
 
 function reportLive(source: string, message: string) {
   const now = Date.now();
@@ -267,6 +273,7 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
         if (fields !== undefined) painted = fields;
       }
       if (painted === undefined) return;
+      announcePaint(row.public_ref, true, row.score_text);
       if (!painted) {
         dropScore(row.public_ref);
         return;
@@ -306,7 +313,10 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
             if (!cell.hasAttribute("data-live-sequence")) continue;
             const ref = cell.getAttribute("data-public-ref");
             clearPaint(cell);
-            if (ref) dropScore(ref);
+            if (ref) {
+              dropScore(ref);
+              announcePaint(ref, false, null);
+            }
             dropped = true;
           }
           if (dropped) revealOfficialSheet();
@@ -331,6 +341,7 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
         if (cell.hasAttribute("data-live-sequence")) {
           clearPaint(cell);
           dropScore(ref);
+          announcePaint(ref, false, null);
           dropped = true;
         }
       }
@@ -355,6 +366,7 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
         }
         if (cleared && previous) {
           dropScore(previous.public_ref);
+          announcePaint(previous.public_ref, false, null);
           publishDelay();
           revealOfficialSheet();
         }
