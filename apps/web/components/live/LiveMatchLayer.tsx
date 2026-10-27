@@ -12,7 +12,9 @@ import {
   finishForegroundRefetch,
   openLiveSync,
   projectionRefetched,
+  snapshotAfterPostgresReady,
   subscriptionConfirmed,
+  type FirstSnapshot,
   subscriptionOpened,
   type LiveSync,
 } from "@/lib/live/catch-up";
@@ -156,17 +158,20 @@ function LiveTournamentChannel({
   onChange,
   onSubscribed,
   onDisconnect,
+  onPostgresReady,
 }: {
   watch: LiveTournamentWatch;
   generation: number;
   onChange: (generation: number, change: LiveTournamentChange) => void;
   onSubscribed: (generation: number, ref: string) => void;
   onDisconnect: (status: string) => void;
+  onPostgresReady: (generation: number) => void;
 }) {
   useLiveTournament(watch.ref, watch.tournamentId, {
     onChange: (change) => onChange(generation, change),
     onSubscribed: () => onSubscribed(generation, watch.ref),
     onDisconnect,
+    onPostgresReady: () => onPostgresReady(generation),
   });
   return null;
 }
@@ -183,6 +188,7 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
   const onChangeRef = useRef<(generation: number, change: LiveTournamentChange) => void>(() => {});
   const onSubscribedRef = useRef<(generation: number, ref: string) => void>(() => {});
   const onDisconnectRef = useRef<(status: string) => void>(() => {});
+  const onPostgresReadyRef = useRef<(generation: number) => void>(() => {});
 
   useEffect(() => {
     const labels: Labels = { live, stale, delayed, lastUpdated, provisional, serving };
@@ -194,6 +200,8 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
     let expected = 0;
     const confirmed = new Set<string>();
     let refetchStarted = false;
+    let firstSnapshot: FirstSnapshot = "pending";
+    let snapshotAgain = false;
     let recovering = false;
     let failures = 0;
     let lastFreshAt: number | null = null;
@@ -374,6 +382,7 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
       sync = subscriptionConfirmed(sync);
       if (sync.phase !== "refetch") return;
       refetchStarted = true;
+      firstSnapshot = "in-flight";
       failures = 0;
       if (timer != null) {
         window.clearTimeout(timer);
@@ -381,11 +390,23 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
       }
       void refetch(gen).finally(() => {
         if (!alive || gen !== generation) return;
+        firstSnapshot = "done";
         const flushed = projectionRefetched(sync);
         sync = flushed.sync;
+        if (snapshotAgain) {
+          snapshotAgain = false;
+          void refetch(gen);
+        }
         if (!layerOpen) return;
         for (const change of flushed.patches) applyChange(gen, change);
       });
+    };
+
+    onPostgresReadyRef.current = (gen) => {
+      if (gen !== generation) return;
+      const next = snapshotAfterPostgresReady(firstSnapshot);
+      if (next === "after-first") snapshotAgain = true;
+      else if (next === "now") void refetch(gen);
     };
 
     onDisconnectRef.current = (status) => {
@@ -414,6 +435,8 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
       sync = openLiveSync();
       confirmed.clear();
       refetchStarted = false;
+      firstSnapshot = "pending";
+      snapshotAgain = false;
       // A new generation reads its own snapshot after subscribing. A foreground
       // refetch from the old generation returns early and must not leave the
       // layer stuck "recovering" (every later frame was dropped: V3-M4-DOD F-1).
@@ -534,6 +557,7 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
           onChange={(generation, change) => onChangeRef.current(generation, change)}
           onSubscribed={(generation, ref) => onSubscribedRef.current(generation, ref)}
           onDisconnect={(status) => onDisconnectRef.current(status)}
+          onPostgresReady={(generation) => onPostgresReadyRef.current(generation)}
         />
       ))}
     </>

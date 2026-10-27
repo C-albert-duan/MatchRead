@@ -104,3 +104,17 @@ export function projectionRefetched<T>(sync: LiveSync<T>): { sync: LiveSync<T>; 
   if (sync.phase !== "refetch") return { sync, patches: [] };
   return { sync: { phase: "apply", held: [] }, patches: sync.held };
 }
+
+export type FirstSnapshot = "pending" | "in-flight" | "done";
+
+/**
+ * Realtime replies to the join before Postgres changes start flowing; the
+ * "Subscribed to PostgreSQL" notice marks the start. A row written between
+ * the first snapshot's read and that notice reaches neither, so read once
+ * more when the notice comes after the snapshot started. Before it started,
+ * that snapshot is late enough on its own.
+ */
+export function snapshotAfterPostgresReady(first: FirstSnapshot): "none" | "after-first" | "now" {
+  if (first === "pending") return "none";
+  return first === "in-flight" ? "after-first" : "now";
+}

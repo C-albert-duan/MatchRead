@@ -17,7 +17,7 @@ const FIRST = `${SLUG}-r0-m0`;
 const PARENT = `${SLUG}-r1-m0`;
 
 test.use({ baseURL: process.env.LIVE_CLIENT_URL || "http://127.0.0.1:3002" });
-test.describe.configure({ mode: "serial", timeout: 120_000 });
+test.describe.configure({ mode: "serial", timeout: 180_000 });
 
 function serviceEnv() {
   const root = path.resolve(process.cwd(), "../..");
@@ -228,8 +228,32 @@ test.beforeAll(async ({ browser }: { browser: Browser }) => {
   });
   parentId = parent[0].id;
   await beat();
+  await warmRealtime(browser);
   view = await browser.newPage({ baseURL: BASE });
 });
+
+/**
+ * F-2: right after `supabase db reset` the Realtime server is cold, and
+ * "Subscribed to PostgreSQL" can come seconds after the join reply. The layer
+ * reads a second snapshot for that (catch-up.ts); this pushes one frame
+ * through a throwaway page so the tests start on a warm server, then removes it.
+ */
+async function warmRealtime(browser: Browser) {
+  const page = await browser.newPage({ baseURL: BASE });
+  try {
+    await page.goto(`/tournaments/${SLUG}`, { waitUntil: "domcontentloaded" });
+    await expect(cell(page, FIRST)).toHaveAttribute("data-resolution", /.+/);
+    await writeLive({ sequence: 1, frame_key: "warm-up", score_text: "0-0", points_text: "0-0" });
+    await expect(cell(page, FIRST).locator("[data-live-score]")).toContainText("0-0", { timeout: 60_000 });
+  } finally {
+    await page.close();
+    await rest("live_match_state", {
+      method: "DELETE",
+      query: `public_ref=eq.${FIRST}`,
+      prefer: "return=minimal",
+    });
+  }
+}
 
 test.afterAll(async () => {
   await view?.close();

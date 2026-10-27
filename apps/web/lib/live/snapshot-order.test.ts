@@ -16,6 +16,7 @@ import {
   holdLivePatch,
   openLiveSync,
   projectionRefetched,
+  snapshotAfterPostgresReady,
   subscriptionConfirmed,
   subscriptionOpened,
 } from "./catch-up.ts";
@@ -167,4 +168,13 @@ test("frames held while recovering are released even when the channel is already
   }).sync;
   assert.deepEqual(finishForegroundRefetch(opening).patches, []);
   assert.deepEqual(projectionRefetched(subscriptionConfirmed(opening)).patches, ["early"]);
+});
+
+test("F-2: a Postgres notice after the first snapshot started reads once more", () => {
+  // Seen after `supabase db reset`: the join reply came at 0.5 s, the first
+  // snapshot read at about 4 s, and "Subscribed to PostgreSQL" at 8 s. A frame
+  // written between 4 s and 8 s reached neither.
+  assert.equal(snapshotAfterPostgresReady("pending"), "none");
+  assert.equal(snapshotAfterPostgresReady("in-flight"), "after-first");
+  assert.equal(snapshotAfterPostgresReady("done"), "now");
 });

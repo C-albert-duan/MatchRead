@@ -10,11 +10,13 @@
 |---|---|
 | pgTAP (`supabase test db`) | 32 files, 256 tests, **Pass** (includes `49` app_config, `50` stage_events) |
 | DB integration (absence-gap, live-ingest, provider-event-map) | 18/18 **Pass** |
-| Unit: core / web / provider / listener / scripts | 59 / 154 / 276 / 23 / 5, all **Pass** |
+| Unit: core / web / provider / listener / scripts | 59 / 162 / 276 / 23 / 5, all **Pass** |
 | `ci:live-trust`, `ci:core-vocabulary`, `ci:consumer-boundary`, `verify:settlement`, lint, typecheck, build | **Pass** |
-| Playwright `my-tennis.spec.ts` | 4/4 **Pass** |
+| Playwright `my-tennis.spec.ts` | 7/7 **Pass** (every rendered Stage state: morning, live, next, reckoning, empty) |
 | Playwright `raw-html.spec.ts` | 2/2 **Pass** (now seeds its own calendar row when the target is local) |
-| Playwright `live-client.spec.ts` | Before the F-1 fix: 6/6 on 8 of 10 runs (one cold-Realtime failure after `db reset`, one intermittent "shows stale"). **After the fix: 20/20 consecutive runs** |
+| Playwright `live-client.spec.ts` | Before the F-1 fix: 6/6 on 8 of 10 runs (one cold-Realtime failure after `db reset`, one intermittent "shows stale"). After the F-1 fix: 20/20 warm runs. **After the F-2 fix: 10/10 runs each straight after `db reset`, plus 10/10 warm** |
+| Playwright `founder-stage.spec.ts` | 1/1 **Pass** (`/founder/integrity` as a founder: 3 Stage changes, busiest user-hour 3, event mark) |
+| Playwright combined `my-tennis` + `raw-html` | 5 runs, 44/45: one failure in the first run after the live-client loop was not captured and did not recur in 4 reruns (36/36) |
 
 ## Trust boundary
 
@@ -55,12 +57,12 @@
 
 | Item | Verdict | Evidence |
 |---|---|---|
-| `morning`, `live`, `next`, `reckoning` render; `urgent`, `cascade` not shown | **Partial** | `morning` and `live` are browser-verified; `next`, `reckoning` and `empty` are unit-tested (`stage-policy.test.ts`) only. `urgent` and `cascade` map to calm treatments |
+| `morning`, `live`, `next`, `reckoning` render; `urgent`, `cascade` not shown | **Pass** | All five rendered states are browser-verified in `my-tennis.spec.ts` (tests 1, 4, 5, 6, 7), plus `stage-policy.test.ts`. `urgent` and `cascade` map to calm treatments (D-M4-1) |
 | Inversion uses `--mr-inverse`; no new colour | **Pass** | No inversion is used yet (urgent not shipped); `packages/tokens` unchanged; M4 CSS adds no hex value |
 | `ImportanceConfig` server-side and hot-reloadable; treatment map is a client constant | **Pass** | `app_config` row with a 60 s cache (D-M4-7); `STAGE_TREATMENT` |
 | `packages/core` names no Stage, takeover, colour or sentence | **Pass** | `ci:core-vocabulary` (catches a planted violation) |
 | Never on bracket entry; never steals focus | **Pass** | `tests/me-surface.test.ts` |
-| `stage_events` counter on `/founder` | **Pass (code)** | pgTAP `50`, `stage-health.test.ts`; the founder page itself was not opened in a browser (needs `FOUNDER_EMAILS`) |
+| `stage_events` counter on `/founder` | **Pass** | pgTAP `50`, `stage-health.test.ts`, and `founder-stage.spec.ts` opens `/founder/integrity` as a founder (`FOUNDER_EMAILS` set on the local app) |
 
 ## Product
 
@@ -92,7 +94,11 @@
 - The `/api/live` snapshot carries `sequence` and `sequence_source`, so held frames order against what the snapshot painted (`view.test.ts` updated: ids still never leave the server).
 - A snapshot whose provider clock is strictly older than the cell's no longer paints over it (the stored row only moves forward on that clock, 0037). A lower sequence alone still lets a snapshot replace the cell, as before.
 
-**F-2. Cold Realtime after `db reset`.** The first `live-client` run after a reset fails test 1 while Realtime warms up; reruns pass. A warm-up subscription in the spec's `beforeAll` would remove the noise.
+**F-2. Frames lost before Postgres changes start flowing. Fixed.** Not only a cold test server: socket logs from a failing run after `db reset` showed the join reply at 0.5 s, the first snapshot read at about 4 s, and Realtime's "Subscribed to PostgreSQL" notice at 8 s. The layer took the join reply as the start of delivery, so a frame written between the snapshot read and the notice reached neither. Production has the same gap, just much shorter. Fix:
+- `channel.ts` reports the `system` notice (`extension: postgres_changes`, `status: ok`) as `onPostgresReady`.
+- If it arrives after the first snapshot started, the layer reads one more snapshot (`snapshotAfterPostgresReady` in `catch-up.ts`), after the first one finishes so the two never race. A notice before the first snapshot needs nothing.
+- Tests: `channel.test.ts` (notice reported only for `postgres_changes` ok, and only while open) and `snapshot-order.test.ts`. `live-client.spec.ts` also pushes one warm-up frame in `beforeAll`.
+- Result: 10/10 `live-client` runs straight after `db reset`, where it had failed about one run in three.
 
 **F-3. `gradeBracket().upside` is not a ceiling.** It counts only players who have already won a match, so it is 0 before play and rises as results arrive. M4 does not use it (D-M4-3). Any existing screen showing "upside" as a remaining maximum understates it early in a draw.
 

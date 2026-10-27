@@ -9,7 +9,7 @@
 import { execSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import path from "node:path";
-import { expect, test, type BrowserContext } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 const BASE = process.env.LIVE_CLIENT_URL || "http://127.0.0.1:3002";
 const STAMP = Date.now();
@@ -27,6 +27,8 @@ let serviceKey = "";
 let userId = "";
 let tournamentId = "";
 let liveMatchId = "";
+let firstMatchId = "";
+const playerIds: Record<string, string> = {};
 
 function localEnv() {
   const out = execSync("npx supabase status -o env", {
@@ -104,6 +106,7 @@ test.beforeAll(async () => {
     NAMES.map((name, i) => ({ provider_id: `${SLUG}-p${i}`, last_name: name }))
   );
   const id = (name: string) => players.find((row: { last_name: string }) => row.last_name === name).id;
+  for (const name of NAMES) playerIds[name] = id(name);
   await rest(
     "seats",
     NAMES.map((name, position) => ({ tournament_id: tournamentId, position, kind: "player", player_id: id(name) }))
@@ -133,6 +136,7 @@ test.beforeAll(async () => {
   const match = (round: number, index: number) =>
     matches.find((row: { round: number; index_in_round: number }) => row.round === round && row.index_in_round === index).id;
   liveMatchId = match(0, 1);
+  firstMatchId = match(0, 0);
 
   const [league] = await rest("leagues", {
     owner_id: userId, slug: `${SLUG}-l`, name: "Me Spec League", format: "single", is_solo: true,
@@ -246,5 +250,83 @@ test("in play: the champion's match leads the Stage and the list, with its reaso
   const badge = stage.locator("[data-live-badge]");
   await expect(badge).toBeVisible({ timeout: 20_000 });
   expect(await badge.evaluate((el) => getComputedStyle(el).animationName)).toBe("none");
+  await context.close();
+});
+
+/** The bracket context is cached per user for 15 s, so reload until the Stage moves. */
+async function reloadUntil(page: Page, treatment: string) {
+  await expect
+    .poll(
+      async () => {
+        await page.reload();
+        return page.locator(".stage").getAttribute("data-treatment");
+      },
+      { timeout: 45_000, intervals: [2_000] }
+    )
+    .toBe(treatment);
+}
+
+function fact(page: Page, label: string) {
+  return page.locator(".stage-fact").filter({ hasText: label });
+}
+
+test("between matches: the Stage shows what just settled and what is next", async ({ browser }) => {
+  // Overlay closed, so the stored live row no longer counts: Cole vs Dunn is scheduled again.
+  await beat("down");
+  // A second league whose pick on the settled first match lost.
+  const [league] = await rest("leagues", {
+    owner_id: userId, slug: `${SLUG}-l2`, name: "Me Spec League 2", format: "single", is_solo: true,
+  });
+  await rest("members", { league_id: league.id, user_id: userId, role: "commissioner" });
+  await rest("league_tournaments", { league_id: league.id, tournament_id: tournamentId });
+  const [bracket] = await rest("brackets", {
+    league_id: league.id, tournament_id: tournamentId, user_id: userId, submitted_at: new Date().toISOString(),
+  });
+  await rest("picks", { bracket_id: bracket.id, match_id: firstMatchId, player_id: playerIds.Brook });
+
+  const context = await browser.newContext({ baseURL: BASE });
+  await signIn(context);
+  const page = await context.newPage();
+  await page.goto("/me");
+  await reloadUntil(page, "next");
+  const stage = page.locator(".stage");
+  await expect(stage.locator("[role=status]")).toHaveText("Between matches");
+  await expect(stage).toContainText("Just settled");
+  await expect(stage.locator(".my-row").first()).toHaveAttribute("data-public-ref", `${SLUG}-r0-m0`);
+  await expect(stage).toContainText("Up next");
+  await expect(stage.locator(".stage-number")).toHaveText(/Cole vs Dunn starts in/);
+  await context.close();
+});
+
+test("day settled: the reckoning counts settled matches and lost picks", async ({ browser }) => {
+  await rest("live_match_state", null, `match_id=eq.${liveMatchId}`, "DELETE");
+  await rest(
+    "matches",
+    { winner_player_id: playerIds.Dunn, official_score: "6-4 6-4", settled_at: new Date().toISOString() },
+    `id=eq.${liveMatchId}`,
+    "PATCH"
+  );
+  const context = await browser.newContext({ baseURL: BASE });
+  await signIn(context);
+  const page = await context.newPage();
+  await page.goto("/me");
+  await reloadUntil(page, "reckoning");
+  await expect(page.locator(".stage [role=status]")).toHaveText("Day settled");
+  await expect(fact(page, "Matches settled").locator(".stage-fact-value")).toHaveText("2");
+  const lost = fact(page, "Picks lost");
+  await expect(lost.locator(".stage-fact-value")).toHaveText("2");
+  await expect(lost).toHaveAttribute("data-miss", "true");
+  await context.close();
+});
+
+test("no brackets: the empty Stage points to the tournaments", async ({ browser }) => {
+  await rest("leagues", null, `owner_id=eq.${userId}`, "DELETE");
+  const context = await browser.newContext({ baseURL: BASE });
+  await signIn(context);
+  const page = await context.newPage();
+  await page.goto("/me");
+  await reloadUntil(page, "empty");
+  await expect(page.locator(".stage [role=status]")).toHaveText("Nothing of yours today");
+  await expect(page.locator(".stage a[href='/tournaments']")).toHaveText("Find a tournament");
   await context.close();
 });
