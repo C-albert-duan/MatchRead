@@ -84,7 +84,7 @@
 | Score row survives 320 px; Ceiling triad 2×2 on mobile | **Pass** | Screenshots; `/me` and `/tournaments` scroll width exactly 320 at 320 px |
 | Live dot stops when the tab is hidden | **Pass** | Existing `html[data-tab-hidden]` rule and `motion.test.ts` |
 | `prefers-reduced-motion` removes live motion | **Pass** | `my-tennis` test 4 (badge animation `none`); promoted-row highlight disabled |
-| Screen-reader protocol executed against the Stage and the bracket | **Blocked** | `docs/SCREEN-READER-PROTOCOL.md` is not in this repo and no screen reader was run. Structure is in place (one polite status region, no announced score ticks, no focus moves) |
+| Screen-reader protocol executed against the Stage and the bracket | **Blocked** | [`docs/SCREEN-READER-PROTOCOL.md`](../docs/SCREEN-READER-PROTOCOL.md) added 2026-10-27; it still needs a person to run it with NVDA and VoiceOver and fill in its Results table. Structure is in place (one polite status region, no announced score ticks, no focus moves) |
 | en/es/ja complete for every reason kind; build gate green | **Pass** | `reason-text.test.ts` checks every kind in all three locales; typecheck is the gate |
 | Sentry reports client exceptions; `/founder` answers §22 | **Partial** | Founder tiles in place; Sentry receipt still **Blocked** (no DSN) |
 
@@ -114,4 +114,4 @@
 
 ## Still blocked on ops (unchanged)
 
-MEGA / `/ws-token` written decision · hosted `cron.job_run_details` proof · Sentry DSN receipt · listener deploy to Railway and a real-provider run (M3-OPS1–3) · Supabase Realtime connection ceiling (D-M4-8) · screen-reader protocol document.
+MEGA / `/ws-token` written decision · hosted `cron.job_run_details` proof · Sentry DSN receipt · listener deploy to Railway and a real-provider run (M3-OPS1–3) · Supabase Realtime connection ceiling (D-M4-8) · a screen-reader run of the protocol.
