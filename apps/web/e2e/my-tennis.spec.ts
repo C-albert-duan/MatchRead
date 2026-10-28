@@ -199,6 +199,67 @@ test("the server sends the page itself, not a loading shell", async ({ browser }
   await context.close();
 });
 
+test("a locked league: a match that decides first place swings the league", async ({ browser }) => {
+  // A rival tied with the user who backs Dunn where the user backs Cole. The
+  // rival's bracket is read through the user's own session, as in production.
+  const rivalEmail = `pgtap-me-rival-${STAMP}@example.test`;
+  const created = await fetch(`${api}/auth/v1/admin/users`, {
+    method: "POST",
+    headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ email: rivalEmail, password: PASSWORD, email_confirm: true }),
+  });
+  const rival = await created.json();
+  if (!created.ok) throw new Error(`create rival ${created.status}`);
+  const [league] = await rest("leagues", {
+    owner_id: userId, slug: `${SLUG}-swing`, name: "Me Spec Swing", format: "single", is_solo: false,
+  });
+  try {
+    await rest("profiles", { id: rival.id, display_name: "Rival" }, "on_conflict=id", "POST", "resolution=merge-duplicates,return=minimal");
+    await rest("members", [
+      { league_id: league.id, user_id: userId, role: "commissioner" },
+      { league_id: league.id, user_id: rival.id, role: "member" },
+    ]);
+    await rest("league_tournaments", {
+      league_id: league.id, tournament_id: tournamentId, locked_at: new Date().toISOString(),
+    });
+    const brackets = await rest("brackets", [
+      { league_id: league.id, tournament_id: tournamentId, user_id: userId, submitted_at: new Date().toISOString() },
+      { league_id: league.id, tournament_id: tournamentId, user_id: rival.id, submitted_at: new Date().toISOString() },
+    ]);
+    const bracketOf = (owner: string) => brackets.find((row: { user_id: string }) => row.user_id === owner).id;
+    await rest("picks", [
+      { bracket_id: bracketOf(userId), match_id: firstMatchId, player_id: playerIds.Ames },
+      { bracket_id: bracketOf(userId), match_id: liveMatchId, player_id: playerIds.Cole },
+      { bracket_id: bracketOf(rival.id), match_id: firstMatchId, player_id: playerIds.Ames },
+      { bracket_id: bracketOf(rival.id), match_id: liveMatchId, player_id: playerIds.Dunn },
+    ]);
+
+    const context = await browser.newContext({ baseURL: BASE });
+    await signIn(context);
+    const page = await context.newPage();
+    await page.goto("/me");
+    const swing = page.locator(".my-list .my-row").filter({ hasText: "This match can change first place in your league" });
+    // The bracket context is cached per user for 15 s.
+    await expect
+      .poll(
+        async () => {
+          await page.reload();
+          return swing.count();
+        },
+        { timeout: 45_000, intervals: [2_000] }
+      )
+      .toBeGreaterThan(0);
+    await expect(swing.first()).toHaveAttribute("data-public-ref", `${SLUG}-r0-m1`);
+    await context.close();
+  } finally {
+    await rest("leagues", null, `id=eq.${league.id}`, "DELETE");
+    await fetch(`${api}/auth/v1/admin/users/${rival.id}`, {
+      method: "DELETE",
+      headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` },
+    });
+  }
+});
+
 async function beat(connection: "up" | "down") {
   await rest(
     "listener_health",

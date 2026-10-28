@@ -12,7 +12,7 @@
 | DB integration (absence-gap, live-ingest, provider-event-map) | 18/18 **Pass** |
 | Unit: core / web / provider / listener / scripts | 64 / 166 / 276 / 23 / 5, all **Pass** |
 | `ci:live-trust`, `ci:core-vocabulary`, `ci:consumer-boundary`, `verify:settlement`, lint, typecheck, build | **Pass** |
-| Playwright `my-tennis.spec.ts` | 8/8 **Pass** (every rendered Stage state: morning, live, next, reckoning, empty; and a live leader change re-ranks without a reload) |
+| Playwright `my-tennis.spec.ts` | 8/8 **Pass** (9/9 with the League Swing test added 2026-10-27) (every rendered Stage state: morning, live, next, reckoning, empty; and a live leader change re-ranks without a reload) |
 | Playwright `raw-html.spec.ts` | 2/2 **Pass** (now seeds its own calendar row when the target is local) |
 | Playwright `live-client.spec.ts` | Before the F-1 fix: 6/6 on 8 of 10 runs (one cold-Realtime failure after `db reset`, one intermittent "shows stale"). After the F-1 fix: 20/20 warm runs. **After the F-2 fix: 10/10 runs each straight after `db reset`, plus 10/10 warm** |
 | Playwright `founder-stage.spec.ts` | 1/1 **Pass** (`/founder/integrity` as a founder: 3 Stage changes, busiest user-hour 3, event mark) |
@@ -72,7 +72,7 @@
 | Daily Picks resolve only through `settle-slate` | **N/A** | Not in this repo (mobile) |
 | Heat internal-only or absent | **Pass** | Absent |
 | Fan identity below the live experience | **N/A** | Stretch item; rating tables are not in this repo |
-| League Swing | **Pass** | Added after the walk (D-M4-12): `swing.test.ts`, `my-tennis.test.ts` "a match swings the league". Not browser-verified |
+| League Swing | **Pass** | Added after the walk (D-M4-12): `swing.test.ts`, `my-tennis.test.ts` "a match swings the league", and `my-tennis.spec.ts` "a locked league…swings the league" (a rival's bracket read through the user's own session; 9/9 on 2026-10-27, fails when the rival backs the same player) |
 | Pulse, visitor aggregates | **N/A** | Deferred |
 
 ## Platform
