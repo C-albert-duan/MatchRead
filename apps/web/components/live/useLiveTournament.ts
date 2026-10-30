@@ -21,6 +21,7 @@ type LiveTournamentListener = {
   onChange: (change: LiveTournamentChange) => void;
   onSubscribed: () => void;
   onDisconnect: (status: string) => void;
+  onPostgresReady: () => void;
 };
 
 /**
@@ -46,6 +47,7 @@ export function useLiveTournament(
         onChange: (change) => listenerRef.current.onChange(change),
         onSubscribed: () => listenerRef.current.onSubscribed(),
         onDisconnect: (status) => listenerRef.current.onDisconnect(status),
+        onPostgresReady: () => listenerRef.current.onPostgresReady(),
       }
     );
   }, [tournamentRef, tournamentId]);

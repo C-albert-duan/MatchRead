@@ -12,7 +12,9 @@ import {
   finishForegroundRefetch,
   openLiveSync,
   projectionRefetched,
+  snapshotAfterPostgresReady,
   subscriptionConfirmed,
+  type FirstSnapshot,
   subscriptionOpened,
   type LiveSync,
 } from "@/lib/live/catch-up";
@@ -27,6 +29,7 @@ import {
   type LiveRow,
 } from "@/lib/live/patch";
 import { knownServingSide, liveScoreFields, type LiveScoreFields } from "@/lib/live/score";
+import { LIVE_PAINT_EVENT } from "@/lib/live/paint-event";
 import { isPublicMatchRef } from "@/lib/tournaments/href";
 import {
   liveTournamentWatches,
@@ -45,6 +48,11 @@ type Labels = {
 };
 
 const reportedAt = new Map<string, number>();
+
+/** Tells listeners such as My Tennis re-ranking what a cell now shows. */
+function announcePaint(ref: string, live: boolean, sets: string | null, game: string | null = null) {
+  window.dispatchEvent(new CustomEvent(LIVE_PAINT_EVENT, { detail: { ref, live, sets, game } }));
+}
 
 function reportLive(source: string, message: string) {
   const now = Date.now();
@@ -156,17 +164,20 @@ function LiveTournamentChannel({
   onChange,
   onSubscribed,
   onDisconnect,
+  onPostgresReady,
 }: {
   watch: LiveTournamentWatch;
   generation: number;
   onChange: (generation: number, change: LiveTournamentChange) => void;
   onSubscribed: (generation: number, ref: string) => void;
   onDisconnect: (status: string) => void;
+  onPostgresReady: (generation: number) => void;
 }) {
   useLiveTournament(watch.ref, watch.tournamentId, {
     onChange: (change) => onChange(generation, change),
     onSubscribed: () => onSubscribed(generation, watch.ref),
     onDisconnect,
+    onPostgresReady: () => onPostgresReady(generation),
   });
   return null;
 }
@@ -183,6 +194,7 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
   const onChangeRef = useRef<(generation: number, change: LiveTournamentChange) => void>(() => {});
   const onSubscribedRef = useRef<(generation: number, ref: string) => void>(() => {});
   const onDisconnectRef = useRef<(status: string) => void>(() => {});
+  const onPostgresReadyRef = useRef<(generation: number) => void>(() => {});
 
   useEffect(() => {
     const labels: Labels = { live, stale, delayed, lastUpdated, provisional, serving };
@@ -194,6 +206,8 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
     let expected = 0;
     const confirmed = new Set<string>();
     let refetchStarted = false;
+    let firstSnapshot: FirstSnapshot = "pending";
+    let snapshotAgain = false;
     let recovering = false;
     let failures = 0;
     let lastFreshAt: number | null = null;
@@ -259,6 +273,7 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
         if (fields !== undefined) painted = fields;
       }
       if (painted === undefined) return;
+      announcePaint(row.public_ref, true, row.score_text, row.points_text);
       if (!painted) {
         dropScore(row.public_ref);
         return;
@@ -298,7 +313,10 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
             if (!cell.hasAttribute("data-live-sequence")) continue;
             const ref = cell.getAttribute("data-public-ref");
             clearPaint(cell);
-            if (ref) dropScore(ref);
+            if (ref) {
+              dropScore(ref);
+              announcePaint(ref, false, null);
+            }
             dropped = true;
           }
           if (dropped) revealOfficialSheet();
@@ -323,6 +341,7 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
         if (cell.hasAttribute("data-live-sequence")) {
           clearPaint(cell);
           dropScore(ref);
+          announcePaint(ref, false, null);
           dropped = true;
         }
       }
@@ -347,6 +366,7 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
         }
         if (cleared && previous) {
           dropScore(previous.public_ref);
+          announcePaint(previous.public_ref, false, null);
           publishDelay();
           revealOfficialSheet();
         }
@@ -374,6 +394,7 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
       sync = subscriptionConfirmed(sync);
       if (sync.phase !== "refetch") return;
       refetchStarted = true;
+      firstSnapshot = "in-flight";
       failures = 0;
       if (timer != null) {
         window.clearTimeout(timer);
@@ -381,11 +402,23 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
       }
       void refetch(gen).finally(() => {
         if (!alive || gen !== generation) return;
+        firstSnapshot = "done";
         const flushed = projectionRefetched(sync);
         sync = flushed.sync;
+        if (snapshotAgain) {
+          snapshotAgain = false;
+          void refetch(gen);
+        }
         if (!layerOpen) return;
         for (const change of flushed.patches) applyChange(gen, change);
       });
+    };
+
+    onPostgresReadyRef.current = (gen) => {
+      if (gen !== generation) return;
+      const next = snapshotAfterPostgresReady(firstSnapshot);
+      if (next === "after-first") snapshotAgain = true;
+      else if (next === "now") void refetch(gen);
     };
 
     onDisconnectRef.current = (status) => {
@@ -414,6 +447,12 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
       sync = openLiveSync();
       confirmed.clear();
       refetchStarted = false;
+      firstSnapshot = "pending";
+      snapshotAgain = false;
+      // A new generation reads its own snapshot after subscribing. A foreground
+      // refetch from the old generation returns early and must not leave the
+      // layer stuck "recovering" (every later frame was dropped: V3-M4-DOD F-1).
+      recovering = false;
       const next = pageTournaments();
       expected = next.length;
       if (!alive) return;
@@ -439,7 +478,10 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
       void refetch(gen).finally(() => {
         if (!alive || gen !== generation) return;
         recovering = false;
-        sync = finishForegroundRefetch(sync).sync;
+        const finished = finishForegroundRefetch(sync);
+        sync = finished.sync;
+        if (!layerOpen) return;
+        for (const change of finished.patches) applyChange(gen, change);
       });
     }
 
@@ -527,6 +569,7 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
           onChange={(generation, change) => onChangeRef.current(generation, change)}
           onSubscribed={(generation, ref) => onSubscribedRef.current(generation, ref)}
           onDisconnect={(status) => onDisconnectRef.current(status)}
+          onPostgresReady={(generation) => onPostgresReadyRef.current(generation)}
         />
       ))}
     </>

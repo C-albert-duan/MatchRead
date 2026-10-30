@@ -40,6 +40,9 @@ jobs:
       - name: Live trust boundary
         run: npm run ci:live-trust
 
+      - name: Core vocabulary boundary
+        run: npm run ci:core-vocabulary
+
       - name: Settlement math dry-run
         run: npm run verify:settlement
 

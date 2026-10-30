@@ -25,13 +25,24 @@ function pair(text: string): [number, number] | null {
 }
 
 /** Completed set winner. 7-6 counts. 6-6 does not. */
-function setWinner(games: [number, number]): "a" | "b" | null {
+export function setWinner(games: [number, number]): "a" | "b" | null {
   const [a, b] = games;
   if (a >= 6 && a - b >= 2) return "a";
   if (b >= 6 && b - a >= 2) return "b";
   if (a === 7 && b === 6) return "a";
   if (b === 7 && a === 6) return "b";
   return null;
+}
+
+/**
+ * Match format from the tournament row. Men's Grand Slam singles is best of
+ * five; every other tour-level singles draw is best of three. An unknown tour
+ * or tier is null, so no match point is derived.
+ */
+export function setsToWinFor(tour: string | null, tier: string | null): SetsToWin | null {
+  if (tour !== "atp" && tour !== "wta") return null;
+  if (!tier) return null;
+  return tour === "atp" && tier === "grand_slam" ? 3 : 2;
 }
 
 function gamePointSide(game: string): ServingSide | null {

@@ -3,8 +3,9 @@
  * Reads the observed live-list shape, then stops.
  * Does not write a row, settle a match, advance a bracket, query a database,
  * or format a sentence.
- * `pointFlags` stays null. A captured row has no sets-to-win and no server id,
- * and this function does not invent a match point.
+ * Sets and game are turned to read from side a when the provider lists side b
+ * first. `pointFlags` stays null here: a captured row has no sets-to-win and no
+ * server id. The web derives match point from the tournament format.
  */
 
 import { normalizeLiveMatchState } from "../../core/src/live/normalize.ts";
@@ -14,9 +15,11 @@ import {
   canonicalSets,
   liveFlag,
   mapFrameToMatch,
+  orientScoreText,
   provisionalWinnerRef,
   providerSide,
   resolvePlayerSides,
+  scoreOrientation,
 } from "./live-frame.js";
 
 /**
@@ -53,7 +56,19 @@ export function normalizeCapturedFrame(input, catalog) {
     receivedAt: frame.received_at,
   };
   const canonical = normalizeLiveMatchState(draft);
-  if (canonical) return { ok: true, state: { ...canonical, pointFlags: null } };
+  // Sets and game read from side a when the first player is placeable.
+  const orientation = scoreOrientation(sides, frame.player1Id);
+  if (canonical) {
+    return {
+      ok: true,
+      state: {
+        ...canonical,
+        sets: orientScoreText(canonical.sets, orientation),
+        game: orientScoreText(canonical.game, orientation),
+        pointFlags: null,
+      },
+    };
+  }
   if (draft.receivedAt) return { ok: false, reason: "not a live state" };
   return {
     ok: true,
@@ -62,8 +77,8 @@ export function normalizeCapturedFrame(input, catalog) {
       tournamentId: draft.tournamentId,
       publicRef: draft.publicRef,
       phase,
-      sets: canonicalSets(draft.sets),
-      game: canonicalGame(draft.game),
+      sets: orientScoreText(canonicalSets(draft.sets), orientation),
+      game: orientScoreText(canonicalGame(draft.game), orientation),
       serving: serving === "a" || serving === "b" ? serving : null,
       flag: liveFlag(phase),
       pointFlags: null,

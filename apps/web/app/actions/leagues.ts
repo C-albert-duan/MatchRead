@@ -3,6 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import {
+  parseLeagueSlug,
+  parseScheduleChange,
+  scheduleErrorCode,
+  scheduleStatusFrom,
+  type ScheduleResult,
+} from "@/lib/leagues/schedule-change";
 import type { LeagueFormat, LeagueVisibility } from "@/lib/leagues/types";
 import { reportError } from "@/lib/report-error";
 import { trackServer } from "@/lib/telemetry-server";
@@ -310,6 +317,94 @@ export async function kickMember(input: {
 
   revalidatePath(`/leagues/${input.slug}`);
   return { ok: true };
+}
+
+/** RLS-scoped: a private league the caller is not in resolves to null. */
+async function resolveLeagueId(
+  supabase: ReturnType<typeof createClient>,
+  slug: string
+): Promise<string | null> {
+  const { data } = await supabase
+    .from("leagues")
+    .select("id")
+    .eq("slug", slug)
+    .maybeSingle();
+  return (data?.id as string | undefined) ?? null;
+}
+
+async function scheduleChange(
+  raw: unknown,
+  fn: "add_league_tournament" | "remove_league_tournament"
+): Promise<ScheduleResult> {
+  const input = parseScheduleChange(raw);
+  if (!input) return { ok: false, code: "invalid" };
+  const { supabase, user } = await requireUser();
+  if (!user) return { ok: false, code: "signed_out" };
+
+  const [leagueId, { data: tournament }] = await Promise.all([
+    resolveLeagueId(supabase, input.slug),
+    supabase
+      .from("public_calendar")
+      .select("id")
+      .eq("slug", input.tournamentRef)
+      .maybeSingle(),
+  ]);
+  if (!leagueId || !tournament?.id) return { ok: false, code: "not_found" };
+
+  const { data, error } = await supabase.rpc(fn, {
+    p_league_id: leagueId,
+    p_tournament_id: tournament.id,
+  });
+  if (error) return { ok: false, code: scheduleErrorCode(error) };
+  const status = scheduleStatusFrom(data);
+  if (!status) return { ok: false, code: "unknown" };
+
+  trackServer(
+    fn === "add_league_tournament"
+      ? "schedule_tournament_added"
+      : "schedule_tournament_removed",
+    user.id,
+    { slug: input.slug, ref: input.tournamentRef, status }
+  );
+  revalidatePath(`/leagues/${input.slug}`);
+  revalidatePath(`/leagues/${input.slug}/season`);
+  revalidatePath(`/leagues/${input.slug}/t/${input.tournamentRef}`);
+  return { ok: true, status };
+}
+
+export async function addTournamentAction(raw: unknown): Promise<ScheduleResult> {
+  return scheduleChange(raw, "add_league_tournament");
+}
+
+export async function removeTournamentAction(
+  raw: unknown
+): Promise<ScheduleResult> {
+  return scheduleChange(raw, "remove_league_tournament");
+}
+
+/** One-way switch of a season league to a custom schedule. */
+export async function enableCustomScheduleAction(
+  raw: unknown
+): Promise<ScheduleResult> {
+  const slug = parseLeagueSlug(raw);
+  if (!slug) return { ok: false, code: "invalid" };
+  const { supabase, user } = await requireUser();
+  if (!user) return { ok: false, code: "signed_out" };
+
+  const leagueId = await resolveLeagueId(supabase, slug);
+  if (!leagueId) return { ok: false, code: "not_found" };
+
+  const { data, error } = await supabase.rpc("enable_custom_schedule", {
+    p_league_id: leagueId,
+  });
+  if (error) return { ok: false, code: scheduleErrorCode(error) };
+  const status = scheduleStatusFrom(data);
+  if (!status) return { ok: false, code: "unknown" };
+
+  trackServer("schedule_custom_enabled", user.id, { slug, status });
+  revalidatePath(`/leagues/${slug}`);
+  revalidatePath(`/leagues/${slug}/season`);
+  return { ok: true, status };
 }
 
 export async function leaveLeague(leagueId: string): Promise<ActionResult> {

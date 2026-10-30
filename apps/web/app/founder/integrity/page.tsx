@@ -11,7 +11,8 @@ import {
   latestInstant,
   type HealthLevel,
 } from "@/lib/founder/live-health";
-import { t } from "@/lib/i18n";
+import { founderStageHealth, stageRatesFrom } from "@/lib/founder/stage-health";
+import { t, tf } from "@/lib/i18n";
 import { createClient } from "@/lib/supabase/server";
 
 function shownInstant(value: string | null) {
@@ -116,6 +117,28 @@ export default async function FounderIntegrityPage() {
       .order("created_at", { ascending: false })
       .limit(50),
   ]);
+
+  // Stage and latch tiles are read apart from the integrity load: a database
+  // without migration 0045 shows "none" here instead of failing the page.
+  const tileNow = Date.now();
+  const [stageRes, conflictRes] = await Promise.all([
+    supabase.rpc("stage_event_rates", {
+      p_since: new Date(tileNow - 86_400_000).toISOString(),
+    }),
+    supabase
+      .from("ops_events")
+      .select("id", { count: "exact", head: true })
+      .eq("name", "winner_conflict")
+      .gte("created_at", new Date(tileNow - 7 * 86_400_000).toISOString()),
+  ]);
+  const stageHealth = founderStageHealth({
+    rates: stageRes.error
+      ? null
+      : stageRatesFrom(Array.isArray(stageRes.data) ? stageRes.data[0] : stageRes.data),
+    winnerConflicts: conflictRes.error ? null : conflictRes.count ?? 0,
+  });
+  const stageAlarm = stageHealth.stage ? levelLabel(stageHealth.stage.level) : null;
+  const conflictAlarm = levelLabel(stageHealth.winnerConflicts.level);
 
   const loadError =
     reportsRes.error ||
@@ -240,6 +263,24 @@ export default async function FounderIntegrityPage() {
                 <dd className="t-caption">{t("founder.integrity.restWins")}</dd>
               ) : null}
             </div>
+            <div className="health-cell">
+              <dt className="eyebrow">{t("founder.integrity.stageRate")}</dt>
+              <dd className="health-value numeral">{countText(stageHealth.stage?.events ?? null)}</dd>
+              {stageHealth.stage ? (
+                <dd className="t-caption numeral">
+                  {tf("founder.integrity.stagePeak", { n: stageHealth.stage.maxPerUserHour })}
+                </dd>
+              ) : null}
+              {stageAlarm ? <dd className="t-caption">{stageAlarm}</dd> : null}
+            </div>
+            <div className="health-cell">
+              <dt className="eyebrow">{t("founder.integrity.winnerConflicts")}</dt>
+              <dd className="health-value numeral">{countText(stageHealth.winnerConflicts.count)}</dd>
+              {conflictAlarm ? <dd className="t-caption">{conflictAlarm}</dd> : null}
+              {conflictAlarm ? (
+                <dd className="t-caption">{t("founder.integrity.latchHolds")}</dd>
+              ) : null}
+            </div>
             {health.providerFreshness ? (
               <div className="health-cell">
                 <dt className="eyebrow">{t("founder.integrity.providerFreshness")}</dt>
@@ -249,7 +290,7 @@ export default async function FounderIntegrityPage() {
                     : `${health.providerFreshness.lagMs} ms`}
                 </dd>
                 {health.providerFreshness.drawFreshness ? (
-                  <dd className="t-caption">freshness</dd>
+                  <dd className="t-caption">{t("founder.integrity.freshnessWarning")}</dd>
                 ) : null}
               </div>
             ) : null}
@@ -349,7 +390,7 @@ export default async function FounderIntegrityPage() {
                         — {blocking.map((b: { code?: string }) => b.code).join(", ")}
                       </span>
                     ) : null}
-                    {freshness ? <span className="t-caption"> freshness</span> : null}
+                    {freshness ? <span className="t-caption"> {t("founder.integrity.freshnessWarning")}</span> : null}
                   </li>
                 );
               })}

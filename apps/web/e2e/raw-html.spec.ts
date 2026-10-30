@@ -7,7 +7,60 @@
  * Uses APIRequestContext (request.get), the same fetch the other e2e specs use.
  * That response is the server HTML. It does not run the client.
  */
+import { execSync } from "node:child_process";
+import path from "node:path";
 import { test, expect, type APIRequestContext } from "@playwright/test";
+
+const SEED_SLUG = `pgtap-raw-${Date.now()}`;
+
+/** A freshly reset local database has no calendar row; seed one only when the target is local. */
+function localTarget(): boolean {
+  const base = process.env.LIVE_BASE_URL || "";
+  return /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/.test(base);
+}
+
+function localService(): { url: string; key: string } {
+  const out = execSync("npx supabase status -o env", {
+    encoding: "utf8",
+    cwd: path.resolve(process.cwd(), "../.."),
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  const read = (name: string) =>
+    out.split(/\r?\n/).find((row) => row.startsWith(`${name}=`))?.slice(name.length + 1).replace(/^"|"$/g, "") ?? "";
+  return { url: read("API_URL"), key: read("SERVICE_ROLE_KEY") };
+}
+
+async function tournaments(method: "POST" | "DELETE", body?: unknown) {
+  const { url, key } = localService();
+  const query = method === "DELETE" ? `?slug=eq.${SEED_SLUG}` : "";
+  const res = await fetch(`${url}/rest/v1/tournaments${query}`, {
+    method,
+    headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: body == null ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`calendar seed ${res.status}: ${(await res.text()).slice(0, 200)}`);
+}
+
+test.beforeAll(async () => {
+  if (!localTarget()) return;
+  await tournaments("POST", {
+    slug: SEED_SLUG,
+    name: "Raw HTML Seed Open",
+    tour: "atp",
+    surface: "hard",
+    starts_on: "2099-11-02",
+    ends_on: "2099-11-08",
+    venue_tz: "UTC",
+    draw_size: 32,
+    provider_id: SEED_SLUG,
+    tier: "tour_250",
+    ingestion_enabled: false,
+  });
+});
+
+test.afterAll(async () => {
+  if (localTarget()) await tournaments("DELETE");
+});
 
 function visibleText(html: string): string {
   return html

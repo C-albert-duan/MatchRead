@@ -12,6 +12,11 @@ export type LiveChannelHandlers = {
   onChange: (change: LiveChannelChange) => void;
   onSubscribed: () => void;
   onDisconnect: (status: string) => void;
+  /**
+   * The server's "Subscribed to PostgreSQL" notice. Changes flow only from
+   * here, and it can arrive seconds after SUBSCRIBED (V3-M4-DOD F-2).
+   */
+  onPostgresReady?: () => void;
 };
 
 type ChannelPayload = {
@@ -33,6 +38,7 @@ export type LiveChannel = {
     filter: PostgresFilter,
     callback: (payload: ChannelPayload) => void
   ): LiveChannel;
+  on(event: "system", filter: Record<string, never>, callback: (payload: unknown) => void): LiveChannel;
   subscribe(callback: (status: string) => void): LiveChannel;
 };
 
@@ -40,6 +46,12 @@ export type LiveChannelClient = {
   channel(topic: string): LiveChannel;
   removeChannel(channel: LiveChannel): unknown;
 };
+
+function isPostgresReady(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object") return false;
+  const notice = payload as { extension?: unknown; status?: unknown };
+  return notice.extension === "postgres_changes" && notice.status === "ok";
+}
 
 /**
  * One tournament topic. The returned function is the unmount cleanup:
@@ -74,6 +86,10 @@ export function openLiveTournamentChannel(
         });
       }
     )
+    .on("system", {}, (payload) => {
+      if (closed) return;
+      if (isPostgresReady(payload)) handlers.onPostgresReady?.();
+    })
     .subscribe((status) => {
       if (closed) return;
       if (status === "SUBSCRIBED") {

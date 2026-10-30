@@ -52,7 +52,7 @@ test("a visible tab refetches and does not replay what it missed", () => {
   assert.deepEqual(recoverVisibleTab(hidden).replay, []);
 });
 
-test("a stale background client refetches and does not replay the backlog", () => {
+test("a stale background client refetches, does not replay the backlog, and keeps frames from after it returned", () => {
   let sync = projectionRefetched(
     holdLivePatch(subscriptionConfirmed(subscriptionOpened(openLiveSync<string>())), "shown")
   ).sync;
@@ -72,13 +72,15 @@ test("a stale background client refetches and does not replay the backlog", () =
   assert.equal(sync.phase, "refetch");
   assert.deepEqual(sync.held, []);
 
+  // A frame after the tab is visible is not backlog: it waits for the snapshot.
   const during = deliverLiveChange(sync, "4-3", { hidden: false, recovering: true });
   sync = during.sync;
   assert.equal(during.apply, null);
-  assert.deepEqual(sync.held, []);
+  assert.deepEqual(sync.held, ["4-3"]);
 
   const finished = finishForegroundRefetch(sync);
   assert.deepEqual(finished.replay, []);
+  assert.deepEqual(finished.patches, ["4-3"]);
   assert.equal(finished.sync.phase, "apply");
   assert.deepEqual(finished.sync.held, []);
 

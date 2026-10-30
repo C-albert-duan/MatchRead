@@ -14,6 +14,7 @@ type FakeChannel = LiveChannel & {
   topic: string;
   emit: (payload: { eventType: string; new: unknown; old: unknown }) => void;
   status: (status: string) => void;
+  system: (payload: unknown) => void;
 };
 
 function fakeClient() {
@@ -25,17 +26,10 @@ function fakeClient() {
         topic,
         emit: (_payload: { eventType: string; new: unknown; old: unknown }) => {},
         status: (_status: string) => {},
-        on(
-          _event: "postgres_changes",
-          _filter: {
-            event: "*";
-            schema: "public";
-            table: "live_match_state";
-            filter: string;
-          },
-          callback: (payload: { eventType: string; new: unknown; old: unknown }) => void
-        ) {
-          channel.emit = callback;
+        system: (_payload: unknown) => {},
+        on(event: string, _filter: unknown, callback: (payload: never) => void) {
+          if (event === "system") channel.system = callback as (payload: unknown) => void;
+          else channel.emit = callback as FakeChannel["emit"];
           return channel;
         },
         subscribe(callback: (status: string) => void) {
@@ -61,11 +55,16 @@ function handlers(): LiveChannelHandlers & {
   changes: number;
   subscribed: number;
   losses: string[];
+  ready: number;
 } {
   const record = {
     changes: 0,
     subscribed: 0,
     losses: [] as string[],
+    ready: 0,
+    onPostgresReady() {
+      record.ready += 1;
+    },
     onChange() {
       record.changes += 1;
     },
@@ -112,4 +111,21 @@ test("a page without a public tournament does not open a channel", () => {
   release();
   assert.equal(opened.length, 0);
   assert.equal(removed.length, 0);
+});
+
+test("the Postgres notice is reported apart from SUBSCRIBED, and only while open (F-2)", () => {
+  const { client, opened } = fakeClient();
+  const heard = handlers();
+  const release = openLiveTournamentChannel(client, "evt-1", TOURNAMENT_A, heard);
+  opened[0].status("SUBSCRIBED");
+  assert.equal(heard.ready, 0);
+  opened[0].system({ extension: "presence", status: "ok" });
+  opened[0].system({ extension: "postgres_changes", status: "error", message: "boom" });
+  assert.equal(heard.ready, 0);
+  opened[0].system({ extension: "postgres_changes", status: "ok", message: "Subscribed to PostgreSQL" });
+  assert.equal(heard.ready, 1);
+  assert.equal(heard.subscribed, 1);
+  release();
+  opened[0].system({ extension: "postgres_changes", status: "ok" });
+  assert.equal(heard.ready, 1);
 });

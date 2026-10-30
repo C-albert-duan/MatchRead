@@ -10,7 +10,7 @@ import {
   type DrawSeat,
 } from "./bracket";
 import {
-  computeAlive,
+  knownEliminated,
   type BracketGrade,
   type OfficialResults,
 } from "./grade";
@@ -123,8 +123,10 @@ export function biggestMiss(input: {
 }
 
 /**
- * Undecided matches where the pick is still alive (has not been eliminated).
- * When nothing is decided, seats (or all pick refs) seed the alive set.
+ * Undecided matches where the pick is still standing. A pick counts until a
+ * result removes it, including picks whose first match has not been played
+ * (V3-M4-DOD F-3). `seats` is accepted for existing callers; the picks and
+ * results are enough to know who is out.
  */
 export function perfectPicksRemaining(input: {
   picks: BracketPicks;
@@ -132,42 +134,15 @@ export function perfectPicksRemaining(input: {
   drawSize: number;
   seats?: Pick<DrawSeat, "player_id" | "kind" | "last_name">[];
 }): number {
-  const { picks, official, drawSize, seats } = input;
-  const rounds = buildRoundStructure(drawSize);
-
-  let through = -1;
-  for (const round of rounds) {
-    for (const match of round.matches) {
-      const o = official[match.key];
-      if (o && (o.voided || o.winnerRef)) {
-        through = Math.max(through, round.index);
-      }
-    }
-  }
-
-  let alive: Set<string>;
-  if (through < 0) {
-    alive = new Set();
-    if (seats && seats.length > 0) {
-      for (const s of seats) {
-        if (isNamedPlayerSeat(s) && s.player_id) alive.add(s.player_id);
-      }
-    } else {
-      for (const ref of Object.values(picks)) {
-        if (ref) alive.add(ref);
-      }
-    }
-  } else {
-    alive = computeAlive(drawSize, official, through);
-  }
-
+  const { picks, official, drawSize } = input;
+  const out = knownEliminated(drawSize, picks, official);
   let count = 0;
-  for (const round of rounds) {
+  for (const round of buildRoundStructure(drawSize)) {
     for (const match of round.matches) {
       const o = official[match.key];
       if (o && (o.voided || o.winnerRef)) continue;
       const pick = picks[match.key];
-      if (pick && alive.has(pick)) count++;
+      if (pick && !out.has(pick)) count++;
     }
   }
   return count;

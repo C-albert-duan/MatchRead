@@ -13,11 +13,33 @@ export type { LiveDisplayState } from "../../lib/live/view.ts";
 
 export type LiveTournamentState = {
   tournamentRef: string;
-  matches: LiveDisplayState[];
+  matches: LiveSnapshotMatch[];
 };
 
 export const LIVE_MATCH_COLUMNS =
-  "public_ref,phase,score_text,points_text,serving_side,provisional_winner_ref,received_at,occurred_at";
+  "public_ref,phase,score_text,points_text,serving_side,provisional_winner_ref,received_at,occurred_at,sequence,sequence_source";
+
+/**
+ * A snapshot match: the canonical display plus the provider sequence, so a
+ * frame held during a refetch is ordered against what the snapshot painted.
+ */
+export type LiveSnapshotMatch = LiveDisplayState & {
+  sequence: number | null;
+  sequenceSource: string | null;
+};
+
+function snapshotMatch(row: unknown): LiveSnapshotMatch | null {
+  const view = liveDisplayState(row);
+  if (!view) return null;
+  const record = row as Record<string, unknown>;
+  const sequence = typeof record.sequence === "number" ? record.sequence : Number(record.sequence);
+  const source = record.sequence_source;
+  return {
+    ...view,
+    sequence: Number.isFinite(sequence) ? sequence : null,
+    sequenceSource: typeof source === "string" && source ? source : null,
+  };
+}
 
 type LiveQuery = {
   from: (table: string) => {
@@ -77,8 +99,8 @@ export async function readLiveTournamentState(
   return {
     tournamentRef: ref,
     matches: (data ?? []).flatMap((row) => {
-      const view = liveDisplayState(row);
-      return view ? [view] : [];
+      const match = snapshotMatch(row);
+      return match ? [match] : [];
     }),
   };
 }

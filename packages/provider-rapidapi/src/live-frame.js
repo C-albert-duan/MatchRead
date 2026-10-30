@@ -365,6 +365,41 @@ export function providerSide(sides, providerId) {
 }
 
 /**
+ * Provider order to MatchRead sides. The live row lists its first player on
+ * the left of `score` and `points`; a match can hold that player as side b.
+ * @param {Map<string, "a" | "b"> | null} sides
+ * @param {unknown} player1ProviderId
+ * @returns {"as-is" | "swap" | null} null when the first player is not one of the sides
+ *   (an event-mapped frame whose match id does not name the players).
+ */
+export function scoreOrientation(sides, player1ProviderId) {
+  const first = providerSide(sides, player1ProviderId);
+  if (first === "a") return "as-is";
+  if (first === "b") return "swap";
+  return null;
+}
+
+/**
+ * Canonical `N-N` text (sets joined by commas, or one game) read from side a.
+ * An unknown orientation keeps the provider order, as before orientation
+ * existed; only a known reversal is swapped.
+ * @param {string | null} text
+ * @param {"as-is" | "swap" | null} orientation
+ * @returns {string | null}
+ */
+export function orientScoreText(text, orientation) {
+  if (text == null) return null;
+  if (orientation !== "swap") return text;
+  return text
+    .split(",")
+    .map((part) => {
+      const pair = part.split("-");
+      return pair.length === 2 ? `${pair[1]}-${pair[0]}` : part;
+    })
+    .join(",");
+}
+
+/**
  * @param {"a" | "b" | null} side
  * @param {Record<string, unknown>} match
  */
@@ -508,14 +543,16 @@ export function projectLiveFrame(previous, mapped) {
     receivedAt: receipt || "1970-01-01T00:00:00.000Z",
   });
   if (!canonical) return blankDecision("ignored", "not a live state", previous);
+  // Sets and game are stored from side a when the first player is placeable.
+  const orientation = scoreOrientation(sides, frame.player1Id);
   const state = {
     match_id: canonical.matchId,
     match_key: match.match_key,
     tournament_id: canonical.tournamentId,
     public_ref: canonical.publicRef,
     phase: canonical.phase,
-    score_text: canonical.sets,
-    points_text: canonical.game,
+    score_text: orientScoreText(canonical.sets, orientation),
+    points_text: orientScoreText(canonical.game, orientation),
     flag: canonical.flag,
     stats: null,
     serving_side: canonical.serving,

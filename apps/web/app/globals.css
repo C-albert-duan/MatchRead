@@ -1134,6 +1134,68 @@ a.league-card:hover {
   font-weight: 500;
 }
 
+/* League schedule: commissioner controls under a row, and the Add picker.
+   Charcoal only: red means a tournament ruled against a read. */
+.schedule-row-actions,
+.schedule-row-note {
+  margin: var(--s-sm) 0 0;
+  padding: 0 var(--s-sm);
+}
+
+.schedule-row-note {
+  color: var(--mr-text-muted);
+}
+
+.schedule-menu {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-sm);
+}
+
+.schedule-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  letter-spacing: 0.14em;
+}
+
+.schedule-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.schedule-picker {
+  width: 100%;
+  padding: var(--card-pad);
+  border: 1px solid var(--mr-line);
+  border-radius: var(--r-xl);
+  background: var(--mr-card);
+}
+
+.schedule-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-sm);
+}
+
+.schedule-picker-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-md);
+  padding: var(--s-md);
+  padding-top: calc(var(--s-md) + 3px);
+  border: 1px solid var(--mr-line);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+}
+
+.schedule-picker-row .league-card-name {
+  font-size: 1.05rem;
+}
+
 .trow-name {
   font-family: var(--mr-font-display);
   font-weight: 800;
@@ -3033,5 +3095,228 @@ html[data-nav-pending="true"] .shell-main {
   .nav-progress[data-active="true"] .nav-progress-bar {
     animation: none;
     transform: scaleX(1);
+  }
+}
+
+/* ── My Tennis (/me): Stage, Ceiling triad, match rows. Existing tokens only. ── */
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-lg);
+  padding: var(--card-pad);
+  border: 1px solid var(--mr-line);
+  border-radius: var(--r-xl);
+  background: var(--mr-card);
+}
+
+.stage-number {
+  margin: 0;
+  font-family: var(--mr-font-display);
+  font-weight: 800;
+  font-size: clamp(24px, 3.2vw, 38px);
+  line-height: 1.12;
+  letter-spacing: -0.024em;
+  color: var(--mr-read);
+}
+
+.stage-facts,
+.triad-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-md);
+  margin: 0;
+}
+
+.stage-fact,
+.triad-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-xs);
+  min-width: 0;
+}
+
+.stage-fact dd,
+.triad-cell dd {
+  margin: 0;
+}
+
+.stage-fact-value,
+.triad-value {
+  font-size: clamp(26px, 3vw, 36px);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--mr-read);
+}
+
+.stage-fact[data-miss="true"] .stage-fact-value {
+  color: var(--mr-miss);
+}
+
+.triad {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-sm);
+}
+
+.triad-cell[data-kind="banked"] .triad-value {
+  color: var(--mr-data);
+}
+
+.my-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-sm);
+}
+
+/* A row reuses .match-cell only for the live layer's hooks, not its slot layout. */
+.my-row.match-cell {
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+}
+
+.my-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-xs);
+  min-width: 0;
+  padding: var(--s-md) var(--s-lg);
+  border: 1px solid var(--mr-line);
+  border-radius: var(--r-lg);
+  background: var(--mr-card);
+}
+
+.my-row-reason {
+  margin: 0;
+  font-weight: 600;
+  color: var(--mr-read);
+}
+
+.my-row-players {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-xs) var(--s-sm);
+  margin: 0;
+  font-size: 1.0625rem;
+  color: var(--mr-text-primary);
+}
+
+.my-row--stage {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.my-row--stage .my-row-players {
+  font-family: var(--mr-font-display);
+  font-weight: 800;
+  font-size: clamp(26px, 4vw, 44px);
+  letter-spacing: -0.024em;
+  line-height: 1.08;
+}
+
+.my-row-vs {
+  font-size: 0.875rem;
+  color: var(--mr-text-muted);
+}
+
+.my-row-player[data-picked="true"] {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.my-row-player[data-won="true"] {
+  color: var(--mr-data);
+}
+
+.my-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-xs) var(--s-md);
+  min-width: 0;
+}
+
+.my-row-meta .match-live {
+  justify-content: flex-start;
+  margin: 0;
+}
+
+.my-row-score {
+  font-weight: 600;
+  color: var(--mr-text-primary);
+}
+
+.my-row--stage .my-row-score,
+.my-row--stage .live-score {
+  font-size: clamp(20px, 2.6vw, 28px);
+}
+
+/* The server score is first paint only; the live layer's score replaces it. */
+.match-cell[data-live-sequence] [data-score-static] {
+  display: none;
+}
+
+.my-row-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-xs) var(--s-md);
+  margin: 0;
+}
+
+.my-row-foot a {
+  color: var(--mr-text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.my-list-item[data-promoted="true"] > .my-row {
+  animation: mr-row-promoted var(--mr-duration-enter) var(--mr-ease-decel);
+}
+
+@keyframes mr-row-promoted {
+  from {
+    transform: translateY(6px);
+    border-color: var(--mr-line-strong);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Four header actions do not fit a phone row: the nav takes its own line
+     and scrolls inside itself, so the page never scrolls sideways. */
+  .shell-header-inner {
+    flex-wrap: wrap;
+    row-gap: var(--s-xs);
+    padding-bottom: var(--s-xs);
+  }
+
+  .shell-nav {
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .stage-facts,
+  .triad-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .my-row {
+    padding: var(--s-sm) var(--s-md);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .my-list-item[data-promoted="true"] > .my-row {
+    animation: none;
   }
 }

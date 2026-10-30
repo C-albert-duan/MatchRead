@@ -11,6 +11,7 @@ import {
   liveStateRow,
   mapFrameToMatch,
   openProviderSocket,
+  orientScoreText,
   projectLiveFrame,
   providerSide,
   providerSocketEnabled,
@@ -152,6 +153,34 @@ describe("canonical live frame", () => {
     for (const key of ["winner_player_id", "official_score", "settled_at", "voided"]) {
       assert.equal(Object.hasOwn(row, key), false);
     }
+  });
+});
+
+describe("score orientation", () => {
+  it("stores sets and game from side a when the provider lists side b first", () => {
+    const match = catalog.matches[0];
+    const frame = (matchId) =>
+      canonicalLiveFrame({
+        id: "7000002",
+        matchId,
+        status: "InPlay",
+        score: "6-4,2-3",
+        points: "40-AD",
+        updatedAt: 1_700_000_000_000,
+      }).frame;
+    const sameOrder = projectLiveFrame(null, { frame: frame("101-202-9001-1"), match });
+    const reversed = projectLiveFrame(null, { frame: frame("202-101-9001-1"), match });
+    assert.equal(sameOrder.state.score_text, "6-4,2-3");
+    assert.equal(sameOrder.state.points_text, "40-AD");
+    assert.equal(reversed.action, "apply");
+    assert.equal(reversed.state.score_text, "4-6,3-2");
+    assert.equal(reversed.state.points_text, "AD-40");
+  });
+
+  it("keeps provider order when the first player is not one of the sides", () => {
+    assert.equal(orientScoreText("6-4,2-3", null), "6-4,2-3");
+    assert.equal(orientScoreText(null, "swap"), null);
+    assert.equal(orientScoreText("7-6,0-0", "swap"), "6-7,0-0");
   });
 });
 

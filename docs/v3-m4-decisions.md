@@ -1,0 +1,78 @@
+# V3 Milestone 4 decisions
+
+**Date:** 2026-10-26. **Basis:** `main` @ `2756218` (migration head `0043`, pgTAP up to `48`).
+Each decision applies the recommended default from the remaining-work plan (Phase 2). Revisit a decision here before changing code that depends on it.
+
+## D-M4-1 Point flags: match point on real data, break point not yet
+
+REST live rows carry neither sets-to-win nor a server id (see `provider-capture-findings.md`). M4 first shipped with `pointFlags: null` everywhere. Revised 2026-10-27:
+
+- **Match point is derived at read time.** `assembleMyTennis` calls `derivePointFlags` on the stored live row with sets-to-win from `setsToWinFor(tour, tier)`: 3 for `atp` + `grand_slam`, 2 for any other tier, null (no match point) when tour or tier is missing. Nothing new is stored, so no migration.
+- **Scores are stored from side a.** The live row lists the provider's first player on the left. Pair mapping is order-free, so a match could hold that player as side b and the stored score read backwards. Before this, Projected, `leader` and the pressure reasons could credit the wrong player on such a match. `projectLiveFrame` and `normalizeCapturedFrame` now swap `score_text` and `points_text` when the first player (`matchId` segment 1) is side b. When the first player is not one of the sides (an event-mapped frame whose id names no players), the provider order is kept as before.
+- **Break point stays null.** It needs the server, and `indicator` is not a server. Revisit when a socket feed (MEGA decision) or a reliable server indicator exists.
+- `classify` returns `critical` for a match point against the user's pick. The Stage maps `urgent` to the calm `live` treatment, so the effect is the top row and the Stage focus, not a takeover.
+- `LiveRerank` refreshes `/me` when a patch starts or ends a match point (D-M4-11). The server mark carries the format so the client can re-derive it.
+
+## D-M4-2 The Stage lives on `/me`
+
+A new authenticated Server Component route, `/me` ("My Tennis"), lists matches in tournaments where the user has a bracket. Signed-out users are redirected to sign-in. The Stage never renders on `/enter/[ref]` or `/leagues/[slug]/t/[ref]/bracket`.
+
+## D-M4-3 Ceiling uses the product's real weights
+
+`POINTS = { R16: 40, QF: 80, SF: 160, F: 320 }` from the prototype is **not** used. `ceiling.ts` uses `roundWeight(r) = 2^r` and the champion bonus from `grade.ts`, so at full settlement `banked` equals `gradeBracket(...).score`, and on an untouched complete bracket `ceiling` equals `maxBracketScore(drawSize)`.
+
+Elimination is derived from each player's seat path: a player is out once any match on their path has a different official winner. `gradeBracket().upside` is **not** reused for the Ceiling. When M4 was built, its `computeAlive` treated a player who had not yet won a match as not alive, so `upside` could rise when that player won their first match, which would break invariant I2. F-3 later made `upside` a true remaining maximum (`knownEliminated`); it now equals Ceiling minus Banked on every replayed step, but the Ceiling keeps its own seat-path code, which also handles live leads.
+
+## D-M4-4 Reason kinds this repo can feed
+
+| kind | Source | Status |
+|---|---|---|
+| `flag` | `pointFlags` | Match point yes; break point replay only (D-M4-1) |
+| `champion` | the user's final pick | Yes |
+| `forward` | the user's picks at or after this round naming either entrant | Yes |
+| `future` | the user's pick for the sibling match (the parent's other feeder) | Yes |
+| `alone` | league pick aggregate, passed in by the server | When the caller supplies it |
+| `consensus` / `contrarian` | MatchRead-wide pick share, passed in by the server | When the caller supplies it |
+| `swing` | league members' banked points and picks | Yes, after lock (D-M4-12) |
+| `daily` | Daily Picks | N/A in this repo (mobile only) |
+
+A missing input means that kind is never emitted. `reasonsFor` never guesses one.
+
+## D-M4-5 `MATTERS_FLOOR = 5` filters the list, not the Stage
+
+`matters()` keeps a match whose top reason has `prio <= 5`. A plain scheduled pick (`forward`, prio 6) therefore does not appear in the My Tennis list. The `morning` and `next` Stage countdowns still use every candidate match the user has a pick on, so "the next thing of yours" is never hidden by the floor.
+
+## D-M4-6 D6, the settlement latch
+
+There is no `apply_bracket_state`. `mergeSettledFact` plus `claim_settlement` keep the first official winner, and a later differing winner is logged as `ops_events.name = 'winner_conflict'`. `ceilingMaths` reads only `matches.winner_player_id` (the latched value). `/founder/integrity` will show the conflict count; users see nothing.
+
+## D-M4-7 `ImportanceConfig` storage
+
+Defaults live in `packages/core/src/live/importance.ts` (`criticalAtOrBelow: 0`, `importantAtOrBelow: 2`). The server overrides them from a single-row `app_config` table (key `importance`, `jsonb`, 60 s cache), added in migration `0044`. Writes are service role only: the web holds the anon key and founder access is an app-level gate, so a founder retunes it from the SQL editor or a script. A missing or malformed row falls back to the defaults.
+
+## D-M4-8 D5, the Realtime connection ceiling
+
+**Open.** Read the concurrent-connection limit for the Supabase plan from the dashboard and record it here before any load test. `/me` opens one channel per tournament in which the user holds a bracket.
+
+## D-M4-9 Forward exposure is an index, not a table
+
+The plan's `bracket_forward_exposure (match_id, bracket_id, forward_node_id, pts)` is keyed by the live match. Later-round entrants are unknown at lock, so that table cannot be filled correctly at lock time. Picks are already per match and fixed after lock, so "which forward picks are lost if player X loses" is the picks naming X. Migration `0044` adds `picks (player_id, bracket_id)` for that read, and `ceilingDeltaIfLost` computes points from the user's own picks. Cross-user fan-out ("everyone exposed to this match", needed for Pulse and `urgent`) reads the same index.
+
+## D-M4-10 `stage_events` and founder tiles
+
+Migration `0045` adds `stage_events` (own-row insert and read) and `stage_event_rates(since)`, which returns aggregates only. `/founder/integrity` shows Stage changes in the last 24 h, the busiest user-hour (event mark above 2), and `winner_conflict` rows in the last 7 days (error mark at 1 or more). Both tiles read apart from the page's main load, so a database without `0045` shows "none" instead of failing.
+
+## D-M4-11 Live re-ranking on `/me` is a throttled server refresh
+
+M4.5 asks for live patches to re-sort My Tennis with the same core function in the browser. Ranking reads the user's picks, the draw's seats and the importance config; shipping those to the client would put every bracket the user holds into the page payload. Instead, the live layer announces each paint (`mr:live-paint`), and `LiveRerank` refreshes the page only when a patch changes what ranking reads from a live match: whether it is live, and who leads (`leader`, sets then games, the same core function). The server then runs `assembleMyTennis` on the new live row, so the list, the Stage and Projected follow it; score ticks that keep the leader patch in place. Refreshes are at least 5 s apart. The 45 s background refresh stays as the floor. `MyMatchList` still keeps rows below the top three from moving under the reader.
+
+## D-M4-12 League Swing: the result changes who is first
+
+Added 2026-10-27. A match that is not final gets `kind: "swing"` (prio 3) when side a winning and side b winning leave different members first in the bracket's league. `swingsFirstPlace` in `packages/core/src/live/swing.ts` decides it.
+
+- **Standings are banked points, not projected.** Each member's total is their points from the league's other tournaments (season leagues: `season_points` minus this bracket's stored `points`; event leagues: 0) plus their bracket on this tournament graded on official results. Other live matches are not projected.
+- **One match at a time.** The winner adds its round weight to every member who picked them, plus the champion bonus on the final. No other match is assumed.
+- **First place is a set.** Members tied on the top score share first, so a tie breaking into a sole leader, or a sole leader becoming a tie, is a swing. The alphabetical tie-break `rankRows` uses for positions is not read.
+- **Season members without a bracket here still count** at their season total, since they can still be first.
+- **Only after lock.** `viewMyTennis` reads league members' brackets only when `isTournamentLocked` holds (tournament `lock_at` or the league's `locked_at`), so the reason never reflects picks that can still change. A solo league has no swing.
+- The reason names no member and no score; the copy is `me.reason.swing`. Swing does not trigger a live re-rank on its own: it depends on official results, which already refresh `/me`.

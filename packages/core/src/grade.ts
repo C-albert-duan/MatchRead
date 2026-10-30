@@ -151,18 +151,24 @@ export function gradeBracket(input: {
     score += championBonus;
   }
 
-  const alive = computeAlive(drawSize, official, through);
-
+  // The most this bracket can still add: every open match whose pick is
+  // still standing, plus the champion bonus while the final is open. Counting
+  // only the latest round's winners read 0 before play (V3-M4-DOD F-3).
+  const out = knownEliminated(drawSize, picks, official, through);
+  const open = (key: string, round: number) => {
+    const o = official[key];
+    if (o?.voided) return false;
+    return round > through || !o?.winnerRef;
+  };
   let upside = 0;
   for (const round of rounds) {
-    if (round.index <= through) continue;
     const w = roundWeight(round.index);
     for (const match of round.matches) {
       const pick = picks[match.key];
-      if (pick && alive.has(pick)) upside += w;
+      if (pick && !out.has(pick) && open(match.key, round.index)) upside += w;
     }
   }
-  if (through < lastRound && myChampion && alive.has(myChampion)) {
+  if (myChampion && !out.has(myChampion) && open(finalKey, lastRound)) {
     upside += championBonus;
   }
 
@@ -173,7 +179,7 @@ export function gradeBracket(input: {
     voided,
     upside,
     championRef: myChampion,
-    championAlive: myChampion ? alive.has(myChampion) : null,
+    championAlive: myChampion ? !out.has(myChampion) : null,
     maxScore,
   };
 }
@@ -280,6 +286,38 @@ export function detailBracketGrade(input: {
     },
     throughRound: through,
   };
+}
+
+/**
+ * Players known to be out after the matches decided through `through`.
+ * Results store only winners, so a loser is known two ways: the other
+ * feeder winner of a decided match, or a pick on a decided match that did
+ * not win it. A bracket names a player only inside their own half, so a
+ * beaten pick lost there or earlier. Voided and open matches remove no one.
+ */
+export function knownEliminated(
+  drawSize: number,
+  picks: BracketPicks,
+  official: OfficialResultSet,
+  through = buildRoundStructure(drawSize).length - 1
+): Set<string> {
+  const out = new Set<string>();
+  for (const round of buildRoundStructure(drawSize)) {
+    if (round.index > through) break;
+    for (const match of round.matches) {
+      const o = official[match.key];
+      const winner = o?.winnerRef;
+      if (!winner || o?.voided) continue;
+      const pick = picks[match.key];
+      if (pick && pick !== winner) out.add(pick);
+      if (round.index === 0) continue;
+      for (const feeder of [match.indexInRound * 2, match.indexInRound * 2 + 1]) {
+        const f = official[matchKey(round.index - 1, feeder)];
+        if (f?.winnerRef && !f.voided && f.winnerRef !== winner) out.add(f.winnerRef);
+      }
+    }
+  }
+  return out;
 }
 
 /**
