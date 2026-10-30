@@ -52,3 +52,13 @@ export function getServerSiteUrl(): string {
 export function siteUrl(): string {
   return getServerSiteUrl();
 }
+
+/**
+ * League schedule editing (opt-in custom schedules). Server-only flag; off
+ * unless MATCHREAD_CUSTOM_SCHEDULE is "1" or "true". Turning it off hides
+ * the controls; leagues already on a custom schedule keep their rows.
+ */
+export function isCustomScheduleEnabled(): boolean {
+  const value = (process.env.MATCHREAD_CUSTOM_SCHEDULE ?? "").trim().toLowerCase();
+  return value === "1" || value === "true";
+}

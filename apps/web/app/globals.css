@@ -1134,6 +1134,68 @@ a.league-card:hover {
   font-weight: 500;
 }
 
+/* League schedule: commissioner controls under a row, and the Add picker.
+   Charcoal only: red means a tournament ruled against a read. */
+.schedule-row-actions,
+.schedule-row-note {
+  margin: var(--s-sm) 0 0;
+  padding: 0 var(--s-sm);
+}
+
+.schedule-row-note {
+  color: var(--mr-text-muted);
+}
+
+.schedule-menu {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-sm);
+}
+
+.schedule-menu > summary {
+  list-style: none;
+  cursor: pointer;
+  letter-spacing: 0.14em;
+}
+
+.schedule-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.schedule-picker {
+  width: 100%;
+  padding: var(--card-pad);
+  border: 1px solid var(--mr-line);
+  border-radius: var(--r-xl);
+  background: var(--mr-card);
+}
+
+.schedule-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-sm);
+}
+
+.schedule-picker-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s-md);
+  padding: var(--s-md);
+  padding-top: calc(var(--s-md) + 3px);
+  border: 1px solid var(--mr-line);
+  border-radius: var(--r-xl);
+  overflow: hidden;
+}
+
+.schedule-picker-row .league-card-name {
+  font-size: 1.05rem;
+}
+
 .trow-name {
   font-family: var(--mr-font-display);
   font-weight: 800;

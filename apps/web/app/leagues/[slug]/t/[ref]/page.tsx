@@ -18,7 +18,12 @@ import {
 } from "@/lib/brackets/types";
 import { getLocale, t } from "@/lib/i18n";
 import { isSoloPresentation } from "@/lib/leagues/solo";
-import { leagueIncludesTournament } from "@/lib/leagues/covers";
+import {
+  isCustomSchedule,
+  leagueIncludesTournament,
+  leagueUsesSchedule,
+} from "@/lib/leagues/covers";
+import { loadScheduledIds } from "@/lib/leagues/scheduled";
 import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
 import { redirectIfMissingDisplayName } from "@/lib/profiles/require-name";
 import { createClient } from "@/lib/supabase/server";
@@ -58,7 +63,7 @@ export default async function TournamentInLeaguePage({ params }: Props) {
 
   const { data: league } = await supabase
     .from("leagues")
-    .select("id, slug, name, format, owner_id, is_solo")
+    .select("id, slug, name, format, schedule_mode, owner_id, is_solo")
     .eq("slug", params.slug)
     .maybeSingle();
 
@@ -101,9 +106,16 @@ export default async function TournamentInLeaguePage({ params }: Props) {
   if (!tournament) notFound();
 
   if (
-    league.format === "single" &&
+    leagueUsesSchedule(league) &&
     !leagueIncludesTournament(
-      { format: league.format, tournament_id: linkedTournamentId },
+      {
+        format: league.format,
+        schedule_mode: league.schedule_mode,
+        tournament_id: linkedTournamentId,
+        scheduled_ids: isCustomSchedule(league)
+          ? await loadScheduledIds(supabase, league.id)
+          : null,
+      },
       tournament.id
     )
   ) {

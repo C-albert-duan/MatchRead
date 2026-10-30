@@ -1,6 +1,18 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { isPersonalDailyCheck } from "@matchread/core";
+import {
+  isPersonalDailyCheck,
+  isScheduleEditable,
+  scheduleGroup,
+  scheduleStatus,
+  type ScheduleGroup,
+} from "@matchread/core";
+import {
+  AddTournamentPicker,
+  CustomScheduleSwitch,
+  ScheduleRowMenu,
+  type ScheduleCandidate,
+} from "@/components/league/ScheduleControls";
 import { AppShell } from "@/components/shell/AppShell";
 import { DailyCheckPanel } from "@/components/league/DailyCheckPanel";
 import { EngagementStrip } from "@/components/league/EngagementStrip";
@@ -10,12 +22,15 @@ import { LeagueMembersPanel } from "@/components/league/LeagueMembersPanel";
 import { LeagueSettingsPanel } from "@/components/league/LeagueSettingsPanel";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
-import { getServerSiteUrl } from "@/lib/env";
+import { getServerSiteUrl, isCustomScheduleEnabled } from "@/lib/env";
 import { getLocale, t, tf } from "@/lib/i18n";
 import { loadDailyCheck } from "@/lib/leagues/daily-check";
 import { isSoloPresentation } from "@/lib/leagues/solo";
 import type { LeagueVisibility } from "@/lib/leagues/types";
-import { leagueIncludesTournament } from "@/lib/leagues/covers";
+import {
+  isCustomSchedule,
+  leagueIncludesTournament,
+} from "@/lib/leagues/covers";
 import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
 import { redirectIfMissingDisplayName } from "@/lib/profiles/require-name";
 import { createClient } from "@/lib/supabase/server";
@@ -179,12 +194,20 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
 
   const openInvite = searchParams.invite === "1" && Boolean(inviteUrl);
 
+  const customSchedule = isCustomSchedule(league);
+  const scheduleEditing =
+    isCommissioner && !solo && league.format === "season" && isCustomScheduleEnabled();
+
   const leagueTournaments = (tournamentsRes.data ?? [])
     .filter((row) =>
       leagueIncludesTournament(
         {
           format: league.format,
+          schedule_mode: league.schedule_mode,
           tournament_id: leagueForCheck.tournament_id,
+          scheduled_ids: new Set(
+            (linkedTournaments ?? []).map((lt) => lt.tournament_id as string)
+          ),
         },
         row.id
       )
@@ -192,6 +215,41 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
     .map((row) => ({ ...row, ref: row.slug }));
 
   const tournamentIds = leagueTournaments.map((t) => t.id);
+  const [{ data: candidateRows }, { data: bracketRows }] =
+    scheduleEditing && customSchedule
+      ? await Promise.all([
+          supabase.rpc("league_schedule_candidates", { p_league_id: league.id }),
+          supabase.from("brackets").select("tournament_id").eq("league_id", league.id),
+        ])
+      : [{ data: null }, { data: null }];
+  const tournamentsWithBrackets = new Set(
+    ((bracketRows ?? []) as Array<{ tournament_id: string }>).map((b) => b.tournament_id)
+  );
+  const monthFormat = new Intl.DateTimeFormat(locale, {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  const candidates: ScheduleCandidate[] = (
+    (candidateRows ?? []) as Array<{
+      slug: string;
+      name: string;
+      tour: string | null;
+      surface: string | null;
+      starts_on: string | null;
+      ends_on: string | null;
+    }>
+  ).map((c) => ({
+    ref: c.slug,
+    name: c.name,
+    tour: c.tour ?? "",
+    surfaceClass: surfaceClass(c.surface),
+    dateLabel: formatTournamentDate(c.starts_on, locale, c.ends_on) ?? t("calendar.dateTbc"),
+    monthLabel: c.starts_on
+      ? monthFormat.format(new Date(`${c.starts_on}T00:00:00Z`))
+      : t("calendar.dateTbc"),
+  }));
+
   const [{ data: resultRows }, { data: scoredRows }, { data: leagueLockRows }] =
     tournamentIds.length > 0
       ? await Promise.all([
@@ -244,6 +302,112 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
     (scoredRows ?? []).map((s) => s.tournament_id)
   );
   const dateTbc = t("calendar.dateTbc");
+  const labels = timeLabels();
+
+  type LeagueTournamentRow = (typeof leagueTournaments)[number];
+
+  function rowScheduleStatus(row: LeagueTournamentRow) {
+    const hasDraw = publishedIds.has(row.id);
+    const expected = Math.max(row.draw_size - 1, 0);
+    return scheduleStatus({
+      hasDraw,
+      drawAnnounced: Boolean(row.published_at || row.lock_at),
+      lockAt: row.lock_at,
+      leagueLockedAt: leagueLockedAt.get(row.id) ?? null,
+      complete:
+        settledTournaments.has(row.id) ||
+        (expected > 0 && (decidedByTournament.get(row.id) ?? 0) >= expected),
+    });
+  }
+
+  function renderTournament(row: LeagueTournamentRow) {
+    const hasDraw = publishedIds.has(row.id);
+    const status = tournamentListStatus({
+      hasDraw,
+      drawSize: row.draw_size,
+      decidedCount: decidedByTournament.get(row.id) ?? 0,
+      settled: settledTournaments.has(row.id),
+      starts_on: row.starts_on,
+      lock_at: row.lock_at,
+      admin_locked_at: null,
+      league_locked_at: leagueLockedAt.get(row.id) ?? null,
+    });
+    const start =
+      formatTournamentDate(
+        row.starts_on,
+        locale,
+        (row as { ends_on?: string | null }).ends_on
+      ) ?? dateTbc;
+    const lockAt =
+      shouldShowEntryLock(row) && row.lock_at ? row.lock_at : null;
+    const blockedBy = !isScheduleEditable(rowScheduleStatus(row))
+      ? "locked"
+      : tournamentsWithBrackets.has(row.id)
+        ? "brackets"
+        : null;
+    return (
+      <li key={row.id}>
+        <Link
+          href={`/leagues/${league.slug}/t/${row.ref}`}
+          className="league-card"
+        >
+          <span
+            className={`court-hairline court-${surfaceClass(row.surface)}`}
+            aria-hidden
+          />
+          <TourLabel
+            tour={normalizeTour((row as { tour?: string | null }).tour)}
+          />
+          <span className="stack gap-sm" style={{ flex: 1, minWidth: 0 }}>
+            <span className="league-card-name">{row.name}</span>
+            <span className="t-caption numeral">
+              {start}
+              {lockAt ? (
+                <>
+                  {" · "}
+                  <EntryLockWhen
+                    lockAt={lockAt}
+                    venueTz={(row as { venue_tz?: string | null }).venue_tz}
+                    locale={locale}
+                    labels={labels}
+                  />
+                </>
+              ) : null}
+              {" · "}
+              {`${row.draw_size}-draw`}
+            </span>
+          </span>
+          <span className="league-card-status">{status}</span>
+        </Link>
+        {scheduleEditing && customSchedule ? (
+          <ScheduleRowMenu
+            slug={league.slug}
+            tournamentRef={row.ref}
+            name={row.name}
+            leagueName={league.name}
+            blockedBy={blockedBy}
+          />
+        ) : null}
+      </li>
+    );
+  }
+
+  const scheduleGroups: Array<[ScheduleGroup, LeagueTournamentRow[]]> = [
+    ["upcoming", []],
+    ["inPlay", []],
+    ["completed", []],
+  ];
+  if (customSchedule) {
+    for (const row of leagueTournaments) {
+      const group = scheduleGroup(rowScheduleStatus(row));
+      scheduleGroups.find(([g]) => g === group)?.[1].push(row);
+    }
+  }
+  const groupTitle: Record<ScheduleGroup, string> = {
+    upcoming: t("schedule.group.upcoming"),
+    inPlay: t("schedule.group.inPlay"),
+    completed: t("schedule.group.completed"),
+  };
 
   return (
     <AppShell signedIn email={user.email}>
@@ -349,77 +513,35 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
 
         <section className="section" aria-labelledby="tournaments-heading">
           <h2 id="tournaments-heading" className="section-title">
-            {t("league.tournaments")}
+            {customSchedule ? t("schedule.title") : t("league.tournaments")}
           </h2>
+          {customSchedule ? (
+            <p className="section-lede">{t("schedule.customLede")}</p>
+          ) : null}
+          {scheduleEditing && !customSchedule ? (
+            <CustomScheduleSwitch slug={league.slug} leagueName={league.name} />
+          ) : null}
+          {scheduleEditing && customSchedule ? (
+            <div className="page-actions">
+              <AddTournamentPicker slug={league.slug} candidates={candidates} />
+            </div>
+          ) : null}
           {leagueTournaments.length === 0 ? (
             <p className="t-body">
-              {t("league.noTournaments")}
+              {customSchedule ? t("schedule.none") : t("league.noTournaments")}
             </p>
+          ) : customSchedule ? (
+            scheduleGroups.map(([group, rows]) =>
+              rows.length > 0 ? (
+                <div key={group} className="stack gap-sm">
+                  <h3 className="eyebrow eyebrow--plain">{groupTitle[group]}</h3>
+                  <ul className="league-list">{rows.map(renderTournament)}</ul>
+                </div>
+              ) : null
+            )
           ) : (
             <ul className="league-list">
-              {leagueTournaments.map((t) => {
-                const hasDraw = publishedIds.has(t.id);
-                const status = tournamentListStatus({
-                  hasDraw,
-                  drawSize: t.draw_size,
-                  decidedCount: decidedByTournament.get(t.id) ?? 0,
-                  settled: settledTournaments.has(t.id),
-                  starts_on: t.starts_on,
-                  lock_at: t.lock_at,
-                  admin_locked_at: null,
-                  league_locked_at: leagueLockedAt.get(t.id) ?? null,
-                });
-                const start =
-                  formatTournamentDate(
-                    t.starts_on,
-                    locale,
-                    (t as { ends_on?: string | null }).ends_on
-                  ) ?? dateTbc;
-                const lockAt =
-                  shouldShowEntryLock(t) && t.lock_at ? t.lock_at : null;
-                const labels = timeLabels();
-                return (
-                  <li key={t.id}>
-                    <Link
-                      href={`/leagues/${league.slug}/t/${t.ref}`}
-                      className="league-card"
-                    >
-                      <span
-                        className={`court-hairline court-${surfaceClass(t.surface)}`}
-                        aria-hidden
-                      />
-                      <TourLabel
-                        tour={normalizeTour(
-                          (t as { tour?: string | null }).tour
-                        )}
-                      />
-                      <span
-                        className="stack gap-sm"
-                        style={{ flex: 1, minWidth: 0 }}
-                      >
-                        <span className="league-card-name">{t.name}</span>
-                        <span className="t-caption numeral">
-                          {start}
-                          {lockAt ? (
-                            <>
-                              {" · "}
-                              <EntryLockWhen
-                                lockAt={lockAt}
-                                venueTz={(t as { venue_tz?: string | null }).venue_tz}
-                                locale={locale}
-                                labels={labels}
-                              />
-                            </>
-                          ) : null}
-                          {" · "}
-                          {`${t.draw_size}-draw`}
-                        </span>
-                      </span>
-                      <span className="league-card-status">{status}</span>
-                    </Link>
-                  </li>
-                );
-              })}
+              {leagueTournaments.map(renderTournament)}
             </ul>
           )}
         </section>

@@ -51,6 +51,18 @@ export {
 export type { LockFixture, LockTournament } from "./tournament/lock";
 
 export {
+  isScheduleEditable,
+  isScheduleLocked,
+  scheduleGroup,
+  scheduleStatus,
+} from "./tournament/schedule";
+export type {
+  ScheduleGroup,
+  ScheduleStatus,
+  ScheduleStatusInput,
+} from "./tournament/schedule";
+
+export {
   computeAlive,
   knownEliminated,
   detailBracketGrade,
