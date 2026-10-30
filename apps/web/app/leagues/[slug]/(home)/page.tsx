@@ -13,6 +13,7 @@ import {
   ScheduleRowMenu,
   type ScheduleCandidate,
 } from "@/components/league/ScheduleControls";
+import type { MessageKey } from "@matchread/i18n";
 import { AppShell } from "@/components/shell/AppShell";
 import { DailyCheckPanel } from "@/components/league/DailyCheckPanel";
 import { EngagementStrip } from "@/components/league/EngagementStrip";
@@ -235,14 +236,21 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
       slug: string;
       name: string;
       tour: string | null;
+      tier: string | null;
       surface: string | null;
       starts_on: string | null;
       ends_on: string | null;
+      lock_at: string | null;
+      venue_tz: string | null;
     }>
   ).map((c) => ({
     ref: c.slug,
     name: c.name,
     tour: c.tour ?? "",
+    tierLabel:
+      c.tier && c.tier !== "other" ? t(`schedule.tier.${c.tier}` as MessageKey) : null,
+    lockAt: c.lock_at,
+    venueTz: c.venue_tz,
     surfaceClass: surfaceClass(c.surface),
     dateLabel: formatTournamentDate(c.starts_on, locale, c.ends_on) ?? t("calendar.dateTbc"),
     monthLabel: c.starts_on
@@ -523,7 +531,12 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
           ) : null}
           {scheduleEditing && customSchedule ? (
             <div className="page-actions">
-              <AddTournamentPicker slug={league.slug} candidates={candidates} />
+              <AddTournamentPicker
+                slug={league.slug}
+                candidates={candidates}
+                locale={locale}
+                lockLabels={labels}
+              />
             </div>
           ) : null}
           {leagueTournaments.length === 0 ? (

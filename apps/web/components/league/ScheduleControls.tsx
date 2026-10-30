@@ -8,6 +8,8 @@ import {
   removeTournamentAction,
 } from "@/app/actions/leagues";
 import { useT, useTf } from "@/components/shell/LocaleProvider";
+import { EntryLockWhen } from "@/components/tournaments/EntryLockWhen";
+import type { TournamentTimeLabels } from "@/lib/tournaments/time-facts";
 import type {
   ScheduleErrorCode,
   ScheduleResult,
@@ -78,6 +80,9 @@ export type ScheduleCandidate = {
   ref: string;
   name: string;
   tour: string;
+  tierLabel: string | null;
+  lockAt: string | null;
+  venueTz: string | null;
   surfaceClass: string;
   dateLabel: string;
   monthLabel: string;
@@ -86,9 +91,13 @@ export type ScheduleCandidate = {
 export function AddTournamentPicker({
   slug,
   candidates,
+  locale,
+  lockLabels,
 }: {
   slug: string;
   candidates: ScheduleCandidate[];
+  locale: string;
+  lockLabels: Pick<TournamentTimeLabels, "today" | "tomorrow" | "entryLocks">;
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -156,7 +165,20 @@ export function AddTournamentPicker({
                   <span className="stack gap-sm" style={{ flex: 1, minWidth: 0 }}>
                     <span className="league-card-name">{c.name}</span>
                     <span className="t-caption numeral">
-                      {c.tour.toUpperCase()} · {c.dateLabel}
+                      {[c.tour.toUpperCase(), c.tierLabel, c.dateLabel]
+                        .filter(Boolean)
+                        .join(" · ")}
+                      {c.lockAt ? (
+                        <>
+                          {" · "}
+                          <EntryLockWhen
+                            lockAt={c.lockAt}
+                            venueTz={c.venueTz}
+                            locale={locale}
+                            labels={lockLabels}
+                          />
+                        </>
+                      ) : null}
                     </span>
                   </span>
                   <button
