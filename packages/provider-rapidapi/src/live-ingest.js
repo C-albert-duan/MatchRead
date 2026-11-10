@@ -47,9 +47,18 @@ function providerToken(value) {
   return text;
 }
 
-function missingLiveStore(message) {
-  return /upsert_live_match_state|live_match_state|does not exist|schema cache|Could not find the function/i.test(
-    message
+/**
+ * True only when the live store itself is not deployed: PostgREST cannot find
+ * the RPC (PGRST202), or Postgres reports an undefined function or table.
+ * Any other error (a constraint, a type error) is a real failure and must be
+ * logged, not read as "not deployed".
+ * @param {{ code?: string | null, message?: string | null } | null | undefined} error
+ */
+export function missingLiveStore(error) {
+  const code = String(error?.code ?? "");
+  if (code === "PGRST202" || code === "42883" || code === "42P01") return true;
+  return /Could not find the function public.upsert_live_match_state/i.test(
+    String(error?.message ?? "")
   );
 }
 
@@ -172,7 +181,7 @@ export async function ingestLiveFrames(admin, event, liveEvents, opts = {}) {
     for (const state of replay.states) {
       const { data, error } = await admin.rpc("upsert_live_match_state", liveUpsertArgs(state));
       if (error) {
-        if (missingLiveStore(error.message)) {
+        if (missingLiveStore(error)) {
           log.push("live branch skipped: upsert_live_match_state is not deployed");
           break;
         }

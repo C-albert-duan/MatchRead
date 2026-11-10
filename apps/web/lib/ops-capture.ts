@@ -1,4 +1,8 @@
-/** First-party ops sink (anon insert). Also used when Sentry/PostHog keys are unset. */
+/**
+ * First-party ops sink. Writes through log_client_event (migration 0047), which
+ * stamps origin/uid and refuses the pipeline's integrity names. Also used when
+ * Sentry/PostHog keys are unset.
+ */
 
 type Payload = Record<string, string | number | boolean | null | undefined>;
 
@@ -23,7 +27,7 @@ export function captureOps(
     if (v === undefined) continue;
     body[k] = v;
   }
-  void fetch(`${target.url}/rest/v1/ops_events`, {
+  void fetch(`${target.url}/rest/v1/rpc/log_client_event`, {
     method: "POST",
     headers: {
       apikey: target.key,
@@ -31,7 +35,7 @@ export function captureOps(
       "Content-Type": "application/json",
       Prefer: "return=minimal",
     },
-    body: JSON.stringify({ kind, name: trimmed, payload: body }),
+    body: JSON.stringify({ p_kind: kind, p_name: trimmed, p_payload: body }),
     keepalive: true,
   }).catch(() => {
     /* never throw from reporting */

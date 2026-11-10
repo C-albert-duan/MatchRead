@@ -2,14 +2,11 @@ import { isOfficialPublicDraw, type OfficialResults } from "@matchread/core";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { AppShell } from "@/components/shell/AppShell";
-import { OfficialResultsPanel } from "@/components/league/OfficialResultsPanel";
-import { SettleButton } from "@/components/league/SettleButton";
 import { StandingsTable } from "@/components/league/StandingsTable";
 import { AnnouncedFirstRound } from "@/components/bracket/AnnouncedFirstRound";
 import { PublicOfficialDraw } from "@/components/bracket/PublicOfficialDraw";
 import { TourLabel } from "@/components/tournaments/TourLabel";
 import { getSessionUser } from "@/lib/auth";
-import { isFounderEmail } from "@/lib/auth/founder";
 import { loadTournamentReadModel } from "@/lib/brackets/read-model";
 import {
   effectiveDrawSize,
@@ -122,12 +119,6 @@ export default async function TournamentInLeaguePage({ params }: Props) {
     notFound();
   }
 
-  const isCommissioner = membership.role === "commissioner";
-  const isFounder = isFounderEmail(user.email ?? undefined);
-  // Manual Official Results UI only when no provider feed (rare / ops).
-  const showManualResults =
-    isCommissioner && !(tournament as { provider_id?: string | null }).provider_id;
-
   const [scoredRes, sheet, leagueLockedAt] = await Promise.all([
     supabase
       .from("brackets")
@@ -167,12 +158,6 @@ export default async function TournamentInLeaguePage({ params }: Props) {
   const officialResults: OfficialResults = {};
   for (const [key, row] of Object.entries(officialMap)) {
     officialResults[key] = row;
-  }
-  const initialResults: Record<string, string> = {};
-  for (const [key, row] of Object.entries(officialMap)) {
-    if (!row.voided && row.winnerRef) {
-      initialResults[key] = row.winnerRef;
-    }
   }
   const schedule: Record<string, MatchScheduleRow> = scheduleMap;
 
@@ -362,33 +347,6 @@ export default async function TournamentInLeaguePage({ params }: Props) {
                 ) : null}
               </>
             )}
-            {isCommissioner ? (
-              <>
-                {showManualResults ? (
-                  <OfficialResultsPanel
-                    leagueId={league.id}
-                    leagueSlug={league.slug}
-                    tournamentId={tournament.id}
-                    tournamentRef={tournamentRef}
-                    drawSize={drawSize}
-                    seats={seats}
-                    initialResults={initialResults}
-                    isFounder={isFounder}
-                    schedule={schedule}
-                    venueTz={
-                      (tournament as { venue_tz?: string | null }).venue_tz ||
-                      "UTC"
-                    }
-                  />
-                ) : null}
-                <SettleButton
-                  leagueId={league.id}
-                  leagueSlug={league.slug}
-                  tournamentId={tournament.id}
-                  tournamentRef={tournamentRef}
-                />
-              </>
-            ) : null}
           </section>
         ) : null}
       </div>

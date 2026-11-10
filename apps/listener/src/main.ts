@@ -10,6 +10,7 @@ import {
   nextReconnectAttempt,
   nextWakeMs,
   reconnectDelayMs,
+  stampReceipt,
 } from "@matchread/provider-rapidapi";
 import { readFeedShape, recordedAbsences, removalEnabled } from "./feed-shape.ts";
 import { forwardFrames, forwardHeartbeat } from "./forward.ts";
@@ -75,7 +76,11 @@ export async function runOnce(options: {
   const now = options.now ?? Date.now();
   const live = options.live ?? (await connect(options.env, undefined, { info }));
   const payload = await live.getLiveEvents(now);
-  const frames = Array.isArray(payload.events) ? payload.events : [];
+  // Receipt is stamped at fetch: live_match_state.received_at is NOT NULL.
+  const frames = stampReceipt(
+    Array.isArray(payload.events) ? payload.events : [],
+    new Date(now).toISOString()
+  );
   const changed = options.session.takeChanged(frames);
   const feedShape = readFeedShape(options.env);
   const absent = recordedAbsences(feedShape, options.session.knownEventIds(), frames);
