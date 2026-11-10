@@ -900,6 +900,9 @@ export declare function deriveLiveFlags(
   now?: number
 ): { live: boolean; provisional: boolean; stale: boolean; serving: false };
 
+/** Adds receivedAt to raw provider rows that have no receipt. */
+export declare function stampReceipt<T>(rows: T[], receivedAt?: string): T[];
+
 export declare function normalizeLivePayload(
   body: unknown,
   receivedAt?: string

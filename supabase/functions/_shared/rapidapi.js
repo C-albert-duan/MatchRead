@@ -39,6 +39,7 @@ export {
   liveStateRow,
   mapFrameToMatch,
   normalizeLivePayload,
+  stampReceipt,
   projectLiveFrame,
   replayLiveFrames,
   hashDrawSeats,

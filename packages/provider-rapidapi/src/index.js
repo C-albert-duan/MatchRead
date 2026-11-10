@@ -963,6 +963,7 @@ export {
   restLiveDifference,
   liveStateRow,
   normalizeLivePayload,
+  stampReceipt,
   mapFrameToMatch,
   openProviderSocket,
   projectLiveFrame,

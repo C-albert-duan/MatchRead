@@ -54,6 +54,7 @@ import {
   defaultTournamentSpanDays,
   UnknownProviderValue,
   assertDrawBelongsToTournament,
+  stampReceipt,
 } from "../_shared/rapidapi.js";
 
 const cors = {
@@ -247,7 +248,7 @@ Deno.serve(async (req) => {
     let liveEvents: unknown[] = [];
     try {
       const live = await getLiveEvents(rapidClient);
-      liveEvents = live.events ?? [];
+      liveEvents = stampReceipt(live.events ?? []);
       log.push(`live events ${liveEvents.length}`);
     } catch (err) {
       log.push(

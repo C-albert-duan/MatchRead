@@ -8,6 +8,20 @@ import { runListener, runOnce } from "./main.ts";
 import { createListenerSession, equalForIngest, frameSignature, providerEventId } from "./session.ts";
 import { tournamentIdOf } from "./tick-log.ts";
 
+/**
+ * Forwarded frames are the raw provider rows plus the receipt the listener
+ * stamps at fetch (fix list P0-5). Checks the stamp, then drops it.
+ */
+function unstamped(frames: unknown): unknown {
+  assert.ok(Array.isArray(frames), "liveFrames is an array");
+  return frames.map((frame) => {
+    const { receivedAt, ...rest } = frame as Record<string, unknown>;
+    assert.equal(typeof receivedAt, "string", "frame has a receipt");
+    assert.ok(!Number.isNaN(Date.parse(receivedAt as string)), "receipt is a timestamp");
+    return rest;
+  });
+}
+
 describe("changed frames", () => {
   it("forwards a raw row once until a field changes", () => {
     const session = createListenerSession();
@@ -199,7 +213,7 @@ describe("ingest forward", () => {
     assert.equal(result.forwarded, 3);
     assert.equal(calls[0]?.url, "https://example.test/functions/v1/sync-facts");
     assert.equal(calls[0]?.authorization, "Bearer ingest-secret");
-    assert.deepEqual(calls[0]?.liveFrames, tick);
+    assert.deepEqual(unstamped(calls[0]?.liveFrames), tick);
   });
 });
 
@@ -257,7 +271,7 @@ describe("duplicate event", () => {
     assert.equal(second.changed, 0);
     assert.equal(second.forwarded, 0);
     assert.equal(posts.length, 1);
-    assert.deepEqual(posts[0]?.liveFrames, [event]);
+    assert.deepEqual(unstamped(posts[0]?.liveFrames), [event]);
   });
 });
 
@@ -303,8 +317,8 @@ describe("listener restart", () => {
     assert.equal(posts.length, 2);
     assert.equal(posts[0]?.mode, "live");
     assert.equal(posts[1]?.mode, "live");
-    assert.deepEqual(posts[0]?.liveFrames, snapshot);
-    assert.deepEqual(posts[1]?.liveFrames, snapshot);
+    assert.deepEqual(unstamped(posts[0]?.liveFrames), snapshot);
+    assert.deepEqual(unstamped(posts[1]?.liveFrames), snapshot);
   });
 });
 
@@ -338,7 +352,8 @@ describe("listener cycle", () => {
     });
     assert.equal(first.forwarded, 1);
     assert.equal(posts.length, 1);
-    assert.deepEqual(posts[0], {
+    const firstPost = posts[0] as Record<string, unknown>;
+    assert.deepEqual({ ...firstPost, liveFrames: unstamped(firstPost.liveFrames) }, {
       mode: "live",
       liveFrames: [{ id: "1", score: "1-0", player1: { name: "Alpha" } }],
       listenerInstanceId: listenerInstanceId({
@@ -409,8 +424,8 @@ describe("listener cycle", () => {
       });
     }
     assert.equal(posts.length, 2);
-    assert.deepEqual(posts[0]?.liveFrames, [frame]);
-    assert.deepEqual(posts[1]?.liveFrames, [frame]);
+    assert.deepEqual(unstamped(posts[0]?.liveFrames), [frame]);
+    assert.deepEqual(unstamped(posts[1]?.liveFrames), [frame]);
     assert.equal(posts[0]?.listenerInstanceId, "replica-a");
     assert.equal(posts[1]?.listenerInstanceId, "replica-b");
     assert.equal(listenerInstanceId({ RAILWAY_REPLICA_ID: "replica-b" }), "replica-b");

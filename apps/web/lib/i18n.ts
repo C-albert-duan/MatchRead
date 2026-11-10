@@ -21,7 +21,7 @@ export function t(key: MessageKey): string {
   return translate(getLocale(), key);
 }
 
-/** `t` with `{placeholder}` substitution, e.g. `tf("results.recorded", { n: 3, total: 8 })`. */
+/** `t` with `{placeholder}` substitution, e.g. `tf("leagues.members.count.one", { n: 1 })`. */
 export function tf(
   key: MessageKey,
   vars: Record<string, string | number>

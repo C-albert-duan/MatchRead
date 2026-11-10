@@ -446,34 +446,7 @@ const en = {
   "publicTournament.officialDraw": "Official draw",
 
   // Official results
-  "results.title": "Official results",
-  "results.lede":
-    "Nothing is selected until a match finishes. Tap the winner for that match only — then come back for the next day. When you're ready, run settlement below.",
-  "results.recorded": "{n} of {total} matches recorded",
-  "results.clear": "Clear",
-  "results.clearAll": "Clear all results",
-  "results.settleAll": "Settle all leagues",
-  "results.settling": "Settling…",
-  "results.saved": "Saved",
-  "results.notPlayed": "Not played",
-  "results.saving": "Saving…",
-  "results.done": "done",
-  "results.inProgress": "in progress",
-  "results.waitingEarlier":
-    "Waiting on earlier rounds — record those winners first.",
-  "results.busy.save": "Saving winner…",
-  "results.busy.clear": "Clearing…",
-  "results.busy.settle": "Settling leagues…",
-  "results.msg.saved":
-    "Saved: {name} won. Record more matches as they finish, then run settlement.",
-  "results.msg.savedCleared":
-    "Saved: {name} won. Later rounds were cleared — record them when those matches finish.",
-  "results.msg.cleared": "Result cleared. Tap a winner when that match finishes.",
-  "results.msg.clearedAll":
-    "All official results cleared. Record matches one by one.",
   "results.vs": "vs",
-  "results.bye": "Bye",
-  "results.tbd": "TBD",
   "match.withdrawal": "Withdrawal",
   "match.scheduled": "Scheduled",
   "live.badge": "Live",
@@ -498,14 +471,6 @@ const en = {
   "draw.entry.ll": "LL",
 
   // Settle
-  "settle.run": "Run settlement",
-  "settle.settling": "Settling…",
-  "settle.hint":
-    "Grades submitted brackets against official fixture results (server).",
-  "settle.ok":
-    "Settled {n} bracket(s). Open See my result (or Your result) to view the scorecard.",
-  "settle.okZero":
-    "Settlement ran, but nobody has clicked Submit my bracket yet — Your result stays empty until someone submits.",
 
   // Result page
   "result.title": "Your result",
@@ -1145,35 +1110,7 @@ const es: Record<MessageKey, string> = {
   "publicTournament.officialDraw": "Cuadro oficial",
 
   // Official results
-  "results.title": "Resultados oficiales",
-  "results.lede":
-    "Nada se selecciona hasta que un partido termina. Toca al ganador solo de ese partido — y vuelve al día siguiente. Cuando estés listo, ejecuta el settlement abajo.",
-  "results.recorded": "{n} de {total} partidos registrados",
-  "results.clear": "Borrar",
-  "results.clearAll": "Borrar todos los resultados",
-  "results.settleAll": "Liquidar todas las ligas",
-  "results.settling": "Liquidando…",
-  "results.saved": "Guardado",
-  "results.notPlayed": "No jugado",
-  "results.saving": "Guardando…",
-  "results.done": "hecho",
-  "results.inProgress": "en progreso",
-  "results.waitingEarlier":
-    "Esperando rondas anteriores — registra esos ganadores primero.",
-  "results.busy.save": "Guardando ganador…",
-  "results.busy.clear": "Borrando…",
-  "results.busy.settle": "Liquidando ligas…",
-  "results.msg.saved":
-    "Guardado: {name} ganó. Registra más partidos según terminen, luego ejecuta el settlement.",
-  "results.msg.savedCleared":
-    "Guardado: {name} ganó. Las rondas posteriores se borraron — regístralas cuando esos partidos terminen.",
-  "results.msg.cleared":
-    "Resultado borrado. Toca a un ganador cuando ese partido termine.",
-  "results.msg.clearedAll":
-    "Todos los resultados oficiales se borraron. Registra los partidos uno a uno.",
   "results.vs": "vs",
-  "results.bye": "Bye",
-  "results.tbd": "Por determinar",
   "match.withdrawal": "Abandono",
   "match.scheduled": "Programado",
   "live.badge": "En vivo",
@@ -1198,14 +1135,6 @@ const es: Record<MessageKey, string> = {
   "draw.entry.ll": "LL",
 
   // Settle
-  "settle.run": "Ejecutar settlement",
-  "settle.settling": "Liquidando…",
-  "settle.hint":
-    "Califica los cuadros enviados contra los resultados oficiales del fixture (servidor).",
-  "settle.ok":
-    "Se liquidaron {n} cuadro(s). Abre Ver mi resultado (o Tu resultado) para ver la tarjeta.",
-  "settle.okZero":
-    "El settlement se ejecutó, pero nadie ha pulsado Enviar mi cuadro todavía — Tu resultado queda vacío hasta que alguien envíe.",
 
   // Result page
   "result.title": "Tu resultado",
@@ -1839,32 +1768,7 @@ const ja: Record<MessageKey, string> = {
   "publicTournament.officialDraw": "公式ドロー",
 
   // Official results
-  "results.title": "公式結果",
-  "results.lede":
-    "試合が終わるまでは何も選ばれません。その試合の勝者だけをタップし——翌日また戻ってきてください。準備ができたら、下で settlement を実行してください。",
-  "results.recorded": "{total} 試合中 {n} 試合を記録済み",
-  "results.clear": "クリア",
-  "results.clearAll": "すべての結果をクリア",
-  "results.settleAll": "すべてのリーグを settle",
-  "results.settling": "settlement 中…",
-  "results.saved": "保存済み",
-  "results.notPlayed": "未実施",
-  "results.saving": "保存中…",
-  "results.done": "完了",
-  "results.inProgress": "進行中",
-  "results.waitingEarlier": "前のラウンド待ち — 先にその勝者を記録してください。",
-  "results.busy.save": "勝者を保存中…",
-  "results.busy.clear": "クリア中…",
-  "results.busy.settle": "リーグを settle 中…",
-  "results.msg.saved":
-    "保存しました：{name} が勝ちました。試合が終わるごとに記録し、settlement を実行してください。",
-  "results.msg.savedCleared":
-    "保存しました：{name} が勝ちました。以降のラウンドはクリアされました — それらの試合が終わったら記録してください。",
-  "results.msg.cleared": "結果をクリアしました。その試合が終わったら勝者をタップしてください。",
-  "results.msg.clearedAll": "すべての公式結果をクリアしました。試合を一つずつ記録してください。",
   "results.vs": "vs",
-  "results.bye": "不戦勝",
-  "results.tbd": "未定",
   "match.withdrawal": "棄権",
   "match.scheduled": "予定",
   "live.badge": "ライブ",
@@ -1889,12 +1793,6 @@ const ja: Record<MessageKey, string> = {
   "draw.entry.ll": "LL",
 
   // Settle
-  "settle.run": "settlement を実行",
-  "settle.settling": "settlement 中…",
-  "settle.hint": "提出済みブラケットを公式のフィクスチャ結果と照合して採点します（サーバー）。",
-  "settle.ok": "{n} 件のブラケットを settle しました。「自分の結果を見る」からスコアカードを確認してください。",
-  "settle.okZero":
-    "settlement は実行されましたが、まだ誰も「自分のブラケットを提出」していません — 提出があるまで結果は空のままです。",
 
   // Result page
   "result.title": "あなたの結果",

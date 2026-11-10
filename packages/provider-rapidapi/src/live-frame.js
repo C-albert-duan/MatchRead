@@ -708,6 +708,29 @@ export function deriveLiveFlags(frame, now = Date.now()) {
 }
 
 /**
+ * Give every raw provider row a receipt time. live_match_state.received_at is
+ * NOT NULL, and the provider's live list carries no receipt of its own, so the
+ * caller that fetched the list stamps it here (listener and sync-facts).
+ * A row that already has a receipt keeps it. Dedupe ignores receipt keys.
+ * @template T
+ * @param {T[]} rows
+ * @param {string} [receivedAt]
+ * @returns {T[]}
+ */
+export function stampReceipt(rows, receivedAt = new Date().toISOString()) {
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row) => {
+    if (!row || typeof row !== "object" || Array.isArray(row)) return row;
+    const record = /** @type {Record<string, unknown>} */ (row);
+    if (typeof record.receivedAt === "string" && record.receivedAt) return row;
+    const existing = [record.received_at, record.capturedAt, record.captured_at].find(
+      (value) => typeof value === "string" && value
+    );
+    return /** @type {T} */ ({ ...record, receivedAt: existing ?? receivedAt });
+  });
+}
+
+/**
  * Normalize one live HTTP body into canonical frames. Does not open a socket.
  * @param {unknown} body
  * @param {string} [receivedAt]
