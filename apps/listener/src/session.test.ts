@@ -352,7 +352,8 @@ describe("listener cycle", () => {
     });
     assert.equal(first.forwarded, 1);
     assert.equal(posts.length, 1);
-    assert.deepEqual({ ...posts[0], liveFrames: unstamped(posts[0]?.liveFrames) }, {
+    const firstPost = posts[0] as Record<string, unknown>;
+    assert.deepEqual({ ...firstPost, liveFrames: unstamped(firstPost.liveFrames) }, {
       mode: "live",
       liveFrames: [{ id: "1", score: "1-0", player1: { name: "Alpha" } }],
       listenerInstanceId: listenerInstanceId({
