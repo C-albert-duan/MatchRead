@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { buildRoundStructure, matchKey, type BracketPicks } from "../bracket.ts";
 import { gradeBracket, maxBracketScore, type OfficialResults } from "../grade.ts";
+import { roundWeight } from "../scoring.ts";
 import { buildSyntheticBracket16 } from "../synthetic-bracket.ts";
 import {
   ceilingDeltaIfLost,
@@ -107,6 +108,32 @@ test("a void scores nothing and eliminates nobody", () => {
   assert.equal(triad.ceiling, maxBracketScore(DRAW) - 1);
   assert.equal(eliminatedRefs(DRAW, sheet.seats, official).size, 0);
   assert.equal(forwardStatus(input(picks, official), key), "settled");
+});
+
+test("a pick on a player replaced in the draw is dead (P1-1)", () => {
+  const withdrawn = seatRef(0);
+  // The withdrawn player is picked to win every match on their path.
+  const picks = randomPicks(rng(5));
+  for (const round of ROUNDS) picks[matchKey(round.index, 0)] = withdrawn;
+  const seats = sheet.seats.map((seat) =>
+    seat.position === 0 ? { ...seat, player_id: "lucky-loser" } : seat
+  );
+  const replaced: CeilingInput = { drawSize: DRAW, seats, picks, official: {} };
+
+  let lost = 0;
+  for (const round of ROUNDS) {
+    for (const match of round.matches) {
+      if (picks[match.key] === withdrawn) lost += roundWeight(round.index);
+    }
+  }
+  lost += roundWeight(ROUNDS.length - 1); // champion bonus
+
+  assert.equal(ceilingMaths(replaced).ceiling, maxBracketScore(DRAW) - lost);
+  assert.equal(forwardStatus(replaced, FINAL), "dead");
+  assert.ok(eliminatedRefs(DRAW, seats, {}, picks).has(withdrawn));
+  assert.equal(ceilingDeltaIfLost(replaced, ROUNDS[0].matches[0].key, withdrawn).points, 0);
+  // Without seated players (no published draw) nothing is out.
+  assert.equal(eliminatedRefs(DRAW, [], {}, picks).size, 0);
 });
 
 test("I1-I4 hold at every frame of randomised tournaments", () => {

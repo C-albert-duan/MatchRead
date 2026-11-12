@@ -6,6 +6,7 @@
 
 export type ScheduleErrorCode =
   | "signed_out"
+  | "disabled"
   | "invalid"
   | "unauthorized"
   | "not_found"
@@ -32,7 +33,10 @@ export type ScheduleResult =
 
 export type ScheduleChangeInput = { slug: string; tournamentRef: string };
 
-const SLUG = /^[a-z0-9][a-z0-9-]{0,79}$/;
+// create_league builds the slug from the full league name, which has no
+// length cap, plus "-" and 8 hex (fix list P1-6). Shape only; 512 is a URL
+// sanity bound, not a product limit.
+const SLUG = /^[a-z0-9][a-z0-9-]{0,511}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isRef(value: unknown): value is string {

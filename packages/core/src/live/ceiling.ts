@@ -93,14 +93,31 @@ function decided(official: Official, key: string): boolean {
 /**
  * Players out of the draw. A player is out once any match on their seat path
  * has a different official winner. A void eliminates nobody.
+ *
+ * With `picks`, a picked player who holds no seat is out too: they withdrew
+ * and were replaced (a lucky loser, say), so the pick can never score
+ * (fix list P1-1). This only applies once the draw has seated players, so an
+ * unpublished draw does not kill every pick.
  */
 export function eliminatedRefs(
   drawSize: number,
   seats: readonly DrawSeat[],
-  official: Official
+  official: Official,
+  picks?: BracketPicks
 ): Set<string> {
   const rounds = buildRoundStructure(drawSize);
   const out = new Set<string>();
+  if (picks) {
+    const seated = new Set<string>();
+    for (const seat of seats) {
+      if (seat.kind === "player" && seat.player_id) seated.add(seat.player_id);
+    }
+    if (seated.size > 0) {
+      for (const ref of Object.values(picks)) {
+        if (ref && !seated.has(ref)) out.add(ref);
+      }
+    }
+  }
   for (const seat of seats) {
     const ref = seat.player_id;
     if (seat.kind !== "player" || !ref) continue;
@@ -120,7 +137,7 @@ export function ceilingMaths(input: CeilingInput): CeilingTriad {
   const { drawSize, picks, official } = input;
   const rounds = buildRoundStructure(drawSize);
   const lastRound = rounds.length - 1;
-  const out = eliminatedRefs(drawSize, input.seats, official);
+  const out = eliminatedRefs(drawSize, input.seats, official, picks);
   const live = input.live ?? {};
 
   let banked = 0;
@@ -154,7 +171,7 @@ export function forwardStatus(input: CeilingInput, key: string): ForwardStatus {
   if (decided(input.official, key)) return "settled";
   const pick = input.picks[key];
   if (!pick) return "open";
-  return eliminatedRefs(input.drawSize, input.seats, input.official).has(pick)
+  return eliminatedRefs(input.drawSize, input.seats, input.official, input.picks).has(pick)
     ? "dead"
     : "standing";
 }
@@ -173,7 +190,7 @@ export function ceilingDeltaIfLost(
   const fromRound = Number(at[1]);
   const rounds = buildRoundStructure(input.drawSize);
   const lastRound = rounds.length - 1;
-  if (eliminatedRefs(input.drawSize, input.seats, input.official).has(loserRef)) {
+  if (eliminatedRefs(input.drawSize, input.seats, input.official, input.picks).has(loserRef)) {
     return { points: 0, affectedForwardNodes: [] };
   }
 

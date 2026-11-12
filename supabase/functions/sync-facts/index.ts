@@ -21,6 +21,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { applyDrawFacts } from "../_shared/apply-draw.ts";
 import { applyMatchResults, relocateProviderMatchId } from "../_shared/apply-results.ts";
 import { acceptForwardedLive, projectLiveBranch } from "../_shared/project-live.ts";
+import { calendarDrawSize } from "../_shared/calendar-draw-size.ts";
 import { listenerHealthRow } from "../../../packages/provider-rapidapi/src/listener-heartbeat.js";
 import { liveIngestRequest } from "../../../packages/provider-rapidapi/src/live-ingest-mode.js";
 import { noteListenerInstance } from "../../../packages/provider-rapidapi/src/listener-instance.js";
@@ -435,12 +436,22 @@ async function syncTournamentsFromCalendar(
     // Preserve product main_draw_starts_on — provider calendar `date` is the
     // week banner, not main-draw day. Never overwrite a known product date.
     const slugs = rows.map((t) => t.slug);
-    const { data: existingRows } = await admin
+    const { data: existingRows, error: existingError } = await admin
       .from("tournaments")
-      .select("slug, main_draw_starts_on")
+      .select("slug, main_draw_starts_on, draw_size, published_at")
       .in("slug", slugs);
+    // Without the existing rows a guess could replace a known draw size.
+    if (existingError) throw new Error(`tournaments read: ${existingError.message}`);
     const existingMain = new Map<string, string | null>();
+    const existingDraw = new Map<
+      string,
+      { draw_size: number | null; published_at: string | null }
+    >();
     for (const row of existingRows ?? []) {
+      existingDraw.set(String(row.slug), {
+        draw_size: row.draw_size == null ? null : Number(row.draw_size),
+        published_at: row.published_at ? String(row.published_at) : null,
+      });
       existingMain.set(
         String(row.slug),
         row.main_draw_starts_on ? String(row.main_draw_starts_on).slice(0, 10) : null
@@ -464,9 +475,12 @@ async function syncTournamentsFromCalendar(
         main_draw_starts_on: productMain,
         ends_on: t.ends_on,
         provider_id: t.provider_id,
-        ...("draw_size" in t && t.draw_size != null
-          ? { draw_size: t.draw_size }
-          : {}),
+        // Always present (a bulk upsert nulls a column some rows omit), and
+        // never replaces a known or published size (fix list P1-8).
+        draw_size: calendarDrawSize(
+          existingDraw.get(t.slug),
+          "draw_size" in t ? (t.draw_size as number | null | undefined) : null
+        ),
       };
     });
 

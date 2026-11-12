@@ -112,7 +112,10 @@ async function loadRivals(
         "league_id, tournament_id, user_id, points, picks(player_id, confidence, matches(round, index_in_round))"
       )
       .in("league_id", [...new Set(locked.map((pair) => pair.leagueId))])
-      .in("tournament_id", [...new Set(locked.map((pair) => pair.tournamentId))]),
+      .in("tournament_id", [...new Set(locked.map((pair) => pair.tournamentId))])
+      // Standings rank submitted brackets only; drafts must not swing first
+      // place (fix list P1-4).
+      .not("submitted_at", "is", null),
     seasonIds.length
       ? supabase.from("season_points").select("league_id, user_id, points").in("league_id", seasonIds)
       : Promise.resolve({ data: [], error: null }),

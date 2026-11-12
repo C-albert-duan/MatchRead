@@ -8,6 +8,17 @@ import {
 } from "./schedule-change.ts";
 
 describe("parseScheduleChange", () => {
+  it("accepts the slug of a league with a long name (P1-6)", () => {
+    // create_league: slugified name (uncapped) + "-" + 8 hex.
+    const slug = `${"a".repeat(80)}-1a2b3c4d`;
+    assert.equal(slug.length, 89);
+    assert.deepEqual(parseScheduleChange({ slug, tournamentRef: "t-atp-1" }), {
+      slug,
+      tournamentRef: "t-atp-1",
+    });
+    assert.equal(parseLeagueSlug({ slug: `${"b".repeat(200)}-1a2b3c4d` }), `${"b".repeat(200)}-1a2b3c4d`);
+  });
+
   it("accepts a league slug and a tournament ref", () => {
     assert.deepEqual(
       parseScheduleChange({ slug: "fourth-floor-1a2b3c4d", tournamentRef: "t-atp-21361" }),
@@ -24,7 +35,7 @@ describe("parseScheduleChange", () => {
   it("rejects missing, oversized and odd input", () => {
     assert.equal(parseScheduleChange(null), null);
     assert.equal(parseScheduleChange({ slug: "league" }), null);
-    assert.equal(parseScheduleChange({ slug: "a".repeat(81), tournamentRef: "t-atp-1" }), null);
+    assert.equal(parseScheduleChange({ slug: "a".repeat(513), tournamentRef: "t-atp-1" }), null);
     assert.equal(parseScheduleChange({ slug: "League", tournamentRef: "t-atp-1" }), null);
     assert.equal(parseScheduleChange({ slug: "league", tournamentRef: "../x" }), null);
     assert.equal(parseLeagueSlug({ slug: 42 }), null);

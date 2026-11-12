@@ -194,7 +194,12 @@ export function assembleMyTennis(ctx: MyTennisContext, config: ImportanceConfig)
       ...ceilingMaths(input),
     });
 
-    const eliminated = eliminatedRefs(tournament.drawSize, tournament.seats, official);
+    const eliminated = eliminatedRefs(
+      tournament.drawSize,
+      tournament.seats,
+      official,
+      bracket.picks
+    );
     const members: SwingMember[] = (bracket.league ?? []).map((rival) => ({
       memberId: rival.memberId,
       points:

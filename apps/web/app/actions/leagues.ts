@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { isCustomScheduleEnabled } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import {
   parseLeagueSlug,
@@ -336,6 +337,9 @@ async function scheduleChange(
   raw: unknown,
   fn: "add_league_tournament" | "remove_league_tournament"
 ): Promise<ScheduleResult> {
+  // The page hides the controls when the flag is off; the actions must
+  // refuse too, since they can be called directly (fix list P1-5).
+  if (!isCustomScheduleEnabled()) return { ok: false, code: "disabled" };
   const input = parseScheduleChange(raw);
   if (!input) return { ok: false, code: "invalid" };
   const { supabase, user } = await requireUser();
@@ -386,6 +390,7 @@ export async function removeTournamentAction(
 export async function enableCustomScheduleAction(
   raw: unknown
 ): Promise<ScheduleResult> {
+  if (!isCustomScheduleEnabled()) return { ok: false, code: "disabled" };
   const slug = parseLeagueSlug(raw);
   if (!slug) return { ok: false, code: "invalid" };
   const { supabase, user } = await requireUser();
