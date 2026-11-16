@@ -15,7 +15,7 @@ If Tennis API names **both** players in a first-round match, users must **see th
 
 ## Full bracket when the official field exists
 
-When the official first round is published (including 16→32, 32→64, 64→128, or a 96-player Masters as **128 slots + seed byes**), publish a verified draw via `sync-facts` (through `npm run publish:draws` or cron). Q/LL TBD and byes count as seats. They do not block publish.
+When the official first round is published (including 16→32, 32→64, 64→128, or a 96-player Masters as **128 slots + seed byes**), publish a verified draw via `sync-facts` (through `npm run publish:draws -- --write --confirm-remote` or cron). Q/LL TBD and byes count as seats. They do not block publish.
 
 ## Still forbidden
 

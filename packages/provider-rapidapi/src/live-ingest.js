@@ -66,8 +66,10 @@ export function missingLiveStore(error) {
  * @param {import("@supabase/supabase-js").SupabaseClient} admin
  * @param {{ id: string, provider_id: string, slug: string }} event
  * @param {unknown[]} liveEvents
- * @param {{ dryRun?: boolean, log?: string[], now?: string }} [opts]
+ * @param {{ dryRun?: boolean, log?: string[], now?: string, strict?: boolean }} [opts]
  * `now` is the replay clock. Production omits it and stamps health with the wall clock.
+ * `strict` throws after the health row when any live upsert failed, so a
+ * forwarded batch returns an error and the listener retries it (fix list P2-1).
  */
 export async function ingestLiveFrames(admin, event, liveEvents, opts = {}) {
   const log = opts.log ?? [];
@@ -177,6 +179,8 @@ export async function ingestLiveFrames(admin, event, liveEvents, opts = {}) {
     throw new Error("live ingestion does not write matches");
   }
 
+  let failedUpserts = 0;
+  let lastFailure = null;
   if (!dryRun) {
     for (const state of replay.states) {
       const { data, error } = await admin.rpc("upsert_live_match_state", liveUpsertArgs(state));
@@ -187,6 +191,8 @@ export async function ingestLiveFrames(admin, event, liveEvents, opts = {}) {
         }
         log.push(`live upsert failed: ${error.message}`);
         health.ignored += 1;
+        failedUpserts += 1;
+        lastFailure = error.message;
         continue;
       }
       if (data === "applied") health.applied += 1;
@@ -199,7 +205,7 @@ export async function ingestLiveFrames(admin, event, liveEvents, opts = {}) {
         transport: "rest",
         connection: "idle",
         last_frame_at: replay.states.at(-1)?.received_at ?? null,
-        last_error: null,
+        last_error: lastFailure ? `live upsert failed: ${lastFailure}`.slice(0, 500) : null,
         frames_applied: health.applied,
         frames_duplicate: health.duplicate,
         frames_ignored: health.ignored,
@@ -211,6 +217,9 @@ export async function ingestLiveFrames(admin, event, liveEvents, opts = {}) {
       { onConflict: "id" }
     );
     if (healthError) log.push(`listener health: ${healthError.message}`);
+    if (opts.strict && failedUpserts > 0) {
+      throw new Error(`live upsert failed for ${failedUpserts} frame(s): ${lastFailure}`);
+    }
   } else {
     health.applied = replay.health.applied;
     health.duplicate = replay.health.duplicate;

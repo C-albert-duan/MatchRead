@@ -170,3 +170,41 @@ test("match keys parse to the same round and index on Edge and web", () => {
     assert.equal(fromEdge?.indexInRound ?? null, fromWeb?.index_in_round ?? null);
   }
 });
+
+// Fix list P2-11: graded through an earlier round, score + upside never
+// passes the maximum, and a void leaves the next player alive. Web and Edge
+// agree on both.
+test("throughRound before the final keeps score + upside within the maximum", async () => {
+  const { buildSyntheticBracket16 } = await import("./synthetic-bracket.ts");
+  const { buildRoundStructure } = await import("./bracket.ts");
+  const sheet = buildSyntheticBracket16();
+  const rounds = buildRoundStructure(sheet.drawSize);
+  const ref = (pos: number) => sheet.seats.find((s) => s.position === pos)!.player_id!;
+  // Seat 0 wins every match and is picked to.
+  const picks: Record<string, string> = {};
+  const official: Record<string, { winnerRef: string | null; voided?: boolean }> = {};
+  for (const round of rounds) {
+    for (const match of round.matches) {
+      const winner = match.indexInRound === 0 ? ref(0) : ref(match.indexInRound * 2 ** (round.index + 1));
+      picks[match.key] = winner;
+      official[match.key] = { winnerRef: winner };
+    }
+  }
+  const through = rounds.length - 2;
+  const graded = gradeBracket({ drawSize: sheet.drawSize, picks, official, throughRound: through });
+  assert.ok(graded.score + graded.upside <= graded.maxScore, `${graded.score}+${graded.upside} > ${graded.maxScore}`);
+  assertSameGrade(sheet.drawSize, picks, official, through);
+});
+
+test("a void in the next match does not drop the player from alive", async () => {
+  const { computeAlive } = await import("./grade.ts");
+  const official = {
+    "r0-m0": { winnerRef: "a" },
+    "r0-m1": { winnerRef: "c" },
+    "r1-m0": { winnerRef: null, voided: true },
+  };
+  const alive = computeAlive(4, official, 0);
+  assert.ok(alive.has("a") && alive.has("c"));
+  const edgeAlive = edge.computeAlive(4, edgeOfficial(official), 0);
+  assert.ok(edgeAlive.has("a") && edgeAlive.has("c"));
+});

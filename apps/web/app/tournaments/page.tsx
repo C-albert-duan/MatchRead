@@ -1,4 +1,5 @@
 ﻿import type { Metadata } from "next";
+import { actionError, type ActionErrorCode } from "@/lib/actions/errors";
 import Link from "next/link";
 import { AppShell } from "@/components/shell/AppShell";
 import { publicPageMetadata } from "@/lib/seo";
@@ -17,10 +18,19 @@ import {
 } from "@/lib/tournaments/calendar";
 import { shouldShowEntryLock } from "@/lib/tournaments/when";
 
-export const metadata: Metadata = publicPageMetadata({
-  title: "Tournaments | MatchRead",
+/** Localized title (fix list P2-9). */
+export function generateMetadata(): Metadata {
+  return publicPageMetadata({
+  title: `${t("meta.tournaments")} | MatchRead`,
   path: "/tournaments",
-});
+  });
+}
+
+const ENTER_ERROR_CODES: ReadonlySet<ActionErrorCode> = new Set([
+  "bracket_start_failed",
+  "tournament_not_found",
+  "sign_in",
+]);
 
 export default async function TournamentsPage({
   searchParams,
@@ -30,7 +40,13 @@ export default async function TournamentsPage({
   const user = await getSessionUser();
   const locale = getLocale();
   const tournaments = await listCalendarTournaments();
-  const enterError = searchParams?.error?.trim() || null;
+  // The URL carries a code, never copy: any other text is ignored, so a
+  // crafted link cannot print its own "official" error (fix list P2-11).
+  const errorCode = searchParams?.error?.trim();
+  const enterError =
+    errorCode && ENTER_ERROR_CODES.has(errorCode as ActionErrorCode)
+      ? actionError(errorCode as ActionErrorCode)
+      : null;
 
   return (
     <AppShell signedIn={Boolean(user)} email={user?.email}>

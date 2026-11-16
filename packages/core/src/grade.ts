@@ -142,7 +142,11 @@ export function gradeBracket(input: {
   const finalKey = matchKey(lastRound, 0);
   const officialChampion = official[finalKey]?.winnerRef ?? null;
   const myChampion = picks[finalKey] ?? null;
+  // Graded through an earlier round, the final is not counted yet: the bonus
+  // with the final still "open" in upside let score + upside pass the
+  // maximum (fix list P2-11).
   if (
+    through === lastRound &&
     officialChampion &&
     myChampion &&
     officialChampion === myChampion &&
@@ -349,7 +353,9 @@ export function computeAlive(
       }
       const childKey = matchKey(r + 1, Math.floor(match.indexInRound / 2));
       const child = official[childKey];
-      if (!child?.winnerRef && !child?.voided) {
+      // A void eliminates nobody (as in live/ceiling.ts): only a different
+      // official winner in the next match puts this player out (P2-11).
+      if (!child?.winnerRef || child.voided) {
         alive.add(o.winnerRef);
       }
     }

@@ -34,10 +34,13 @@ type Props = {
   params: { slug: string; ref: string };
 };
 
-export const metadata: Metadata = publicPageMetadata({
-  title: "My Bracket | MatchRead",
+/** Localized title (fix list P2-9). */
+export function generateMetadata(): Metadata {
+  return publicPageMetadata({
+  title: `${t("meta.bracket")} | MatchRead`,
   path: "/leagues",
-});
+  });
+}
 
 export default async function BracketPage({ params }: Props) {
   const user = await getSessionUser();

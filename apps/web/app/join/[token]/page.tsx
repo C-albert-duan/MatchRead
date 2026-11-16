@@ -154,9 +154,10 @@ export default async function JoinPage({ params }: Props) {
                 : t("join.eyebrow")}
             </h1>
             <p className="form-error" role="alert">
-              {/revoked|invalid/i.test(joinError.message)
+              {/revoked|invalid/i.test(joinError.message) ||
+              joinError.details === "invalid_invite"
                 ? t("join.invalid.title")
-                : joinError.message || t("error.generic")}
+                : t("error.generic")}
             </p>
           </header>
           <JoinLeagueButton token={token} />

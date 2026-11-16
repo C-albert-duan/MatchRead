@@ -3,6 +3,10 @@
  * `liveFrames`. A match is not its own request.
  * Legacy ingest-events URLs are the sync-facts function.
  */
+import { requestSignal } from "@matchread/provider-rapidapi";
+
+/** sync-facts answers a live batch in seconds; a minute means it is stuck (P2-4). */
+export const INGEST_TIMEOUT_MS = 60_000;
 
 export function syncFactsUrl(ingestUrl: string): string {
   return ingestUrl
@@ -25,7 +29,7 @@ export async function forwardFrames(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ mode: "live", liveFrames: frames, listenerInstanceId: instanceId }),
-    signal,
+    signal: requestSignal(signal, INGEST_TIMEOUT_MS),
   });
   let body: unknown = null;
   try {
@@ -60,7 +64,7 @@ export async function forwardHeartbeat(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ mode: "live", liveFrames: [], listenerHeartbeat: heartbeat }),
-    signal,
+    signal: requestSignal(signal, INGEST_TIMEOUT_MS),
   });
   let body: unknown = null;
   try {

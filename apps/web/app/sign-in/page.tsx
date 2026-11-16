@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { t } from "@/lib/i18n";
 import { SignInForm } from "@/components/auth/SignInForm";
 import { AppShell } from "@/components/shell/AppShell";
 import { getSessionUser } from "@/lib/auth";
@@ -7,10 +8,13 @@ import { publicPageMetadata } from "@/lib/seo";
 import { redirect } from "next/navigation";
 import { safeNext } from "@/lib/safe-next";
 
-export const metadata: Metadata = publicPageMetadata({
-  title: "Sign in | MatchRead",
+/** Localized title (fix list P2-9). */
+export function generateMetadata(): Metadata {
+  return publicPageMetadata({
+  title: `${t("meta.signIn")} | MatchRead`,
   path: "/sign-in",
-});
+  });
+}
 
 type Props = {
   searchParams: { next?: string; error?: string };

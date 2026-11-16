@@ -54,6 +54,13 @@ function announcePaint(ref: string, live: boolean, sets: string | null, game: st
   window.dispatchEvent(new CustomEvent(LIVE_PAINT_EVENT, { detail: { ref, live, sets, game } }));
 }
 
+/** Re-read a closed layer this often, so it can reopen on its own. */
+const RECHECK_CLOSED_MS = 60_000;
+/** A change while closed: re-read soon, once per burst. */
+const RECHECK_ON_CHANGE_MS = 3_000;
+/** A snapshot that threw (network, bad JSON). */
+const RECHECK_AFTER_ERROR_MS = 15_000;
+
 function reportLive(source: string, message: string) {
   const now = Date.now();
   if (now - (reportedAt.get(source) ?? 0) < 60_000) return;
@@ -213,6 +220,20 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
     let lastFreshAt: number | null = null;
     let layerOpen = false;
     let sheetTimer: number | null = null;
+    let recheckTimer: number | null = null;
+
+    /**
+     * Read the snapshot again later. A closed layer used to stay closed until
+     * the tab was hidden and shown or the channel dropped (fix list P2-2).
+     */
+    function scheduleRecheck(waitMs: number) {
+      if (recheckTimer != null || !alive) return;
+      recheckTimer = window.setTimeout(() => {
+        recheckTimer = null;
+        if (!alive) return;
+        void refetch(generation);
+      }, waitMs);
+    }
 
     function revealOfficialSheet() {
       if (sheetTimer != null) return;
@@ -282,7 +303,19 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
       noteFresh();
     }
 
+    /** Never rejects: every caller fires and forgets (fix list P2-2). */
     async function refetch(gen: number) {
+      try {
+        await readSnapshot(gen);
+      } catch (error) {
+        if (gen !== generation) return;
+        reportLive("live.refetch", error instanceof Error ? error.message : String(error));
+        refreshStale();
+        scheduleRecheck(RECHECK_AFTER_ERROR_MS);
+      }
+    }
+
+    async function readSnapshot(gen: number) {
       const tournamentRefs = [
         ...new Set(
           cells()
@@ -321,6 +354,7 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
           }
           if (dropped) revealOfficialSheet();
           publishDelay();
+          scheduleRecheck(RECHECK_CLOSED_MS);
           return;
         }
         layerOpen = true;
@@ -377,13 +411,22 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
     }
 
     onChangeRef.current = (gen, change) => {
-      if (gen !== generation || !layerOpen) return;
+      if (gen !== generation) return;
+      // While the first snapshot is in flight the sync queue holds changes
+      // and flushes them after it; they used to be dropped here.
+      if (!layerOpen && firstSnapshot === "done" && !recovering) {
+        // A change means the overlay may be open again: re-read soon.
+        scheduleRecheck(RECHECK_ON_CHANGE_MS);
+        return;
+      }
       const delivery = deliverLiveChange(sync, change, {
         hidden: document.visibilityState === "hidden",
         recovering,
       });
       sync = delivery.sync;
-      if (delivery.apply) applyChange(gen, delivery.apply);
+      if (!delivery.apply) return;
+      if (layerOpen) applyChange(gen, delivery.apply);
+      else scheduleRecheck(RECHECK_ON_CHANGE_MS);
     };
 
     onSubscribedRef.current = (gen, ref) => {
@@ -529,6 +572,7 @@ export function LiveMatchLayer({ labels }: { labels: Labels }) {
       generation += 1;
       if (timer != null) window.clearTimeout(timer);
       if (sheetTimer != null) window.clearTimeout(sheetTimer);
+      if (recheckTimer != null) window.clearTimeout(recheckTimer);
       document.documentElement.removeAttribute("data-tab-hidden");
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("offline", onOffline);

@@ -29,10 +29,13 @@ function leagueStatus(
   return t(calendarStatusMessageKey(calendarStatus(row)));
 }
 
-export const metadata: Metadata = publicPageMetadata({
-  title: "My leagues | MatchRead",
+/** Localized title (fix list P2-9). */
+export function generateMetadata(): Metadata {
+  return publicPageMetadata({
+  title: `${t("meta.leagues")} | MatchRead`,
   path: "/leagues",
-});
+  });
+}
 
 export default async function LeaguesPage() {
   const user = await getSessionUser();

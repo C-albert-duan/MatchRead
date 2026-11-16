@@ -7,6 +7,7 @@ import {
   picksToSavePayload,
 } from "@/lib/brackets/types";
 import { reportError } from "@/lib/report-error";
+import { actionError, isLockedError, rpcErrorCode } from "@/lib/actions/errors";
 import { createClient } from "@/lib/supabase/server";
 
 export type ActionResult =
@@ -34,7 +35,7 @@ export async function saveBracketPicks(input: {
 }): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) {
-    return { ok: false, error: "Sign in to save your bracket.", code: "auth" };
+    return { ok: false, error: actionError("sign_in_bracket"), code: "auth" };
   }
 
   const payload = await picksToSavePayload(
@@ -59,15 +60,12 @@ export async function saveBracketPicks(input: {
   });
 
   if (error) {
-    const msg = error.message ?? "";
-    if (/locked/i.test(msg)) {
-      return {
-        ok: false,
-        error: "This draw has locked. Your bracket can no longer be changed.",
-        code: "locked",
-      };
+    if (isLockedError(error)) {
+      return { ok: false, error: actionError("locked_save"), code: "locked" };
     }
-    return { ok: false, error: msg || "Your bracket did not save." };
+    const code = rpcErrorCode(error, "save_failed");
+    if (code === "save_failed") reportError(error, { source: "bracket_saved" });
+    return { ok: false, error: actionError(code), code };
   }
 
   revalidatePath(
@@ -88,7 +86,7 @@ export async function submitBracket(input: {
 }): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) {
-    return { ok: false, error: "Sign in to submit.", code: "auth" };
+    return { ok: false, error: actionError("sign_in_bracket"), code: "auth" };
   }
 
   // Always write the sheet first. Submit alone used to fail with
@@ -110,30 +108,18 @@ export async function submitBracket(input: {
   });
 
   if (error) {
-    const msg = error.message ?? "";
-    if (/locked/i.test(msg)) {
-      return {
-        ok: false,
-        error: "This draw has locked. Entries are closed.",
-        code: "locked",
-      };
+    if (isLockedError(error)) {
+      return { ok: false, error: actionError("locked_submit"), code: "locked" };
     }
-    if (/incomplete/i.test(msg)) {
-      return {
-        ok: false,
-        error: "Fill every match before submitting.",
-        code: "incomplete",
-      };
+    const code = rpcErrorCode(error, "submit_failed");
+    if (code === "incomplete") {
+      return { ok: false, error: actionError("incomplete"), code: "incomplete" };
     }
-    if (/no bracket/i.test(msg)) {
-      return {
-        ok: false,
-        error: "Your picks did not save. Try Submit again.",
-        code: "missing",
-      };
+    if (code === "picks_missing") {
+      return { ok: false, error: actionError("picks_missing"), code: "missing" };
     }
-    reportError(error, { source: "bracket_submitted" });
-    return { ok: false, error: msg || "Could not submit." };
+    if (code === "submit_failed") reportError(error, { source: "bracket_submitted" });
+    return { ok: false, error: actionError(code), code };
   }
 
   revalidatePath(`/leagues/${input.leagueSlug}/t/${input.tournamentRef}`);
@@ -150,7 +136,7 @@ export async function adminLockTournament(input: {
 }): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) {
-    return { ok: false, error: "Sign in required.", code: "auth" };
+    return { ok: false, error: actionError("sign_in"), code: "auth" };
   }
 
   const { data: league } = await supabase
@@ -165,13 +151,13 @@ export async function adminLockTournament(input: {
     .maybeSingle();
 
   if (!league?.id || !tournament?.id) {
-    return { ok: false, error: "League or tournament not found." };
+    return { ok: false, error: actionError("league_or_tournament_not_found") };
   }
 
   if (!input.locked) {
     return {
       ok: false,
-      error: "Unlock is not supported after a league lock.",
+      error: actionError("unlock_unsupported"),
       code: "locked",
     };
   }
@@ -182,11 +168,12 @@ export async function adminLockTournament(input: {
   });
 
   if (error) {
-    const msg = error.message ?? "";
-    if (/commissioner/i.test(msg)) {
-      return { ok: false, error: "Only the commissioner can lock.", code: "role" };
+    const code = rpcErrorCode(error, "lock_failed");
+    if (code === "not_commissioner") {
+      return { ok: false, error: actionError("lock_role"), code: "role" };
     }
-    return { ok: false, error: msg || "Could not update lock." };
+    if (code === "lock_failed") reportError(error, { source: "league_lock" });
+    return { ok: false, error: actionError(code), code };
   }
 
   revalidatePath(`/leagues/${input.leagueSlug}/t/${input.tournamentRef}`);

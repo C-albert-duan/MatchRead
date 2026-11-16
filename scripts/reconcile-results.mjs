@@ -3,13 +3,14 @@
  * Reconcile RapidAPI tournament results → MatchRead sync-facts (Plan 16).
  *
  * Usage (repo root):
- *   node scripts/reconcile-results.mjs --dry-run --map .provider-map.json
+ *   node scripts/reconcile-results.mjs --map .provider-map.json                            (dry-run, default)
+ *   node scripts/reconcile-results.mjs --map .provider-map.json --write --confirm-remote   (POST sync-facts)
  *   node scripts/reconcile-results.mjs --map .provider-map.json
  *   npm run reconcile:results -- --dry-run --map .provider-map.example.json
  *
  * Env (.env.provider):
  *   RAPIDAPI_KEY, RAPIDAPI_HOST
- *   MATCHREAD_INGEST_URL, INGEST_SECRET   (required unless --dry-run)
+ *   MATCHREAD_INGEST_URL, INGEST_SECRET   (required with --write)
  *   MATCHREAD_INGEST_URL may still end in /ingest-events — rewritten to /sync-facts.
  *
  * Live POST invokes sync-facts with `{ slug }` when the map has tournament_slug/slug;
@@ -24,6 +25,7 @@ import {
   getTournamentResults,
   mapResultsToIngest,
 } from "@matchread/provider-rapidapi";
+import { writeMode } from "./lib/write-guard.mjs";
 
 function loadEnvFile(path) {
   if (!existsSync(path)) return {};
@@ -36,16 +38,20 @@ function loadEnvFile(path) {
 }
 
 function parseArgs(argv) {
+  const mode = writeMode(argv);
+  if (mode.blocked) {
+    console.error(mode.blocked);
+    process.exit(2);
+  }
   const out = {
-    dryRun: false,
+    dryRun: mode.dryRun,
     mapPath: null,
     doubles: false,
     help: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--dry-run") out.dryRun = true;
-    else if (a === "--doubles") out.doubles = true;
+    if (a === "--doubles") out.doubles = true;
     else if (a === "--help" || a === "-h") out.help = true;
     else if (a === "--map") out.mapPath = argv[++i];
     else if (a.startsWith("--map=")) out.mapPath = a.slice(6);
@@ -57,7 +63,8 @@ function usage() {
   console.log(`Reconcile RapidAPI results → sync-facts
 
   --map <file>   Mapping JSON (required). See .provider-map.example.json
-  --dry-run      Fetch + map only; do not POST
+  (default)      Fetch + map only; do not POST
+  --write --confirm-remote   POST sync-facts for the mapped tournament
   --doubles      Include doubles results (default: singles only)
   --help         Show this help
 `);
@@ -143,7 +150,9 @@ async function main() {
     results,
   };
 
-  console.log("\nPayload:");
+  // Preview only. sync-facts takes a slug and re-reads results from the
+  // provider; this mapped list is never sent (fix list P2-8).
+  console.log("\nMapped results (preview, not sent):");
   console.log(JSON.stringify(payload, null, 2));
 
   if (args.dryRun) {
@@ -160,7 +169,7 @@ async function main() {
   const ingestSecret = env.INGEST_SECRET;
   if (!ingestUrl || !ingestSecret) {
     console.error(
-      "MATCHREAD_INGEST_URL and INGEST_SECRET required for live ingest (or pass --dry-run)."
+      "MATCHREAD_INGEST_URL and INGEST_SECRET required for live ingest (only needed with --write)."
     );
     process.exit(1);
   }
@@ -186,7 +195,7 @@ async function main() {
   console.log(text.slice(0, 800));
   if (!res.ok) process.exit(1);
   console.log(
-    "\nOK — sync-facts invoked. Settle from the app (commissioner/founder) so standings move."
+    "\nOK — sync-facts invoked. The settle-leagues job grades brackets on its next run."
   );
 }
 

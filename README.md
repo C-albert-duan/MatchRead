@@ -50,7 +50,7 @@ discussion/                Design archive (not authoritative)
 npm run dev              # web (or use Docker)
 npm run test             # workspace unit tests
 npm run ci:consumer-boundary   # public_calendar trust grep
-npm run publish:draws    # ops: POST sync-facts for verified draws
+npm run publish:draws    # ops: preview; add -- --write --confirm-remote to POST sync-facts
 npm run reconcile:results
 npm run tennis:verify -- --slug t-atp-21349
 ```

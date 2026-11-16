@@ -7,9 +7,9 @@ Quick index: [scripts/README.md](../../scripts/README.md).
 
 | Script | npm / usage | Responsibility |
 |--------|-------------|----------------|
-| `publish-draws.mjs` | `npm run publish:draws` | Preview official seats; live publish via sync-facts / apply-draw |
-| `reconcile-results.mjs` | `npm run reconcile:results` | Map-driven RapidAPI results dry-run; live POSTs `sync-facts` with `{ slug }` (rewrites legacy `/ingest-events` URL) |
-| `sync-lock-at.mjs` | `npm run sync:lock-at` | Set `lock_at` from first timed R0 ball |
+| `publish-draws.mjs` | `npm run publish:draws` | Preview official seats (default). `-- --write --confirm-remote` publishes via sync-facts / apply-draw |
+| `reconcile-results.mjs` | `npm run reconcile:results` | Map-driven RapidAPI results preview (default). `-- --write --confirm-remote` POSTs `sync-facts` with `{ slug }` |
+| `sync-lock-at.mjs` | `npm run sync:lock-at` | Preview `lock_at` from first timed R0 ball (default). `-- --write --confirm-remote` applies; a passed lock is never moved |
 | `probe-rapidapi.mjs` | `npm run probe:rapidapi` | Provider connectivity |
 | `probe-event-dates.mjs` | `npm run probe:event-dates` | Read-only date/fixture diagnosis |
 | `capture-live-ndjson.mjs` | `npm run capture:live` | Append raw REST live and WTA companion bodies to `fixtures/live-capture-oct-2026/frames.ndjson` |

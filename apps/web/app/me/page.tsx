@@ -20,10 +20,13 @@ import { viewMyTennis } from "@/server/use-cases/viewMyTennis";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = publicPageMetadata({
-  title: "My Tennis | MatchRead",
+/** Localized title (fix list P2-9). */
+export function generateMetadata(): Metadata {
+  return publicPageMetadata({
+  title: `${t("meta.me")} | MatchRead`,
   path: "/me",
-});
+  });
+}
 
 /**
  * My Tennis: the Stage, the user's points, and their matches ordered by what
