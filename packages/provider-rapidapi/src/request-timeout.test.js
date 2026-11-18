@@ -34,10 +34,15 @@ describe("createClient", () => {
       new Promise((_resolve, reject) => {
         init.signal.addEventListener("abort", () => reject(init.signal.reason), { once: true });
       });
+    // AbortSignal.timeout's timer is unref'd, and this fake fetch holds no
+    // socket, so nothing else keeps the event loop alive while it waits. A
+    // real hung request holds its socket open.
+    const keepAlive = setInterval(() => {}, 1_000);
     try {
       const client = createClient({ key: "k", timeoutMs: 20 });
       await assert.rejects(client.get("/hang"), (error) => error?.name === "TimeoutError");
     } finally {
+      clearInterval(keepAlive);
       globalThis.fetch = realFetch;
     }
   });
