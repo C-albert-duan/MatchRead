@@ -29,7 +29,7 @@
     "ci:live-trust": "node scripts/ci-live-trust.mjs",
     "ci:core-vocabulary": "node scripts/ci-core-vocabulary.mjs",
     "prove:cron": "node scripts/prove-cron.mjs",
-    "test:scripts": "node --test scripts/cron-proof.test.mjs",
+    "test:scripts": "node --experimental-strip-types --test scripts/cron-proof.test.mjs supabase/functions/_shared/replacement-rewrite.test.ts supabase/functions/_shared/calendar-draw-size.test.ts",
     "backfill:scorelines": "node scripts/backfill-scorelines.mjs",
     "backfill:session-court": "node scripts/backfill-session-court.mjs",
     "backfill:provider-events": "node scripts/backfill-provider-event-map.mjs",

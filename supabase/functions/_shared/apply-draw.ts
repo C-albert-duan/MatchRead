@@ -2,6 +2,7 @@
 // Apply official seats, matchups, schedule, and results (used by sync-facts).
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { bracketsOpenForRewrite } from "./replacement-rewrite.ts";
 import { relocateProviderMatchId } from "./apply-results.ts";
 import { clearProvisionalLive } from "./clear-live.ts";
 import { buildRoundStructure, parseMatchKey } from "./core.js";
@@ -1583,8 +1584,11 @@ async function invalidateMappingsForReplacements(
 }
 
 /**
- * Pre-lock pick policy: rewrite picks that named the outgoing player to the
- * incoming player on the same match. Post-lock callers must skip this.
+ * Pre-lock pick policy: the incoming player takes the outgoing player's seat,
+ * so every pick naming the outgoing player, in any round and in submitted
+ * brackets too, is rewritten to the incoming player (fix list P1-2).
+ * Brackets in a league the commissioner has locked are left alone.
+ * Post-lock callers must skip this.
  */
 async function rewritePicksForReplacements(
   admin: SupabaseClient,
@@ -1623,21 +1627,33 @@ async function rewritePicksForReplacements(
       ).data?.id;
     if (!oldId || !newId || oldId === newId) continue;
 
-    const { data: matchRows } = await admin
+    // Every match of this tournament, every round: later-round picks name
+    // the player too, not only the round-1 match where they are a side.
+    const { data: matchRows, error: matchErr } = await admin
       .from("matches")
       .select("id")
-      .eq("tournament_id", tournamentId)
-      .or(`side_a_player_id.eq.${oldId},side_b_player_id.eq.${oldId}`);
-
+      .eq("tournament_id", tournamentId);
+    if (matchErr) {
+      log.push(`pick rewrite skipped: ${matchErr.message}`);
+      continue;
+    }
     const matchIds = (matchRows ?? []).map((m) => m.id);
     if (matchIds.length === 0) continue;
 
-    const { data: brackets } = await admin
-      .from("brackets")
-      .select("id")
-      .eq("tournament_id", tournamentId)
-      .is("submitted_at", null);
-    const bracketIds = (brackets ?? []).map((b) => b.id);
+    const [{ data: brackets, error: bracketErr }, { data: locks, error: lockErr }] =
+      await Promise.all([
+        admin.from("brackets").select("id, league_id").eq("tournament_id", tournamentId),
+        admin
+          .from("league_tournaments")
+          .select("league_id, locked_at")
+          .eq("tournament_id", tournamentId)
+          .not("locked_at", "is", null),
+      ]);
+    if (bracketErr || lockErr) {
+      log.push(`pick rewrite skipped: ${(bracketErr ?? lockErr)?.message}`);
+      continue;
+    }
+    const bracketIds = bracketsOpenForRewrite(brackets ?? [], locks ?? []);
     if (bracketIds.length === 0) continue;
 
     const { error } = await admin
@@ -1646,7 +1662,8 @@ async function rewritePicksForReplacements(
       .in("bracket_id", bracketIds)
       .in("match_id", matchIds)
       .eq("player_id", oldId);
-    if (!error) rewritten += 1;
+    if (error) log.push(`pick rewrite failed: ${error.message}`);
+    else rewritten += 1;
   }
   if (rewritten) log.push(`pre-lock rewritten pick sets: ${rewritten}`);
 }
