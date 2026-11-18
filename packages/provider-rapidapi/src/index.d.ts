@@ -1,6 +1,10 @@
 export type RapidApiClientOptions = {
   key: string;
   host?: string;
+  /** Stops every request when aborted. */
+  signal?: AbortSignal;
+  /** Per-request timeout in ms (default PROVIDER_REQUEST_TIMEOUT_MS). */
+  timeoutMs?: number;
   /** Exact response body, before JSON.parse. Used for raw NDJSON capture. */
   onRawBody?: (row: { path: string; status: number; bodyText: string }) => void;
 };
@@ -899,6 +903,15 @@ export declare function deriveLiveFlags(
   frame: Record<string, unknown>,
   now?: number
 ): { live: boolean; provisional: boolean; stale: boolean; serving: false };
+
+/** Default per-request timeout for provider reads, in ms. */
+export declare const PROVIDER_REQUEST_TIMEOUT_MS: number;
+
+/** Aborts on `signal` or after `timeoutMs`. */
+export declare function requestSignal(
+  signal: AbortSignal | null | undefined,
+  timeoutMs: number
+): AbortSignal;
 
 /** Adds receivedAt to raw provider rows that have no receipt. */
 export declare function stampReceipt<T>(rows: T[], receivedAt?: string): T[];

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Archivo, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 import { rootStyle } from "@matchread/tokens";
 import { ErrorReporter } from "@/components/shell/ErrorReporter";
+import { ViewerZoneCookie } from "@/components/shell/ViewerZoneCookie";
 import { TelemetryRoot } from "@/components/shell/Telemetry";
 import { getLocale } from "@/lib/i18n";
 import { publicPageMetadata } from "@/lib/seo";
@@ -70,6 +71,7 @@ export default function RootLayout({
       <body>
         <script dangerouslySetInnerHTML={{ __html: UNREGISTER_SW }} />
         <ErrorReporter />
+        <ViewerZoneCookie />
         <TelemetryRoot />
         {children}
       </body>

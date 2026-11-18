@@ -1,3 +1,4 @@
+import { rpcErrorCode } from "@/lib/actions/errors";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
@@ -41,12 +42,9 @@ export default async function EnterTournamentPage({ params }: Props) {
     p_tournament_id: event.id,
   });
 
+  // Only a code crosses the URL; the page owns the copy (fix list P2-11).
   if (error) {
-    redirect(
-      `/tournaments?error=${encodeURIComponent(
-        error.message || "Could not start your bracket."
-      )}`
-    );
+    redirect(`/tournaments?error=${rpcErrorCode(error, "bracket_start_failed")}`);
   }
 
   const row = Array.isArray(data) ? data[0] : data;
@@ -58,9 +56,7 @@ export default async function EnterTournamentPage({ params }: Props) {
       : null;
 
   if (!slug) {
-    redirect(
-      `/tournaments?error=${encodeURIComponent("Could not start your bracket.")}`
-    );
+    redirect("/tournaments?error=bracket_start_failed");
   }
 
   redirect(`/leagues/${slug}/t/${event.ref}/bracket`);

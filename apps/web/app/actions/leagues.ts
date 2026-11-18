@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { isCustomScheduleEnabled } from "@/lib/env";
+import { actionError, rpcErrorCode } from "@/lib/actions/errors";
 import { createClient } from "@/lib/supabase/server";
 import {
   parseLeagueSlug,
@@ -36,12 +37,12 @@ async function requireUser() {
 export async function ensureSoloLeague(tournamentRef: string): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) {
-    return { ok: false, error: "Sign in to fill a bracket." };
+    return { ok: false, error: actionError("sign_in_bracket") };
   }
 
   const ref = tournamentRef.trim();
   if (!ref) {
-    return { ok: false, error: "Tournament not found." };
+    return { ok: false, error: actionError("tournament_not_found") };
   }
 
   await supabase.rpc("ensure_profile");
@@ -53,7 +54,7 @@ export async function ensureSoloLeague(tournamentRef: string): Promise<ActionRes
     .maybeSingle();
 
   if (tErr || !tournament?.id) {
-    return { ok: false, error: "Tournament not found." };
+    return { ok: false, error: actionError("tournament_not_found") };
   }
 
   const { data, error } = await supabase.rpc("ensure_solo_league", {
@@ -61,11 +62,9 @@ export async function ensureSoloLeague(tournamentRef: string): Promise<ActionRes
   });
 
   if (error) {
-    const msg = error.message ?? "";
-    if (/tournament not found/i.test(msg)) {
-      return { ok: false, error: "Tournament not found." };
-    }
-    return { ok: false, error: msg || "Could not start your bracket." };
+    const code = rpcErrorCode(error, "bracket_start_failed");
+    if (code === "bracket_start_failed") reportError(error, { source: "solo_league" });
+    return { ok: false, error: actionError(code) };
   }
 
   const row = Array.isArray(data) ? data[0] : data;
@@ -75,7 +74,7 @@ export async function ensureSoloLeague(tournamentRef: string): Promise<ActionRes
       : null;
 
   if (!slug) {
-    return { ok: false, error: "Could not start your bracket." };
+    return { ok: false, error: actionError("bracket_start_failed") };
   }
 
   revalidatePath("/leagues");
@@ -85,7 +84,7 @@ export async function ensureSoloLeague(tournamentRef: string): Promise<ActionRes
 export async function createLeague(formData: FormData): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) {
-    return { ok: false, error: "Sign in to create a league." };
+    return { ok: false, error: actionError("sign_in_create") };
   }
 
   const name = String(formData.get("name") ?? "").trim();
@@ -97,16 +96,16 @@ export async function createLeague(formData: FormData): Promise<ActionResult> {
   // Form still posts tournament_label; value is tournaments.slug.
 
   if (!name) {
-    return { ok: false, error: "Give your league a name." };
+    return { ok: false, error: actionError("league_name_required") };
   }
   if (format !== "single" && format !== "season") {
-    return { ok: false, error: "Choose a format." };
+    return { ok: false, error: actionError("format_required") };
   }
   if (visibility !== "private" && visibility !== "public") {
-    return { ok: false, error: "Choose who can see it." };
+    return { ok: false, error: actionError("visibility_required") };
   }
   if (format === "single" && !tournamentLabel) {
-    return { ok: false, error: "Pick a tournament." };
+    return { ok: false, error: actionError("tournament_required") };
   }
 
   await supabase.rpc("ensure_profile");
@@ -119,7 +118,7 @@ export async function createLeague(formData: FormData): Promise<ActionResult> {
       .eq("slug", tournamentLabel)
       .maybeSingle();
     if (!t?.id) {
-      return { ok: false, error: "Pick a tournament." };
+      return { ok: false, error: actionError("tournament_required") };
     }
     tournamentId = t.id;
   }
@@ -148,7 +147,7 @@ export async function createLeague(formData: FormData): Promise<ActionResult> {
       : null;
 
   if (!createdSlug) {
-    return { ok: false, error: "Could not create the league." };
+    return { ok: false, error: actionError("league_create_failed") };
   }
 
   trackServer("league_created", user.id, { slug: createdSlug });
@@ -161,7 +160,7 @@ export async function joinLeagueWithToken(
 ): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) {
-    return { ok: false, error: "Sign in to join." };
+    return { ok: false, error: actionError("sign_in_join") };
   }
 
   const { data: leagueRow, error } = await supabase.rpc("join_with_invite", {
@@ -169,14 +168,9 @@ export async function joinLeagueWithToken(
   });
 
   if (error) {
-    const msg = error.message ?? "";
-    if (/revoked/i.test(msg)) {
-      return { ok: false, error: "This invite is no longer valid." };
-    }
-    if (/invalid/i.test(msg)) {
-      return { ok: false, error: "This invite is no longer valid." };
-    }
-    return { ok: false, error: msg || "Could not join." };
+    const code = rpcErrorCode(error, "join_failed");
+    if (code === "join_failed") reportError(error, { source: "league_join" });
+    return { ok: false, error: actionError(code) };
   }
 
   trackServer("league_joined", user.id, { token: token.slice(0, 8) });
@@ -200,7 +194,7 @@ export async function revokeAndReissueInvite(
 ): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) {
-    return { ok: false, error: "Sign in required." };
+    return { ok: false, error: actionError("sign_in") };
   }
 
   const { error } = await supabase.rpc("reissue_invite", {
@@ -210,28 +204,12 @@ export async function revokeAndReissueInvite(
   if (error) {
     return {
       ok: false,
-      error: mapLeagueRpcError(error.message, "Could not reissue invite."),
+      error: actionError(rpcErrorCode(error, "reissue_failed")),
     };
   }
 
   revalidatePath(`/leagues/${slug}`);
   return { ok: true };
-}
-
-function mapLeagueRpcError(msg: string, fallback: string): string {
-  if (/not authenticated/i.test(msg)) return "Sign in required.";
-  if (/not commissioner/i.test(msg)) return "Only the commissioner can do that.";
-  if (/invalid name/i.test(msg)) return "Give your league a name.";
-  if (/invalid visibility/i.test(msg)) return "Choose who can see it.";
-  if (/league not found/i.test(msg)) return "League not found.";
-  if (/cannot kick self/i.test(msg)) return "You cannot remove yourself.";
-  if (/cannot kick commissioner/i.test(msg))
-    return "You cannot remove the commissioner.";
-  if (/member not found/i.test(msg)) return "That member is not in this league.";
-  if (/not a member/i.test(msg)) return "You are not in this league.";
-  if (/commissioner cannot leave/i.test(msg))
-    return "Commissioners must delete the league instead of leaving.";
-  return msg || fallback;
 }
 
 export async function updateLeague(input: {
@@ -242,15 +220,15 @@ export async function updateLeague(input: {
 }): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) {
-    return { ok: false, error: "Sign in required." };
+    return { ok: false, error: actionError("sign_in") };
   }
 
   const name = input.name.trim();
   if (!name) {
-    return { ok: false, error: "Give your league a name." };
+    return { ok: false, error: actionError("league_name_required") };
   }
   if (input.visibility !== "private" && input.visibility !== "public") {
-    return { ok: false, error: "Choose who can see it." };
+    return { ok: false, error: actionError("visibility_required") };
   }
 
   const { error } = await supabase.rpc("update_league", {
@@ -262,7 +240,7 @@ export async function updateLeague(input: {
   if (error) {
     return {
       ok: false,
-      error: mapLeagueRpcError(error.message, "Could not update league."),
+      error: actionError(rpcErrorCode(error, "update_failed")),
     };
   }
 
@@ -276,7 +254,7 @@ export async function deleteLeague(
 ): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) {
-    return { ok: false, error: "Sign in required." };
+    return { ok: false, error: actionError("sign_in") };
   }
 
   const { error } = await supabase.rpc("delete_league", {
@@ -286,7 +264,7 @@ export async function deleteLeague(
   if (error) {
     return {
       ok: false,
-      error: mapLeagueRpcError(error.message, "Could not delete league."),
+      error: actionError(rpcErrorCode(error, "delete_failed")),
     };
   }
 
@@ -301,7 +279,7 @@ export async function kickMember(input: {
 }): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) {
-    return { ok: false, error: "Sign in required." };
+    return { ok: false, error: actionError("sign_in") };
   }
 
   const { error } = await supabase.rpc("kick_league_member", {
@@ -312,7 +290,7 @@ export async function kickMember(input: {
   if (error) {
     return {
       ok: false,
-      error: mapLeagueRpcError(error.message, "Could not remove member."),
+      error: actionError(rpcErrorCode(error, "kick_failed")),
     };
   }
 
@@ -415,7 +393,7 @@ export async function enableCustomScheduleAction(
 export async function leaveLeague(leagueId: string): Promise<ActionResult> {
   const { supabase, user } = await requireUser();
   if (!user) {
-    return { ok: false, error: "Sign in required." };
+    return { ok: false, error: actionError("sign_in") };
   }
 
   const { error } = await supabase.rpc("leave_league", {
@@ -425,7 +403,7 @@ export async function leaveLeague(leagueId: string): Promise<ActionResult> {
   if (error) {
     return {
       ok: false,
-      error: mapLeagueRpcError(error.message, "Could not leave league."),
+      error: actionError(rpcErrorCode(error, "leave_failed")),
     };
   }
 

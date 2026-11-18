@@ -1,3 +1,5 @@
+import { cookies } from "next/headers";
+import { VIEWER_ZONE_COOKIE, validTimeZone } from "@/lib/tournaments/viewer-zone-cookie";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
@@ -162,6 +164,7 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
       league: leagueForCheck,
       userId: user.id,
       memberCount,
+      timeZone: validTimeZone(cookies().get(VIEWER_ZONE_COOKIE)?.value),
     }),
     isCommissioner
       ? supabase
@@ -178,6 +181,9 @@ export default async function LeagueHomePage({ params, searchParams }: Props) {
       .select(
         "id, slug, name, surface, starts_on, ends_on, lock_at, venue_tz, draw_size, tour, published_at"
       )
+      // A league counting every tournament listed ITF and Challenger events
+      // too, which no bracket can be saved for (fix list P2-11).
+      .eq("bracket_eligible", true)
       .order("starts_on", { ascending: true }),
     listVerifiedDrawTournamentIds(),
   ]);

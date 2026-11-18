@@ -96,7 +96,8 @@ export function computeAlive(drawSize, official, through) {
       }
       const childKey = matchKey(r + 1, Math.floor(match.indexInRound / 2));
       const child = official[childKey];
-      if (!child?.winnerPlayerId && !child?.voided) {
+      // A void eliminates nobody (fix list P2-11; mirrors core grade.ts).
+      if (!child?.winnerPlayerId || child.voided) {
         alive.add(o.winnerPlayerId);
       }
     }
@@ -162,7 +163,9 @@ export function gradeBracket(input) {
   const finalKey = matchKey(lastRound, 0);
   const officialChampion = official[finalKey]?.winnerPlayerId ?? null;
   const myChampion = picks[finalKey] ?? null;
+  // Bonus only when grading through the final (fix list P2-11; mirrors core).
   if (
+    through === lastRound &&
     officialChampion &&
     myChampion &&
     officialChampion === myChampion &&

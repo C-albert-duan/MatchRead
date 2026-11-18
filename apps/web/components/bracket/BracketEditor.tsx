@@ -88,6 +88,11 @@ export function BracketEditor({
   const confidenceRef = useRef(confidence);
   picksRef.current = picks;
   confidenceRef.current = confidence;
+  /** Picks changed since the last successful save (fix list P2-6). */
+  const unsavedRef = useRef(false);
+  const persistRef = useRef<(p: BracketPicks, c: BracketConfidence) => Promise<void>>(
+    async () => {}
+  );
   const t = useT();
   const tf = useTf();
   const locale = useLocale();
@@ -95,6 +100,11 @@ export function BracketEditor({
   useEffect(() => {
     function onOnline() {
       setStatus((s) => (s === "offline" ? "pending" : s));
+      // A save that came due while offline was skipped; nothing else would
+      // retry it, and the picks were lost if the tab closed.
+      if (unsavedRef.current) {
+        void persistRef.current(picksRef.current, confidenceRef.current);
+      }
     }
     function onOffline() {
       setStatus("offline");
@@ -114,6 +124,7 @@ export function BracketEditor({
     if (isLocked) return;
     setStatus((s) => (s === "offline" ? "offline" : "pending"));
     setMessage(null);
+    unsavedRef.current = true;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => {
       void persist(nextPicks, nextConf);
@@ -126,14 +137,23 @@ export function BracketEditor({
       return;
     }
     setStatus("saving");
-    const result = await saveBracketPicks({
-      leagueId,
-      tournamentId,
-      picks: nextPicks,
-      confidence: nextConf,
-      leagueSlug,
-      tournamentRef,
-    });
+    let result: Awaited<ReturnType<typeof saveBracketPicks>>;
+    try {
+      result = await saveBracketPicks({
+        leagueId,
+        tournamentId,
+        picks: nextPicks,
+        confidence: nextConf,
+        leagueSlug,
+        tournamentRef,
+      });
+    } catch {
+      // The request never reached the server (connection dropped mid-save).
+      // Keep the picks marked unsaved so the next "online" retries them.
+      setStatus(typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "failed");
+      setMessage(t("bracket.fail"));
+      return;
+    }
     if (!result.ok) {
       if (result.code === "locked") {
         setIsLocked(true);
@@ -141,6 +161,10 @@ export function BracketEditor({
       setStatus("failed");
       setMessage(result.error || t("bracket.fail"));
       return;
+    }
+    // Only clear when nothing newer is waiting on the save timer.
+    if (picksRef.current === nextPicks && confidenceRef.current === nextConf) {
+      unsavedRef.current = false;
     }
     setStatus("saved");
     const savedMessage = t("bracket.saved");
@@ -150,6 +174,8 @@ export function BracketEditor({
       setMessage((m) => (m === savedMessage ? null : m));
     }, 1600);
   }
+
+  persistRef.current = persist;
 
   function handlePick(matchKey: string, playerRef: string) {
     if (isLocked) return;
@@ -203,19 +229,20 @@ export function BracketEditor({
     });
   }
 
-  function handleLockToggle(lockedNext: boolean) {
+  /** One-way: a league lock cannot be undone (fix list P2-11). */
+  function handleLock() {
     startTransition(async () => {
       const result = await adminLockTournament({
         tournamentRef,
-        locked: lockedNext,
+        locked: true,
         leagueSlug,
       });
       if (!result.ok) {
         setMessage(result.error);
         return;
       }
-      setIsLocked(lockedNext);
-      setMessage(lockedNext ? t("bracket.lockedMsg") : t("bracket.unlockedMsg"));
+      setIsLocked(true);
+      setMessage(t("bracket.lockedMsg"));
     });
   }
 
@@ -265,14 +292,14 @@ export function BracketEditor({
               {t("bracket.locked")}
             </span>
           )}
-          {isCommissioner && !platformLocked ? (
+          {isCommissioner && !platformLocked && !isLocked ? (
             <button
               type="button"
               className="act act--standard act--standard-size"
               disabled={pending}
-              onClick={() => handleLockToggle(!isLocked)}
+              onClick={handleLock}
             >
-              {isLocked ? t("bracket.unlock") : t("bracket.lock")}
+              {t("bracket.lock")}
             </button>
           ) : null}
         </div>

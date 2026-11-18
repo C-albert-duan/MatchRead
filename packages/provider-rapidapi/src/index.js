@@ -28,6 +28,8 @@ export { parseMatchCourt, parseMatchSession };
  * @typedef {object} RapidApiClientOptions
  * @property {string} key
  * @property {string} [host]
+ * @property {AbortSignal} [signal]
+ * @property {number} [timeoutMs] per-request timeout, default PROVIDER_REQUEST_TIMEOUT_MS
  */
 
 /**
@@ -60,6 +62,21 @@ export { parseMatchCourt, parseMatchSession };
  * @property {'played'|'withdrawal'|'void'|null} [fact_kind]
  */
 
+/** Default per-request timeout for provider reads. */
+export const PROVIDER_REQUEST_TIMEOUT_MS = 15_000;
+
+/**
+ * A signal that aborts when `signal` does or after `timeoutMs`, so one hung
+ * request cannot stall the listener forever (fix list P2-4).
+ * @param {AbortSignal | null | undefined} signal
+ * @param {number} timeoutMs
+ * @returns {AbortSignal}
+ */
+export function requestSignal(signal, timeoutMs) {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
 /**
  * @param {RapidApiClientOptions} opts
  */
@@ -68,6 +85,10 @@ export function createClient(opts) {
   const host = (opts.host || "tennis-api-atp-wta-itf.p.rapidapi.com").trim();
   const onRawBody = typeof opts.onRawBody === "function" ? opts.onRawBody : null;
   const signal = opts.signal instanceof AbortSignal ? opts.signal : null;
+  const timeoutMs =
+    typeof opts.timeoutMs === "number" && opts.timeoutMs > 0
+      ? opts.timeoutMs
+      : PROVIDER_REQUEST_TIMEOUT_MS;
   if (!key) throw new Error("RAPIDAPI_KEY required");
 
   /**
@@ -78,7 +99,7 @@ export function createClient(opts) {
     throwIfAborted(signal);
     const url = `https://${host}${path}`;
     const res = await fetch(url, {
-      signal: signal ?? undefined,
+      signal: requestSignal(signal, timeoutMs),
       headers: {
         "X-RapidAPI-Key": key,
         "X-RapidAPI-Host": host,
@@ -149,8 +170,11 @@ export async function connectLive(env = process.env, client, log, options = {}) 
   const host = String(env?.RAPIDAPI_HOST ?? "").trim();
   const controller = new AbortController();
   const external = options?.signal instanceof AbortSignal ? options.signal : null;
+  // Removed in close(): each reconnect builds a new client, and a listener
+  // left on a long-lived stop signal leaks one closure per reconnect (P2-4).
+  const onExternalAbort = () => controller.abort();
   if (external?.aborted) controller.abort();
-  else external?.addEventListener("abort", () => controller.abort(), { once: true });
+  else external?.addEventListener("abort", onExternalAbort, { once: true });
   const http = client ?? createClient({ key, ...(host ? { host } : {}), signal: controller.signal });
   const auth = await getWsToken(http);
   if (!auth.token) {
@@ -165,6 +189,7 @@ export async function connectLive(env = process.env, client, log, options = {}) 
     if (closed) return;
     closed = true;
     token = null;
+    external?.removeEventListener("abort", onExternalAbort);
     controller.abort();
   }
 

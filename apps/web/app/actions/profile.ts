@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { actionError } from "@/lib/actions/errors";
+import { reportError } from "@/lib/report-error";
 import { createClient } from "@/lib/supabase/server";
 
 export type ProfileActionResult =
@@ -18,10 +20,7 @@ export async function saveMyDisplayName(
 ): Promise<ProfileActionResult> {
   const name = normalizeDisplayName(rawName);
   if (!name) {
-    return {
-      ok: false,
-      error: "Choose a display name between 2 and 32 characters.",
-    };
+    return { ok: false, error: actionError("display_name_invalid") };
   }
 
   const supabase = createClient();
@@ -29,7 +28,7 @@ export async function saveMyDisplayName(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return { ok: false, error: "Sign in required." };
+    return { ok: false, error: actionError("sign_in") };
   }
 
   const { data, error } = await supabase.rpc("set_my_display_name", {
@@ -37,13 +36,24 @@ export async function saveMyDisplayName(
   });
 
   if (error) {
-    // Fallback if migration 0009 not applied yet
+    // Only a missing RPC (an old database) may fall back to the direct write.
+    // Any other error is the RPC refusing the name; the upsert used to hide
+    // it and store the name anyway (fix list P2-11).
+    const missing = error.code === "PGRST202" || error.code === "42883";
+    if (!missing) {
+      if (/display name/i.test(error.message ?? "")) {
+        return { ok: false, error: actionError("display_name_invalid") };
+      }
+      reportError(error, { source: "display_name" });
+      return { ok: false, error: actionError("display_name_failed") };
+    }
     const { error: upsertError } = await supabase.from("profiles").upsert({
       id: user.id,
       display_name: name,
     });
     if (upsertError) {
-      return { ok: false, error: error.message || upsertError.message };
+      reportError(upsertError, { source: "display_name" });
+      return { ok: false, error: actionError("display_name_failed") };
     }
   }
 

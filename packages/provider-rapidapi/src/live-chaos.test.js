@@ -302,4 +302,25 @@ describe("chaos suite", () => {
     assert.equal(next.score_text, "6-4,6-2");
     assert.deepEqual(officialOf(admin), before);
   });
+
+  it("retries a batch whose live upsert failed instead of dropping it (P2-1)", async () => {
+    const admin = createReplayAdmin();
+    seedReplayCatalog(admin, catalog);
+    const realRpc = admin.rpc.bind(admin);
+    admin.rpc = async () => ({
+      data: null,
+      error: { code: "57014", message: "canceling statement due to statement timeout" },
+    });
+    const live = frame();
+
+    await assert.rejects(replayThroughIngest(admin, [live], []), /live upsert failed/);
+    assert.equal(liveRows(admin).length, 0);
+    assert.equal(admin.tables.platform_events.length, 0, "the archive row is rolled back");
+
+    admin.rpc = realRpc;
+    const retry = await replayThroughIngest(admin, [live], []);
+    assert.equal(retry.forwarded, 1);
+    assert.equal(liveRows(admin).length, 1, "the retry applies the frame");
+    assert.equal(liveRows(admin)[0].score_text, "1-0");
+  });
 });

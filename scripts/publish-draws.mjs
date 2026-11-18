@@ -6,14 +6,15 @@
  * (which re-resolves with the deployed provider and apply-draw).
  *
  * Usage (repo root):
- *   node scripts/publish-draws.mjs --dry-run
+ *   node scripts/publish-draws.mjs                           (dry-run, default)
+ *   node scripts/publish-draws.mjs --write --confirm-remote  (POST sync-facts)
  *   node scripts/publish-draws.mjs
  *   node scripts/publish-draws.mjs --slug t-atp-21347
  *   node scripts/publish-draws.mjs --ref t-atp-21347
  *
  * Env (.env.provider / apps/web/.env.local):
  *   RAPIDAPI_KEY, RAPIDAPI_HOST
- *   MATCHREAD_INGEST_URL, INGEST_SECRET   (required unless --dry-run)
+ *   MATCHREAD_INGEST_URL, INGEST_SECRET   (required with --write)
  *   NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY  (tournament listing)
  */
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
@@ -26,6 +27,7 @@ import {
   overlayOfficialDraw,
   resolveOfficialSeats,
 } from "@matchread/provider-rapidapi";
+import { writeMode } from "./lib/write-guard.mjs";
 
 function matchupsFromPairs(pairs, prefix) {
   return pairs.map((p) => ({
@@ -89,11 +91,15 @@ function loadEnvFile(path) {
 }
 
 function parseArgs(argv) {
-  const out = { dryRun: false, force: false, slug: null };
+  const mode = writeMode(argv);
+  if (mode.blocked) {
+    console.error(mode.blocked);
+    process.exit(2);
+  }
+  const out = { dryRun: mode.dryRun, force: false, slug: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--dry-run") out.dryRun = true;
-    else if (a === "--force") out.force = true;
+    if (a === "--force") out.force = true;
     else if (a === "--slug" || a === "--ref") out.slug = argv[++i];
     else if (a.startsWith("--slug=")) out.slug = a.slice(7);
     else if (a.startsWith("--ref=")) out.slug = a.slice(6);

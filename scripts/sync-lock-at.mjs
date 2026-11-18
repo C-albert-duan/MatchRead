@@ -4,8 +4,11 @@
  * Date-only fixtures are ignored (no invented kickoff).
  *
  * Usage (repo root):
- *   node scripts/sync-lock-at.mjs
- *   node scripts/sync-lock-at.mjs --dry-run
+ *   node scripts/sync-lock-at.mjs                              (dry-run, default)
+ *   node scripts/sync-lock-at.mjs --write --confirm-remote     (apply)
+ *
+ * A lock that has already passed is never moved: picks are fixed by then
+ * (fix list P2-8).
  *
  * Env: .env.provider (RAPIDAPI_KEY, RAPIDAPI_HOST)
  * DB: Supabase Management API via CLI token (same as apply-sql-migration.mjs)
@@ -18,11 +21,18 @@ import {
   firstMainDrawBall,
   getTournamentFixtures,
 } from "@matchread/provider-rapidapi";
+import { lockHasPassed, writeMode } from "./lib/write-guard.mjs";
 
 const projectRef = process.argv.includes("--project")
   ? process.argv[process.argv.indexOf("--project") + 1]
   : "opugihofwvunwkpcmboq";
-const dryRun = process.argv.includes("--dry-run");
+const mode = writeMode(process.argv.slice(2));
+if (mode.blocked) {
+  console.error(mode.blocked);
+  process.exit(2);
+}
+const dryRun = mode.dryRun;
+if (dryRun) console.log(`DRY-RUN on project ${projectRef}. Pass --write --confirm-remote to apply.`);
 
 function loadEnvFile(path) {
   if (!existsSync(path)) return {};
@@ -128,10 +138,10 @@ if (!token.startsWith("sbp_")) {
 
 const rows = await runSql(
   token,
-  `select ref, tour, provider_tournament_id, lock_at
+  `select slug, tour, provider_id, lock_at
    from public.tournaments
-   where provider_tournament_id is not null
-   order by starts_on nulls last, ref`
+   where provider_id is not null
+   order by starts_on nulls last, slug`
 );
 const tournaments = Array.isArray(rows) ? rows : rows?.data ?? [];
 console.log("tournaments", tournaments.length);
@@ -139,9 +149,13 @@ console.log("tournaments", tournaments.length);
 const client = createClient({ key, host: env.RAPIDAPI_HOST });
 
 for (const row of tournaments) {
-  const ref = row.ref;
+  const ref = row.slug;
   const tour = row.tour === "wta" ? "wta" : "atp";
-  const providerId = String(row.provider_tournament_id);
+  const providerId = String(row.provider_id);
+  if (lockHasPassed(row.lock_at)) {
+    console.log(ref, "lock passed", row.lock_at, "— never moved");
+    continue;
+  }
   try {
     const { fixtures } = await getTournamentFixtures(client, tour, providerId);
     const ball = firstMainDrawBall(fixtures);
@@ -159,7 +173,8 @@ for (const row of tournaments) {
       token,
       `update public.tournaments
        set lock_at = ${sqlLiteral(ball.scheduled_at)}::timestamptz
-       where ref = ${sqlLiteral(ref)}`
+       where slug = ${sqlLiteral(ref)}
+         and (lock_at is null or lock_at > now())`
     );
   } catch (err) {
     console.warn(ref, err instanceof Error ? err.message : err);

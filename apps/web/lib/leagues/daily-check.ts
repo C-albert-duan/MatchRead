@@ -7,6 +7,7 @@ import {
   type DailyCheck,
   type DrawSeat,
   type OfficialResults,
+  type PulseInput,
   type StandingPulseRow,
 } from "@matchread/core";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -22,7 +23,29 @@ import {
   EMPTY_ENGAGEMENT,
   type LeagueEngagement,
 } from "@/lib/leagues/engagement";
+import { pickCurrentTournament, type ScheduledTournament } from "@/lib/leagues/current-tournament";
 import { loadDisplayNames, memberLabel } from "@/lib/profiles/labels";
+import { hourInZone } from "@/lib/tournaments/viewer-zone-cookie";
+import { getLocale, tf, type MessageKey } from "@/lib/i18n";
+
+/**
+ * Daily Check copy in the viewer's language (fix list P2-9). Core phrases
+ * every message through `say`; the catalogue holds them under `pulse.*`.
+ */
+function pulseLocale(): Pick<PulseInput, "say" | "ordinal" | "formatNumber"> {
+  const locale = getLocale();
+  const numbers = new Intl.NumberFormat(locale);
+  return {
+    say: (key, vars) => tf(`pulse.${key}` as MessageKey, vars ?? {}),
+    ordinal:
+      locale === "es"
+        ? (n) => `${n}.º`
+        : locale === "ja"
+          ? (n) => `${n}位`
+          : undefined,
+    formatNumber: (n) => numbers.format(n),
+  };
+}
 
 type LeagueRow = {
   id: string;
@@ -53,11 +76,25 @@ async function resolveLeagueTournamentId(
   if (league.tournament_id) return league.tournament_id;
   const { data } = await supabase
     .from("league_tournaments")
-    .select("tournament_id")
-    .eq("league_id", league.id)
-    .limit(1)
-    .maybeSingle();
-  return data?.tournament_id ?? null;
+    .select("tournament_id, tournaments(starts_on, ends_on)")
+    .eq("league_id", league.id);
+  const rows: ScheduledTournament[] = (
+    (data ?? []) as Array<{
+      tournament_id: string;
+      tournaments:
+        | { starts_on: string | null; ends_on: string | null }
+        | { starts_on: string | null; ends_on: string | null }[]
+        | null;
+    }>
+  ).map((row) => {
+    const t = Array.isArray(row.tournaments) ? row.tournaments[0] : row.tournaments;
+    return {
+      tournament_id: row.tournament_id,
+      starts_on: t?.starts_on ?? null,
+      ends_on: t?.ends_on ?? null,
+    };
+  });
+  return pickCurrentTournament(rows, new Date().toISOString().slice(0, 10));
 }
 
 /**
@@ -68,9 +105,12 @@ export async function loadDailyCheck(input: {
   league: LeagueRow;
   userId: string;
   memberCount: number;
+  /** Viewer IANA zone (validated). Without it the copy uses no time frame. */
+  timeZone?: string | null;
 }): Promise<LeagueHomeBundle> {
   const { supabase, league, userId, memberCount } = input;
-  const hour = new Date().getHours();
+  // The server clock is UTC; "This morning" must follow the viewer (P2-7).
+  const hour = input.timeZone ? hourInZone(input.timeZone) : undefined;
 
   const tournamentId = await resolveLeagueTournamentId(supabase, league);
 
@@ -115,6 +155,7 @@ export async function loadDailyCheck(input: {
 
   if (!tournamentRow) {
     const check = computeDailyCheck({
+      ...pulseLocale(),
       eventName: league.tournament_label ?? league.name,
       leagueSlug: league.slug,
       tournamentRef: null,
@@ -306,6 +347,7 @@ export async function loadDailyCheck(input: {
       : EMPTY_ENGAGEMENT;
 
   const check = computeDailyCheck({
+      ...pulseLocale(),
     eventName: tournament.name,
     leagueSlug: league.slug,
     tournamentRef: tournament.ref,

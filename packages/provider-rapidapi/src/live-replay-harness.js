@@ -165,6 +165,10 @@ export function applyLiveUpsert(table, args) {
     }
     clockNewer = true;
   }
+  // 0050: a receipt-ordered row gives way to a provider-ordered frame.
+  if (!clockNewer && prev.sequence_source === "receivedAt" && (source === "seq" || source === "updatedAt")) {
+    clockNewer = true;
+  }
   if (!clockNewer) {
     const rank = { seq: 3, updatedAt: 2, receivedAt: 1 };
     if (prev.sequence_source !== source || rank[prev.sequence_source] !== rank[source]) {
@@ -209,6 +213,17 @@ export function createReplayAdmin() {
       return {
         select() {
           return query(bucket);
+        },
+        delete() {
+          return {
+            in(column, values) {
+              const drop = new Set(values);
+              for (let i = bucket.length - 1; i >= 0; i--) {
+                if (drop.has(bucket[i][column])) bucket.splice(i, 1);
+              }
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
         },
         insert(payload) {
           const rows = (Array.isArray(payload) ? payload : [payload]).map((row) => ({ ...row }));

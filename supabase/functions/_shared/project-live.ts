@@ -4,7 +4,10 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { unknownLiveRecord } from "../../../packages/provider-rapidapi/src/live-frame.js";
-import { retainNovelRawEvents } from "../../../packages/provider-rapidapi/src/live-archive.js";
+import {
+  forgetRawEvents,
+  retainNovelRawEvents,
+} from "../../../packages/provider-rapidapi/src/live-archive.js";
 import { ingestLiveFrames, persistUnknownLive } from "../../../packages/provider-rapidapi/src/live-ingest.js";
 import { capturedTournamentId } from "../../../packages/provider-rapidapi/src/live.js";
 
@@ -25,6 +28,12 @@ export async function projectLiveBranch(
   return ingestLiveFrames(admin, event, liveEvents, { dryRun, log, now });
 }
 
+/**
+ * Archive the forwarded frames, then project the new ones. If projection
+ * throws, the new archive rows are removed again and the error propagates
+ * (a 500 to the listener), so the retry projects the same frames instead of
+ * dropping them as already seen (fix list P2-1).
+ */
 export async function acceptForwardedLive(
   admin: SupabaseClient,
   frames: Record<string, unknown>[],
@@ -35,6 +44,21 @@ export async function acceptForwardedLive(
     frames.length ? await retainNovelRawEvents(admin, frames, log) : []
   ) as Record<string, unknown>[];
   if (fresh.length < frames.length) log.push(`live duplicate ${frames.length - fresh.length}`);
+  try {
+    return await projectForwarded(admin, frames, fresh, log, opts);
+  } catch (err) {
+    await forgetRawEvents(admin, fresh, log);
+    throw err;
+  }
+}
+
+async function projectForwarded(
+  admin: SupabaseClient,
+  frames: Record<string, unknown>[],
+  fresh: Record<string, unknown>[],
+  log: string[],
+  opts?: { now?: string }
+) {
   const groups = new Map<string, Record<string, unknown>[]>();
   const unparsed: ReturnType<typeof unknownLiveRecord>[] = [];
   let skipped = 0;
@@ -81,7 +105,7 @@ export async function acceptForwardedLive(
     const event = matches[0];
     tournaments += 1;
     carriedProviderIds.push(providerId);
-    const projected = await projectLiveBranch(
+    const projected = await ingestLiveFrames(
       admin,
       {
         id: String(event.id),
@@ -89,9 +113,7 @@ export async function acceptForwardedLive(
         slug: String(event.slug),
       },
       rows,
-      log,
-      false,
-      opts?.now
+      { dryRun: false, log, now: opts?.now, strict: true }
     );
     unmappedCarried += Number(projected.unmapped || 0) + Number(projected.ambiguous || 0);
   }
